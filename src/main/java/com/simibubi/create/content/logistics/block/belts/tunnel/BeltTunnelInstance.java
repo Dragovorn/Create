@@ -5,25 +5,25 @@ import java.util.Collection;
 import java.util.EnumMap;
 import java.util.Map;
 
-import com.jozufozu.flywheel.backend.instancing.IDynamicInstance;
-import com.jozufozu.flywheel.backend.instancing.InstanceData;
-import com.jozufozu.flywheel.backend.instancing.Instancer;
-import com.jozufozu.flywheel.backend.instancing.tile.TileEntityInstance;
-import com.jozufozu.flywheel.backend.material.MaterialManager;
+import com.jozufozu.flywheel.api.InstanceData;
+import com.jozufozu.flywheel.api.Instancer;
+import com.jozufozu.flywheel.api.MaterialManager;
+import com.jozufozu.flywheel.api.instance.DynamicInstance;
+import com.jozufozu.flywheel.backend.instancing.blockentity.BlockEntityInstance;
 import com.simibubi.create.AllBlockPartials;
-import com.simibubi.create.content.logistics.block.FlapData;
-import com.simibubi.create.foundation.gui.widgets.InterpolatedValue;
+import com.simibubi.create.content.logistics.block.flap.FlapData;
 import com.simibubi.create.foundation.render.AllMaterialSpecs;
 import com.simibubi.create.foundation.utility.AnimationTickHolder;
+import com.simibubi.create.foundation.utility.animation.LerpedFloat;
 
-import net.minecraft.util.Direction;
-import net.minecraft.world.LightType;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.LightLayer;
 
-public class BeltTunnelInstance extends TileEntityInstance<BeltTunnelTileEntity> implements IDynamicInstance {
+public class BeltTunnelInstance extends BlockEntityInstance<BeltTunnelTileEntity> implements DynamicInstance {
 
     private final Map<Direction, ArrayList<FlapData>> tunnelFlaps;
 
-    public BeltTunnelInstance(MaterialManager<?> modelManager, BeltTunnelTileEntity tile) {
+    public BeltTunnelInstance(MaterialManager modelManager, BeltTunnelTileEntity tile) {
         super(modelManager, tile);
 
         tunnelFlaps = new EnumMap<>(Direction.class);
@@ -32,12 +32,12 @@ public class BeltTunnelInstance extends TileEntityInstance<BeltTunnelTileEntity>
                 .material(AllMaterialSpecs.FLAPS)
 				.getModel(AllBlockPartials.BELT_TUNNEL_FLAP, blockState);
 
-        int blockLight = world.getBrightness(LightType.BLOCK, pos);
-        int skyLight = world.getBrightness(LightType.SKY, pos);
+        int blockLight = world.getBrightness(LightLayer.BLOCK, pos);
+        int skyLight = world.getBrightness(LightLayer.SKY, pos);
 
         tile.flaps.forEach((direction, flapValue) -> {
 
-            float flapness = flapValue.get(AnimationTickHolder.getPartialTicks());
+            float flapness = flapValue.getValue(AnimationTickHolder.getPartialTicks());
 
             float horizontalAngle = direction.getOpposite().toYRot();
 
@@ -70,18 +70,17 @@ public class BeltTunnelInstance extends TileEntityInstance<BeltTunnelTileEntity>
 
 	@Override
 	public boolean shouldReset() {
-		return super.shouldReset() || tunnelFlaps.size() != tile.flaps.size();
+		return super.shouldReset() || tunnelFlaps.size() != blockEntity.flaps.size();
 	}
 
     @Override
     public void beginFrame() {
         tunnelFlaps.forEach((direction, keys) -> {
-            InterpolatedValue flapValue = tile.flaps.get(direction);
-            if (flapValue == null) {
+            LerpedFloat lerpedFloat = blockEntity.flaps.get(direction);
+            if (lerpedFloat == null) 
                 return;
-            }
 
-            float flapness = flapValue.get(AnimationTickHolder.getPartialTicks());
+            float flapness = lerpedFloat.getValue(AnimationTickHolder.getPartialTicks());
             for (FlapData flap : keys) {
                 flap.setFlapness(flapness);
             }

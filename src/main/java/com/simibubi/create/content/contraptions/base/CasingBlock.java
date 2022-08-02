@@ -2,43 +2,40 @@ package com.simibubi.create.content.contraptions.base;
 
 import com.simibubi.create.content.contraptions.wrench.IWrenchable;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.ItemUseContext;
-import net.minecraft.util.ActionResultType;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.IBlockReader;
-import net.minecraftforge.common.ToolType;
+import net.minecraft.core.NonNullList;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 
 public class CasingBlock extends Block implements IWrenchable {
 
-	public CasingBlock(Properties p_i48440_1_) {
-		super(p_i48440_1_);
-	}
+	private boolean visible;
 
-	@Override
-	public ActionResultType onWrenched(BlockState state, ItemUseContext context) {
-		return ActionResultType.FAIL;
-	}
-
-	@Override
-	public ToolType getHarvestTool(BlockState state) {
-		return null;
-	}
-
-	@Override
-	public boolean canHarvestBlock(BlockState state, IBlockReader world, BlockPos pos, PlayerEntity player) {
-		for (ToolType toolType : player.getMainHandItem().getToolTypes()) {
-			if (isToolEffective(state, toolType))
-				return true;
-		}		
-		return super.canHarvestBlock(state, world, pos, player);
+	public static CasingBlock deprecated(Properties p_i48440_1_) {
+		return new CasingBlock(p_i48440_1_, false);
 	}
 	
+	public CasingBlock(Properties p_i48440_1_) {
+		this(p_i48440_1_, true);
+	}
+
+	public CasingBlock(Properties p_i48440_1_, boolean visible) {
+		super(p_i48440_1_);
+		this.visible = visible;
+	}
+
 	@Override
-	public boolean isToolEffective(BlockState state, ToolType tool) {
-		return tool == ToolType.AXE || tool == ToolType.PICKAXE;
+	public void fillItemCategory(CreativeModeTab pCategory, NonNullList<ItemStack> pItems) {
+		if (visible)
+			super.fillItemCategory(pCategory, pItems);
+	}
+
+	@Override
+	public InteractionResult onWrenched(BlockState state, UseOnContext context) {
+		return InteractionResult.FAIL;
 	}
 
 }

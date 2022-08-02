@@ -12,7 +12,8 @@ import net.minecraftforge.fml.ModList;
  */
 public enum Mods {
 	DYNAMICTREES,
-	TCONSTRUCT;
+	TCONSTRUCT,
+	CURIOS;
 
 	/**
 	 * @return a boolean of whether the mod is loaded or not based on mod id
@@ -37,5 +38,15 @@ public enum Mods {
 		if (isLoaded())
 			return Optional.of(toRun.get().get());
 		return Optional.empty();
+	}
+
+	/**
+	 * Simple hook to execute code if a mod is installed
+	 * @param toExecute will be executed only if the mod is loaded
+	 */
+	public void executeIfInstalled(Supplier<Runnable> toExecute) {
+		if (isLoaded()) {
+			toExecute.get().run();
+		}
 	}
 }

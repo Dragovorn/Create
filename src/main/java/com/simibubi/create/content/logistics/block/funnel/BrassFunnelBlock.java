@@ -2,10 +2,10 @@ package com.simibubi.create.content.logistics.block.funnel;
 
 import com.simibubi.create.AllBlocks;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.IBlockReader;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.block.state.BlockState;
 
 public class BrassFunnelBlock extends FunnelBlock {
 
@@ -14,7 +14,7 @@ public class BrassFunnelBlock extends FunnelBlock {
 	}
 
 	@Override
-	public BlockState getEquivalentBeltFunnel(IBlockReader world, BlockPos pos, BlockState state) {
+	public BlockState getEquivalentBeltFunnel(BlockGetter world, BlockPos pos, BlockState state) {
 		Direction facing = getFacing(state);
 		return AllBlocks.BRASS_BELT_FUNNEL.getDefaultState()
 			.setValue(BeltFunnelBlock.HORIZONTAL_FACING, facing)

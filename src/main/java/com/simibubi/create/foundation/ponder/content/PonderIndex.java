@@ -3,8 +3,10 @@ package com.simibubi.create.foundation.ponder.content;
 import com.simibubi.create.AllBlocks;
 import com.simibubi.create.AllItems;
 import com.simibubi.create.Create;
+import com.simibubi.create.foundation.config.AllConfigs;
 import com.simibubi.create.foundation.ponder.PonderRegistrationHelper;
 import com.simibubi.create.foundation.ponder.PonderRegistry;
+import com.simibubi.create.foundation.ponder.PonderTag;
 import com.simibubi.create.foundation.ponder.content.fluid.DrainScenes;
 import com.simibubi.create.foundation.ponder.content.fluid.FluidMovementActorScenes;
 import com.simibubi.create.foundation.ponder.content.fluid.FluidTankScenes;
@@ -12,15 +14,20 @@ import com.simibubi.create.foundation.ponder.content.fluid.HosePulleyScenes;
 import com.simibubi.create.foundation.ponder.content.fluid.PipeScenes;
 import com.simibubi.create.foundation.ponder.content.fluid.PumpScenes;
 import com.simibubi.create.foundation.ponder.content.fluid.SpoutScenes;
+import com.simibubi.create.foundation.ponder.content.trains.TrackObserverScenes;
+import com.simibubi.create.foundation.ponder.content.trains.TrackScenes;
+import com.simibubi.create.foundation.ponder.content.trains.TrainScenes;
+import com.simibubi.create.foundation.ponder.content.trains.TrainSignalScenes;
+import com.simibubi.create.foundation.ponder.content.trains.TrainStationScenes;
 
-import net.minecraft.block.Blocks;
-import net.minecraft.item.DyeColor;
+import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.level.block.Blocks;
 
 public class PonderIndex {
 
 	static final PonderRegistrationHelper HELPER = new PonderRegistrationHelper(Create.ID);
 
-	public static final boolean EDITOR_MODE = false;
+	public static final boolean REGISTER_DEBUG_SCENES = false;
 
 	public static void register() {
 		// Register storyboards here
@@ -34,11 +41,13 @@ public class PonderIndex {
 
 		HELPER.forComponents(AllBlocks.COGWHEEL)
 			.addStoryBoard("cog/small", KineticsScenes::cogAsRelay, PonderTag.KINETIC_RELAYS)
-			.addStoryBoard("cog/speedup", KineticsScenes::cogsSpeedUp);
+			.addStoryBoard("cog/speedup", KineticsScenes::cogsSpeedUp)
+			.addStoryBoard("cog/encasing", KineticsScenes::cogwheelsCanBeEncased);
 
 		HELPER.forComponents(AllBlocks.LARGE_COGWHEEL)
 			.addStoryBoard("cog/speedup", KineticsScenes::cogsSpeedUp)
-			.addStoryBoard("cog/large", KineticsScenes::largeCogAsRelay, PonderTag.KINETIC_RELAYS);
+			.addStoryBoard("cog/large", KineticsScenes::largeCogAsRelay, PonderTag.KINETIC_RELAYS)
+			.addStoryBoard("cog/encasing", KineticsScenes::cogwheelsCanBeEncased);
 
 		HELPER.forComponents(AllItems.BELT_CONNECTOR)
 			.addStoryBoard("belt/connect", BeltScenes::beltConnector, PonderTag.KINETIC_RELAYS)
@@ -54,38 +63,32 @@ public class PonderIndex {
 			.addStoryBoard("gearbox", KineticsScenes::gearbox, PonderTag.KINETIC_RELAYS);
 
 		HELPER.addStoryBoard(AllBlocks.CLUTCH, "clutch", KineticsScenes::clutch, PonderTag.KINETIC_RELAYS);
-		HELPER.addStoryBoard(AllBlocks.GEARSHIFT, "gearshift", KineticsScenes::gearshift,
-			PonderTag.KINETIC_RELAYS);
+		HELPER.addStoryBoard(AllBlocks.GEARSHIFT, "gearshift", KineticsScenes::gearshift, PonderTag.KINETIC_RELAYS);
 
 		HELPER.forComponents(AllBlocks.SEQUENCED_GEARSHIFT)
 			.addStoryBoard("sequenced_gearshift", KineticsScenes::sequencedGearshift);
 
 		HELPER.forComponents(AllBlocks.ENCASED_FAN)
 			.addStoryBoard("fan/direction", FanScenes::direction, PonderTag.KINETIC_APPLIANCES)
-			.addStoryBoard("fan/processing", FanScenes::processing)
-			.addStoryBoard("fan/source", FanScenes::source, PonderTag.KINETIC_SOURCES);
+			.addStoryBoard("fan/processing", FanScenes::processing);
 
-		HELPER.addStoryBoard(AllBlocks.CREATIVE_MOTOR, "creative_motor", KineticsScenes::creativeMotor,
-				PonderTag.KINETIC_SOURCES);
+		HELPER.forComponents(AllBlocks.CREATIVE_MOTOR)
+			.addStoryBoard("creative_motor", KineticsScenes::creativeMotor, PonderTag.KINETIC_SOURCES)
+			.addStoryBoard("creative_motor_mojang", KineticsScenes::creativeMotorMojang);
 		HELPER.addStoryBoard(AllBlocks.WATER_WHEEL, "water_wheel", KineticsScenes::waterWheel,
-				PonderTag.KINETIC_SOURCES);
-		HELPER.addStoryBoard(AllBlocks.HAND_CRANK, "hand_crank", KineticsScenes::handCrank,
-				PonderTag.KINETIC_SOURCES);
+			PonderTag.KINETIC_SOURCES);
+		HELPER.addStoryBoard(AllBlocks.HAND_CRANK, "hand_crank", KineticsScenes::handCrank, PonderTag.KINETIC_SOURCES);
 
 		HELPER.addStoryBoard(AllBlocks.COPPER_VALVE_HANDLE, "valve_handle", KineticsScenes::valveHandle,
-				PonderTag.KINETIC_SOURCES);
+			PonderTag.KINETIC_SOURCES);
 		HELPER.forComponents(AllBlocks.DYED_VALVE_HANDLES.toArray())
-				.addStoryBoard("valve_handle", KineticsScenes::valveHandle);
+			.addStoryBoard("valve_handle", KineticsScenes::valveHandle);
 
-		HELPER.addStoryBoard(AllBlocks.ENCASED_CHAIN_DRIVE, "chain_drive/relay",
-				ChainDriveScenes::chainDriveAsRelay, PonderTag.KINETIC_RELAYS);
+		HELPER.addStoryBoard(AllBlocks.ENCASED_CHAIN_DRIVE, "chain_drive/relay", ChainDriveScenes::chainDriveAsRelay,
+			PonderTag.KINETIC_RELAYS);
 		HELPER.forComponents(AllBlocks.ENCASED_CHAIN_DRIVE, AllBlocks.ADJUSTABLE_CHAIN_GEARSHIFT)
-				.addStoryBoard("chain_drive/gearshift", ChainDriveScenes::adjustableChainGearshift);
+			.addStoryBoard("chain_drive/gearshift", ChainDriveScenes::adjustableChainGearshift);
 
-		HELPER.forComponents(AllBlocks.FURNACE_ENGINE)
-				.addStoryBoard("furnace_engine", KineticsScenes::furnaceEngine);
-		HELPER.forComponents(AllBlocks.FLYWHEEL)
-			.addStoryBoard("furnace_engine", KineticsScenes::flywheel);
 		HELPER.forComponents(AllBlocks.ROTATION_SPEED_CONTROLLER)
 			.addStoryBoard("speed_controller", KineticsScenes::speedController);
 
@@ -104,8 +107,7 @@ public class PonderIndex {
 			.addStoryBoard("basin", ProcessingScenes::basin)
 			.addStoryBoard("mechanical_mixer/mixing", ProcessingScenes::mixing)
 			.addStoryBoard("mechanical_press/compacting", ProcessingScenes::compacting);
-		HELPER.addStoryBoard(AllItems.EMPTY_BLAZE_BURNER, "empty_blaze_burner",
-			ProcessingScenes::emptyBlazeBurner);
+		HELPER.addStoryBoard(AllItems.EMPTY_BLAZE_BURNER, "empty_blaze_burner", ProcessingScenes::emptyBlazeBurner);
 		HELPER.addStoryBoard(AllBlocks.BLAZE_BURNER, "blaze_burner", ProcessingScenes::blazeBurner);
 		HELPER.addStoryBoard(AllBlocks.DEPOT, "depot", BeltScenes::depot);
 		HELPER.forComponents(AllBlocks.WEIGHTED_EJECTOR)
@@ -119,6 +121,11 @@ public class PonderIndex {
 			.addStoryBoard("mechanical_crafter/connect", CrafterScenes::connect);
 		HELPER.forComponents(AllBlocks.MECHANICAL_CRAFTER, AllItems.CRAFTER_SLOT_COVER)
 			.addStoryBoard("mechanical_crafter/covers", CrafterScenes::covers);
+
+		// Vaults
+		HELPER.forComponents(AllBlocks.ITEM_VAULT)
+			.addStoryBoard("item_vault/storage", ItemVaultScenes::storage, PonderTag.LOGISTICS)
+			.addStoryBoard("item_vault/sizes", ItemVaultScenes::sizes);
 
 		// Chutes
 		HELPER.forComponents(AllBlocks.CHUTE)
@@ -261,7 +268,8 @@ public class PonderIndex {
 			.addStoryBoard("fluid_tank/storage", FluidTankScenes::storage, PonderTag.FLUIDS)
 			.addStoryBoard("fluid_tank/sizes", FluidTankScenes::sizes);
 		HELPER.forComponents(AllBlocks.CREATIVE_FLUID_TANK)
-			.addStoryBoard("fluid_tank/storage_creative", FluidTankScenes::creative, PonderTag.FLUIDS, PonderTag.CREATIVE)
+			.addStoryBoard("fluid_tank/storage_creative", FluidTankScenes::creative, PonderTag.FLUIDS,
+				PonderTag.CREATIVE)
 			.addStoryBoard("fluid_tank/sizes_creative", FluidTankScenes::sizes);
 		HELPER.forComponents(AllBlocks.HOSE_PULLEY)
 			.addStoryBoard("hose_pulley/intro", HosePulleyScenes::intro, PonderTag.FLUIDS, PonderTag.KINETIC_APPLIANCES)
@@ -277,12 +285,10 @@ public class PonderIndex {
 			.addStoryBoard("portable_interface/redstone_fluid", MovementActorScenes::psiRedstone);
 
 		// Redstone
+		HELPER.forComponents(AllBlocks.PULSE_EXTENDER)
+			.addStoryBoard("pulse_extender", RedstoneScenes::pulseExtender);
 		HELPER.forComponents(AllBlocks.PULSE_REPEATER)
 			.addStoryBoard("pulse_repeater", RedstoneScenes::pulseRepeater);
-		HELPER.forComponents(AllBlocks.ADJUSTABLE_REPEATER)
-			.addStoryBoard("adjustable_repeater", RedstoneScenes::adjustableRepeater);
-		HELPER.forComponents(AllBlocks.ADJUSTABLE_PULSE_REPEATER)
-			.addStoryBoard("adjustable_pulse_repeater", RedstoneScenes::adjustablePulseRepeater);
 		HELPER.forComponents(AllBlocks.POWERED_LATCH)
 			.addStoryBoard("powered_latch", RedstoneScenes::poweredLatch);
 		HELPER.forComponents(AllBlocks.POWERED_TOGGLE_LATCH)
@@ -293,10 +299,53 @@ public class PonderIndex {
 			.addStoryBoard("nixie_tube", RedstoneScenes::nixieTube);
 		HELPER.forComponents(AllBlocks.REDSTONE_LINK)
 			.addStoryBoard("redstone_link", RedstoneScenes::redstoneLink);
+		HELPER.forComponents(AllBlocks.ROSE_QUARTZ_LAMP)
+			.addStoryBoard("rose_quartz_lamp", RedstoneScenes2::roseQuartzLamp);
+
+		// Trains
+		HELPER.forComponents(AllBlocks.TRACK)
+			.addStoryBoard("train_track/placement", TrackScenes::placement)
+			.addStoryBoard("train_track/portal", TrackScenes::portal)
+			.addStoryBoard("train_track/chunks", TrackScenes::chunks);
+
+		HELPER.forComponents(AllBlocks.TRACK_STATION)
+			.addStoryBoard("train_station/assembly", TrainStationScenes::assembly)
+			.addStoryBoard("train_station/schedule", TrainStationScenes::autoSchedule);
+
+		HELPER.forComponents(AllBlocks.TRACK_SIGNAL)
+			.addStoryBoard("train_signal/placement", TrainSignalScenes::placement)
+			.addStoryBoard("train_signal/signaling", TrainSignalScenes::signaling)
+			.addStoryBoard("train_signal/redstone", TrainSignalScenes::redstone);
+
+		HELPER.forComponents(AllItems.SCHEDULE)
+			.addStoryBoard("train_schedule", TrainScenes::schedule);
+
+		HELPER.forComponents(AllBlocks.CONTROLS)
+			.addStoryBoard("train_controls", TrainScenes::controls);
+
+		HELPER.forComponents(AllBlocks.TRACK_OBSERVER)
+			.addStoryBoard("train_observer", TrackObserverScenes::observe);
+
+		// Display Link
+		HELPER.forComponents(AllBlocks.DISPLAY_LINK)
+			.addStoryBoard("display_link", DisplayScenes::link)
+			.addStoryBoard("display_link_redstone", DisplayScenes::redstone);
+		HELPER.forComponents(AllBlocks.DISPLAY_BOARD)
+			.addStoryBoard("display_board", DisplayScenes::board);
+
+		// Steam
+		HELPER.forComponents(AllBlocks.STEAM_WHISTLE)
+			.addStoryBoard("steam_whistle", SteamScenes::whistle);
+		HELPER.forComponents(AllBlocks.STEAM_ENGINE)
+			.addStoryBoard("steam_engine", SteamScenes::engine);
 
 		// Debug scenes, can be found in game via the Brass Hand
-		if (EDITOR_MODE)
+		if (REGISTER_DEBUG_SCENES)
 			DebugScenes.registerAll();
+	}
+
+	public static boolean editingModeActive() {
+		return AllConfigs.CLIENT.editingMode.get();
 	}
 
 	public static void registerTags() {
@@ -319,11 +368,20 @@ public class PonderIndex {
 			.add(AllBlocks.HAND_CRANK)
 			.add(AllBlocks.COPPER_VALVE_HANDLE)
 			.add(AllBlocks.WATER_WHEEL)
-			.add(AllBlocks.ENCASED_FAN)
 			.add(AllBlocks.WINDMILL_BEARING)
-			.add(AllBlocks.FURNACE_ENGINE)
-			.add(AllBlocks.FLYWHEEL)
+			.add(AllBlocks.STEAM_ENGINE)
 			.add(AllBlocks.CREATIVE_MOTOR);
+
+		PonderRegistry.TAGS.forTag(PonderTag.TRAIN_RELATED)
+			.add(AllBlocks.TRACK)
+			.add(AllBlocks.TRACK_STATION)
+			.add(AllBlocks.TRACK_SIGNAL)
+			.add(AllBlocks.TRACK_OBSERVER)
+			.add(AllBlocks.CONTROLS)
+			.add(AllItems.SCHEDULE)
+			.add(AllBlocks.TRAIN_DOOR)
+			.add(AllBlocks.TRAIN_TRAPDOOR)
+			.add(AllBlocks.RAILWAY_CASING);
 
 		PonderRegistry.TAGS.forTag(PonderTag.KINETIC_APPLIANCES)
 			.add(AllBlocks.MILLSTONE)
@@ -344,6 +402,7 @@ public class PonderIndex {
 			.add(AllBlocks.GANTRY_SHAFT)
 			.add(AllBlocks.GANTRY_CARRIAGE)
 			.add(AllBlocks.CLOCKWORK_BEARING)
+			.add(AllBlocks.DISPLAY_BOARD)
 			.add(AllBlocks.CRUSHING_WHEEL);
 
 		PonderRegistry.TAGS.forTag(PonderTag.FLUIDS)
@@ -373,8 +432,12 @@ public class PonderIndex {
 			.add(AllBlocks.MECHANICAL_SAW)
 			.add(AllBlocks.BLAZE_BURNER)
 			.add(AllBlocks.CRUSHING_WHEEL)
+			.add(AllBlocks.TRACK_STATION)
 			.add(Blocks.COMPOSTER)
-			.add(Blocks.JUKEBOX);
+			.add(Blocks.JUKEBOX)
+			.add(Blocks.CAMPFIRE)
+			.add(Blocks.SOUL_CAMPFIRE)
+			.add(Blocks.RESPAWN_ANCHOR);
 
 		PonderRegistry.TAGS.forTag(PonderTag.LOGISTICS)
 			.add(AllItems.BELT_CONNECTOR)
@@ -382,6 +445,7 @@ public class PonderIndex {
 			.add(AllItems.ATTRIBUTE_FILTER)
 			.add(AllBlocks.CHUTE)
 			.add(AllBlocks.SMART_CHUTE)
+			.add(AllBlocks.ITEM_VAULT)
 			.add(AllBlocks.DEPOT)
 			.add(AllBlocks.WEIGHTED_EJECTOR)
 			.add(AllBlocks.MECHANICAL_ARM)
@@ -391,18 +455,20 @@ public class PonderIndex {
 			.add(AllBlocks.BRASS_TUNNEL)
 			.add(AllBlocks.CONTENT_OBSERVER)
 			.add(AllBlocks.STOCKPILE_SWITCH)
-			.add(AllBlocks.ADJUSTABLE_CRATE)
 			.add(AllBlocks.CREATIVE_CRATE)
 			.add(AllBlocks.PORTABLE_STORAGE_INTERFACE);
 
 		PonderRegistry.TAGS.forTag(PonderTag.DECORATION)
 			.add(AllBlocks.ORANGE_NIXIE_TUBE)
+			.add(AllBlocks.DISPLAY_BOARD)
 			.add(AllBlocks.CUCKOO_CLOCK)
 			.add(AllBlocks.WOODEN_BRACKET)
 			.add(AllBlocks.METAL_BRACKET)
+			.add(AllBlocks.METAL_GIRDER)
 			.add(AllBlocks.ANDESITE_CASING)
 			.add(AllBlocks.BRASS_CASING)
-			.add(AllBlocks.COPPER_CASING);
+			.add(AllBlocks.COPPER_CASING)
+			.add(AllBlocks.RAILWAY_CASING);
 
 		PonderRegistry.TAGS.forTag(PonderTag.CREATIVE)
 			.add(AllBlocks.CREATIVE_CRATE)
@@ -419,11 +485,11 @@ public class PonderIndex {
 			.add(AllBlocks.REDSTONE_CONTACT)
 			.add(AllBlocks.ANALOG_LEVER)
 			.add(AllBlocks.REDSTONE_LINK)
-			.add(AllBlocks.ADJUSTABLE_REPEATER)
+			.add(AllBlocks.PULSE_EXTENDER)
 			.add(AllBlocks.PULSE_REPEATER)
-			.add(AllBlocks.ADJUSTABLE_PULSE_REPEATER)
 			.add(AllBlocks.POWERED_LATCH)
-			.add(AllBlocks.POWERED_TOGGLE_LATCH);
+			.add(AllBlocks.POWERED_TOGGLE_LATCH)
+			.add(AllBlocks.ROSE_QUARTZ_LAMP);
 
 		PonderRegistry.TAGS.forTag(PonderTag.MOVEMENT_ANCHOR)
 			.add(AllBlocks.MECHANICAL_PISTON)
@@ -432,7 +498,8 @@ public class PonderIndex {
 			.add(AllBlocks.CLOCKWORK_BEARING)
 			.add(AllBlocks.ROPE_PULLEY)
 			.add(AllBlocks.GANTRY_CARRIAGE)
-			.add(AllBlocks.CART_ASSEMBLER);
+			.add(AllBlocks.CART_ASSEMBLER)
+			.add(AllBlocks.TRACK_STATION);
 
 		PonderRegistry.TAGS.forTag(PonderTag.CONTRAPTION_ASSEMBLY)
 			.add(AllBlocks.LINEAR_CHASSIS)
@@ -455,10 +522,39 @@ public class PonderIndex {
 			.add(AllBlocks.ANDESITE_FUNNEL)
 			.add(AllBlocks.BRASS_FUNNEL)
 			.add(AllBlocks.SEATS.get(DyeColor.WHITE))
+			.add(AllBlocks.CONTROLS)
 			.add(AllBlocks.REDSTONE_CONTACT)
 			.add(Blocks.BELL)
 			.add(Blocks.DISPENSER)
 			.add(Blocks.DROPPER);
+
+		PonderRegistry.TAGS.forTag(PonderTag.DISPLAY_SOURCES)
+			.add(AllBlocks.SEATS.get(DyeColor.WHITE))
+			.add(AllBlocks.ORANGE_NIXIE_TUBE)
+			.add(AllBlocks.STOCKPILE_SWITCH)
+			.add(AllBlocks.CONTENT_OBSERVER)
+			.add(AllBlocks.ANDESITE_TUNNEL)
+			.add(AllBlocks.TRACK_OBSERVER)
+			.add(AllBlocks.TRACK_STATION)
+			.add(AllBlocks.DISPLAY_LINK)
+			.add(AllBlocks.BRASS_TUNNEL)
+			.add(AllBlocks.CUCKOO_CLOCK)
+			.add(AllBlocks.STRESSOMETER)
+			.add(AllBlocks.SPEEDOMETER)
+			.add(AllBlocks.FLUID_TANK)
+			.add(AllItems.BELT_CONNECTOR)
+			.add(Blocks.ENCHANTING_TABLE)
+			.add(Blocks.RESPAWN_ANCHOR)
+			.add(Blocks.COMMAND_BLOCK)
+			.add(Blocks.TARGET);
+
+		PonderRegistry.TAGS.forTag(PonderTag.DISPLAY_TARGETS)
+			.add(AllBlocks.ORANGE_NIXIE_TUBE)
+			.add(AllBlocks.DISPLAY_BOARD)
+			.add(AllBlocks.DISPLAY_LINK)
+			.add(Blocks.OAK_SIGN)
+			.add(Blocks.LECTERN);
+
 	}
 
 }

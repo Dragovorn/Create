@@ -4,18 +4,18 @@ import javax.annotation.Nullable;
 
 import com.simibubi.create.content.contraptions.components.structureMovement.MovementContext;
 
-import mcp.MethodsReturnNonnullByDefault;
-import net.minecraft.block.BlockState;
-import net.minecraft.dispenser.IBlockSource;
+import net.minecraft.MethodsReturnNonnullByDefault;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.BlockSource;
+import net.minecraft.core.Direction;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.state.properties.BlockStateProperties;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.server.ServerWorld;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 
 @MethodsReturnNonnullByDefault
-public class ContraptionBlockSource implements IBlockSource {
+public class ContraptionBlockSource implements BlockSource {
 	private final BlockPos pos;
 	private final MovementContext context;
 	private final Direction overrideFacing;
@@ -52,20 +52,20 @@ public class ContraptionBlockSource implements IBlockSource {
 
 	@Override
 	public BlockState getBlockState() {
-		if(context.state.hasProperty(BlockStateProperties.FACING) && overrideFacing != null)
+		if (context.state.hasProperty(BlockStateProperties.FACING) && overrideFacing != null)
 			return context.state.setValue(BlockStateProperties.FACING, overrideFacing);
 		return context.state;
 	}
 
 	@Override
 	@Nullable
-	public <T extends TileEntity> T getEntity() {
+	public <T extends BlockEntity> T getEntity() {
 		return null;
 	}
 
 	@Override
 	@Nullable
-	public ServerWorld getLevel() {
+	public ServerLevel getLevel() {
 		MinecraftServer server = context.world.getServer();
 		return server != null ? server.getLevel(context.world.dimension()) : null;
 	}

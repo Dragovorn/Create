@@ -10,15 +10,15 @@ import com.simibubi.create.foundation.item.render.CustomItemModels;
 import com.simibubi.create.foundation.item.render.CustomRenderedItemModel;
 import com.simibubi.create.foundation.item.render.CustomRenderedItems;
 
-import net.minecraft.block.Block;
-import net.minecraft.client.renderer.BlockModelShapes;
-import net.minecraft.client.renderer.model.IBakedModel;
-import net.minecraft.client.renderer.model.ModelResourceLocation;
-import net.minecraft.item.Item;
-import net.minecraft.util.ResourceLocation;
+import net.minecraft.client.renderer.block.BlockModelShaper;
+import net.minecraft.client.resources.model.BakedModel;
+import net.minecraft.client.resources.model.ModelResourceLocation;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.level.block.Block;
 import net.minecraftforge.client.event.ModelBakeEvent;
 import net.minecraftforge.client.event.ModelRegistryEvent;
-import net.minecraftforge.client.model.ModelLoader;
+import net.minecraftforge.client.model.ForgeModelBakery;
 import net.minecraftforge.eventbus.api.IEventBus;
 
 public class ModelSwapper {
@@ -42,11 +42,11 @@ public class ModelSwapper {
 	public void onModelRegistry(ModelRegistryEvent event) {
 		customRenderedItems.forEach((item, modelFunc) -> modelFunc.apply(null)
 			.getModelLocations()
-			.forEach(ModelLoader::addSpecialModel));
+			.forEach(ForgeModelBakery::addSpecialModel));
 	}
 
 	public void onModelBake(ModelBakeEvent event) {
-		Map<ResourceLocation, IBakedModel> modelRegistry = event.getModelRegistry();
+		Map<ResourceLocation, BakedModel> modelRegistry = event.getModelRegistry();
 
 		customBlockModels.forEach((block, modelFunc) -> swapModels(modelRegistry, getAllBlockStateModelLocations(block), modelFunc));
 		customItemModels.forEach((item, modelFunc) -> swapModels(modelRegistry, getItemModelLocation(item), modelFunc));
@@ -64,15 +64,15 @@ public class ModelSwapper {
 		modEventBus.addListener(this::onModelBake);
 	}
 
-	public static <T extends IBakedModel> void swapModels(Map<ResourceLocation, IBakedModel> modelRegistry,
-		List<ModelResourceLocation> locations, Function<IBakedModel, T> factory) {
+	public static <T extends BakedModel> void swapModels(Map<ResourceLocation, BakedModel> modelRegistry,
+		List<ModelResourceLocation> locations, Function<BakedModel, T> factory) {
 		locations.forEach(location -> {
 			swapModels(modelRegistry, location, factory);
 		});
 	}
 
-	public static <T extends IBakedModel> void swapModels(Map<ResourceLocation, IBakedModel> modelRegistry,
-		ModelResourceLocation location, Function<IBakedModel, T> factory) {
+	public static <T extends BakedModel> void swapModels(Map<ResourceLocation, BakedModel> modelRegistry,
+		ModelResourceLocation location, Function<BakedModel, T> factory) {
 		modelRegistry.put(location, factory.apply(modelRegistry.get(location)));
 	}
 
@@ -82,7 +82,7 @@ public class ModelSwapper {
 		block.getStateDefinition()
 			.getPossibleStates()
 			.forEach(state -> {
-				models.add(BlockModelShapes.stateToModelLocation(blockRl, state));
+				models.add(BlockModelShaper.stateToModelLocation(blockRl, state));
 			});
 		return models;
 	}

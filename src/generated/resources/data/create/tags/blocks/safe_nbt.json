@@ -22,8 +22,10 @@
     "create:creative_crate",
     "create:redstone_link",
     "create:analog_lever",
-    "create:adjustable_repeater",
-    "create:adjustable_pulse_repeater",
-    "#minecraft:signs"
+    "create:placard",
+    "create:pulse_repeater",
+    "create:pulse_extender",
+    "#minecraft:signs",
+    "#minecraft:banners"
   ]
 }

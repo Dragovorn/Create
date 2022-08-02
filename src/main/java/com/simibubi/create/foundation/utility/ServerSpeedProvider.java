@@ -3,23 +3,24 @@ package com.simibubi.create.foundation.utility;
 import java.util.function.Supplier;
 
 import com.simibubi.create.foundation.config.AllConfigs;
-import com.simibubi.create.foundation.gui.widgets.InterpolatedChasingValue;
 import com.simibubi.create.foundation.networking.AllPackets;
 import com.simibubi.create.foundation.networking.SimplePacketBase;
+import com.simibubi.create.foundation.utility.animation.LerpedFloat;
+import com.simibubi.create.foundation.utility.animation.LerpedFloat.Chaser;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.PacketBuffer;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.fml.network.NetworkEvent.Context;
-import net.minecraftforge.fml.network.PacketDistributor;
+import net.minecraftforge.network.NetworkEvent.Context;
+import net.minecraftforge.network.PacketDistributor;
 
 public class ServerSpeedProvider {
 
 	static int clientTimer = 0;
 	static int serverTimer = 0;
 	static boolean initialized = false;
-	static InterpolatedChasingValue modifier = new InterpolatedChasingValue().withSpeed(.25f);
+	static LerpedFloat modifier = LerpedFloat.linear();
 
 	public static void serverTick() {
 		serverTimer++;
@@ -36,7 +37,7 @@ public class ServerSpeedProvider {
 			&& Minecraft.getInstance()
 				.isPaused())
 			return;
-		modifier.tick();
+		modifier.tickChaser();
 		clientTimer++;
 	}
 
@@ -45,17 +46,17 @@ public class ServerSpeedProvider {
 	}
 
 	public static float get() {
-		return modifier.value;
+		return modifier.getValue();
 	}
 
 	public static class Packet extends SimplePacketBase {
 
 		public Packet() {}
 
-		public Packet(PacketBuffer buffer) {}
+		public Packet(FriendlyByteBuf buffer) {}
 
 		@Override
-		public void write(PacketBuffer buffer) {}
+		public void write(FriendlyByteBuf buffer) {}
 
 		@Override
 		public void handle(Supplier<Context> context) {
@@ -67,7 +68,7 @@ public class ServerSpeedProvider {
 						return;
 					}
 					float target = ((float) getSyncInterval()) / Math.max(clientTimer, 1);
-					modifier.target(Math.min(target, 1));
+					modifier.chase(Math.min(target, 1), .25, Chaser.EXP);
 					// Set this to -1 because packets are processed before ticks.
 					// ServerSpeedProvider#clientTick will increment it to 0 at the end of this tick.
 					// Setting it to 0 causes consistent desync, as the client ends up counting too many ticks.

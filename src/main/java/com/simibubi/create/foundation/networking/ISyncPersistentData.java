@@ -4,38 +4,38 @@ import java.util.HashSet;
 import java.util.function.Supplier;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.entity.Entity;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.network.PacketBuffer;
-import net.minecraftforge.fml.network.NetworkEvent.Context;
-import net.minecraftforge.fml.network.PacketDistributor;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.world.entity.Entity;
+import net.minecraftforge.network.NetworkEvent.Context;
+import net.minecraftforge.network.PacketDistributor;
 
 public interface ISyncPersistentData {
 
 	void onPersistentDataUpdated();
 
 	default void syncPersistentDataWithTracking(Entity self) {
-		AllPackets.channel.send(PacketDistributor.TRACKING_ENTITY.with(() -> self), new Packet(self));
+		AllPackets.channel.send(PacketDistributor.TRACKING_ENTITY.with(() -> self), new PersistentDataPacket(self));
 	}
 
-	public static class Packet extends SimplePacketBase {
+	public static class PersistentDataPacket extends SimplePacketBase {
 
 		private int entityId;
 		private Entity entity;
-		private CompoundNBT readData;
+		private CompoundTag readData;
 
-		public Packet(Entity entity) {
+		public PersistentDataPacket(Entity entity) {
 			this.entity = entity;
 			this.entityId = entity.getId();
 		}
 
-		public Packet(PacketBuffer buffer) {
+		public PersistentDataPacket(FriendlyByteBuf buffer) {
 			entityId = buffer.readInt();
 			readData = buffer.readNbt();
 		}
 
 		@Override
-		public void write(PacketBuffer buffer) {
+		public void write(FriendlyByteBuf buffer) {
 			buffer.writeInt(entityId);
 			buffer.writeNbt(entity.getPersistentData());
 		}
@@ -45,7 +45,7 @@ public interface ISyncPersistentData {
 			context.get()
 				.enqueueWork(() -> {
 					Entity entityByID = Minecraft.getInstance().level.getEntity(entityId);
-					CompoundNBT data = entityByID.getPersistentData();
+					CompoundTag data = entityByID.getPersistentData();
 					new HashSet<>(data.getAllKeys()).forEach(data::remove);
 					data.merge(readData);
 					if (!(entityByID instanceof ISyncPersistentData))

@@ -6,11 +6,11 @@ import java.util.function.Supplier;
 import com.simibubi.create.Create;
 import com.simibubi.create.foundation.networking.SimplePacketBase;
 
-import net.minecraft.entity.player.ServerPlayerEntity;
-import net.minecraft.network.PacketBuffer;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.fml.config.ModConfig;
-import net.minecraftforge.fml.network.NetworkEvent;
+import net.minecraftforge.network.NetworkEvent;
 
 public class CConfigureConfigPacket<T> extends SimplePacketBase {
 
@@ -24,14 +24,14 @@ public class CConfigureConfigPacket<T> extends SimplePacketBase {
 		this.value = serialize(value);
 	}
 
-	public CConfigureConfigPacket(PacketBuffer buffer) {
+	public CConfigureConfigPacket(FriendlyByteBuf buffer) {
 		this.modID = buffer.readUtf(32767);
 		this.path = buffer.readUtf(32767);
 		this.value = buffer.readUtf(32767);
 	}
 
 	@Override
-	public void write(PacketBuffer buffer) {
+	public void write(FriendlyByteBuf buffer) {
 		buffer.writeUtf(modID);
 		buffer.writeUtf(path);
 		buffer.writeUtf(value);
@@ -41,11 +41,13 @@ public class CConfigureConfigPacket<T> extends SimplePacketBase {
 	public void handle(Supplier<NetworkEvent.Context> context) {
 		context.get().enqueueWork(() -> {
 			try {
-				ServerPlayerEntity sender = context.get().getSender();
+				ServerPlayer sender = context.get().getSender();
 				if (sender == null || !sender.hasPermissions(2))
 					return;
 
-				ForgeConfigSpec spec = ConfigHelper.findConfigSpecFor(ModConfig.Type.SERVER, modID);
+				ForgeConfigSpec spec = ConfigHelper.findForgeConfigSpecFor(ModConfig.Type.SERVER, modID);
+				if (spec == null)
+					return;
 				ForgeConfigSpec.ValueSpec valueSpec = spec.getRaw(path);
 				ForgeConfigSpec.ConfigValue<T> configValue = spec.getValues().get(path);
 

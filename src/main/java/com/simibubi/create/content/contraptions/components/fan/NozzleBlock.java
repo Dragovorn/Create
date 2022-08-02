@@ -4,59 +4,51 @@ import javax.annotation.ParametersAreNonnullByDefault;
 
 import com.simibubi.create.AllShapes;
 import com.simibubi.create.AllTileEntities;
+import com.simibubi.create.foundation.block.ITE;
 import com.simibubi.create.foundation.block.WrenchableDirectionalBlock;
 
-import mcp.MethodsReturnNonnullByDefault;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.item.BlockItemUseContext;
-import net.minecraft.item.ItemUseContext;
-import net.minecraft.pathfinding.PathType;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.ActionResultType;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.shapes.ISelectionContext;
-import net.minecraft.util.math.shapes.VoxelShape;
-import net.minecraft.world.IBlockReader;
-import net.minecraft.world.IWorldReader;
-import net.minecraft.world.World;
+import net.minecraft.MethodsReturnNonnullByDefault;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.pathfinder.PathComputationType;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 @MethodsReturnNonnullByDefault
 @ParametersAreNonnullByDefault
-public class NozzleBlock extends WrenchableDirectionalBlock {
+public class NozzleBlock extends WrenchableDirectionalBlock implements ITE<NozzleTileEntity> {
 
 	public NozzleBlock(Properties p_i48415_1_) {
 		super(p_i48415_1_);
 	}
-
+	
 	@Override
-	public boolean hasTileEntity(BlockState state) {
-		return true;
+	public InteractionResult onWrenched(BlockState state, UseOnContext context) {
+		return InteractionResult.FAIL;
 	}
 	
 	@Override
-	public ActionResultType onWrenched(BlockState state, ItemUseContext context) {
-		return ActionResultType.FAIL;
-	}
-	
-	@Override
-	public TileEntity createTileEntity(BlockState state, IBlockReader world) {
-		return AllTileEntities.NOZZLE.create();
-	}
-	
-	@Override
-	public BlockState getStateForPlacement(BlockItemUseContext context) {
+	public BlockState getStateForPlacement(BlockPlaceContext context) {
 		return defaultBlockState().setValue(FACING, context.getClickedFace());
 	}
 	
 	@Override
-	public VoxelShape getShape(BlockState state, IBlockReader worldIn, BlockPos pos, ISelectionContext context) {
+	public VoxelShape getShape(BlockState state, BlockGetter worldIn, BlockPos pos, CollisionContext context) {
 		return AllShapes.NOZZLE.get(state.getValue(FACING));
 	}
 	
 	@Override
-	public void neighborChanged(BlockState state, World worldIn, BlockPos pos, Block blockIn, BlockPos fromPos,
+	public void neighborChanged(BlockState state, Level worldIn, BlockPos pos, Block blockIn, BlockPos fromPos,
 			boolean isMoving) {
 		if (worldIn.isClientSide)
 			return;
@@ -69,16 +61,26 @@ public class NozzleBlock extends WrenchableDirectionalBlock {
 	}
 
 	@Override
-	public boolean canSurvive(BlockState state, IWorldReader worldIn, BlockPos pos) {
+	public boolean canSurvive(BlockState state, LevelReader worldIn, BlockPos pos) {
 		Direction towardsFan = state.getValue(FACING).getOpposite();
-		TileEntity te = worldIn.getBlockEntity(pos.relative(towardsFan));
+		BlockEntity te = worldIn.getBlockEntity(pos.relative(towardsFan));
 		return te instanceof IAirCurrentSource
 				&& ((IAirCurrentSource) te).getAirflowOriginSide() == towardsFan.getOpposite();
 	}
 	
 	@Override
-	public boolean isPathfindable(BlockState state, IBlockReader reader, BlockPos pos, PathType type) {
+	public boolean isPathfindable(BlockState state, BlockGetter reader, BlockPos pos, PathComputationType type) {
 		return false;
+	}
+
+	@Override
+	public Class<NozzleTileEntity> getTileEntityClass() {
+		return NozzleTileEntity.class;
+	}
+
+	@Override
+	public BlockEntityType<? extends NozzleTileEntity> getTileEntityType() {
+		return AllTileEntities.NOZZLE.get();
 	}
 
 }

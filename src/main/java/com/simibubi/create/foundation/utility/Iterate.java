@@ -4,13 +4,14 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 
-import net.minecraft.util.Direction;
-import net.minecraft.util.Direction.Axis;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.Axis;
 
 public class Iterate {
 
 	public static final boolean[] trueAndFalse = { true, false };
+	public static final boolean[] falseAndTrue = { false, true };
 	public static final int[] zeroAndOne = { 0, 1 };
 	public static final int[] positiveAndNegative = { 1, -1 };
 	public static final Direction[] directions = Direction.values();

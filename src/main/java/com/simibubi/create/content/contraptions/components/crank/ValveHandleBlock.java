@@ -5,18 +5,19 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import com.jozufozu.flywheel.core.PartialModel;
 import com.simibubi.create.AllBlocks;
 import com.simibubi.create.foundation.utility.BlockHelper;
+import com.simibubi.create.foundation.utility.Couple;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.DyeColor;
-import net.minecraft.item.ItemGroup;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.ActionResultType;
-import net.minecraft.util.Hand;
-import net.minecraft.util.NonNullList;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.BlockRayTraceResult;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.NonNullList;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 
@@ -41,24 +42,24 @@ public class ValveHandleBlock extends HandCrankBlock {
 	}
 
 	@Override
-	public ActionResultType use(BlockState state, World world, BlockPos pos, PlayerEntity player, Hand hand,
-		BlockRayTraceResult hit) {
+	public InteractionResult use(BlockState state, Level world, BlockPos pos, Player player, InteractionHand hand,
+		BlockHitResult hit) {
 		ItemStack heldItem = player.getItemInHand(hand);
 		DyeColor color = DyeColor.getColor(heldItem);
 		if (color != null && color != this.color) {
 			if (world.isClientSide)
-				return ActionResultType.SUCCESS;
+				return InteractionResult.SUCCESS;
 			BlockState newState = BlockHelper.copyProperties(state, AllBlocks.DYED_VALVE_HANDLES.get(color).getDefaultState());
 			world.setBlockAndUpdate(pos, newState);
-			return ActionResultType.SUCCESS;
+			return InteractionResult.SUCCESS;
 		}
 
 		return super.use(state, world, pos, player, hand, hit);
 	}
 
 	@Override
-	public void fillItemCategory(ItemGroup group, NonNullList<ItemStack> p_149666_2_) {
-		if (group != ItemGroup.TAB_SEARCH && !inCreativeTab)
+	public void fillItemCategory(CreativeModeTab group, NonNullList<ItemStack> p_149666_2_) {
+		if (group != CreativeModeTab.TAB_SEARCH && !inCreativeTab)
 			return;
 		super.fillItemCategory(group, p_149666_2_);
 	}
@@ -72,6 +73,10 @@ public class ValveHandleBlock extends HandCrankBlock {
 	@Override
 	public int getRotationSpeed() {
 		return 16;
+	}
+	
+	public static Couple<Integer> getSpeedRange() {
+		return Couple.create(16, 16);
 	}
 
 }

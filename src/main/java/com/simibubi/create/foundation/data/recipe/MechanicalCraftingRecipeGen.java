@@ -7,12 +7,11 @@ import com.simibubi.create.AllBlocks;
 import com.simibubi.create.AllItems;
 import com.simibubi.create.Create;
 
-import net.minecraft.block.Blocks;
 import net.minecraft.data.DataGenerator;
-import net.minecraft.item.crafting.Ingredient;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.ItemTags;
-import net.minecraft.util.IItemProvider;
-import net.minecraft.util.ResourceLocation;
+import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.level.ItemLike;
 import net.minecraftforge.common.Tags;
 
 public class MechanicalCraftingRecipeGen extends CreateRecipeProvider {
@@ -30,6 +29,18 @@ public class MechanicalCraftingRecipeGen extends CreateRecipeProvider {
 			.patternLine(" AAA ")
 			.disallowMirrored()),
 
+		WAND_OF_SYMMETRY =
+			create(AllItems.WAND_OF_SYMMETRY::get).recipe(b -> b.key('E', Ingredient.of(Tags.Items.ENDER_PEARLS))
+				.key('G', Ingredient.of(Tags.Items.GLASS))
+				.key('P', I.precisionMechanism())
+				.key('O', Ingredient.of(Tags.Items.OBSIDIAN))
+				.key('B', Ingredient.of(I.brass()))
+				.patternLine(" G ")
+				.patternLine("GEG")
+				.patternLine(" P ")
+				.patternLine(" B ")
+				.patternLine(" O ")),
+		
 		EXTENDO_GRIP = create(AllItems.EXTENDO_GRIP::get).returns(1)
 			.recipe(b -> b.key('L', Ingredient.of(I.brass()))
 				.key('R', I.precisionMechanism())
@@ -48,23 +59,7 @@ public class MechanicalCraftingRecipeGen extends CreateRecipeProvider {
 				.key('S', AllBlocks.FLUID_PIPE.get())
 				.key('C', Ingredient.of(I.copper()))
 				.patternLine("LRSSS")
-				.patternLine("CC   ")),
-
-		FURNACE_ENGINE = create(AllBlocks.FURNACE_ENGINE::get).returns(1)
-			.recipe(b -> b.key('P', Ingredient.of(I.brassSheet()))
-				.key('B', Ingredient.of(I.brass()))
-				.key('I', Ingredient.of(Blocks.PISTON, Blocks.STICKY_PISTON))
-				.key('C', I.brassCasing())
-				.patternLine("PPB")
-				.patternLine("PCI")
-				.patternLine("PPB")),
-
-		FLYWHEEL = create(AllBlocks.FLYWHEEL::get).returns(1)
-			.recipe(b -> b.key('B', Ingredient.of(I.brass()))
-				.key('C', I.brassCasing())
-				.patternLine(" BBB")
-				.patternLine("CB B")
-				.patternLine(" BBB"))
+				.patternLine("CC   "))
 
 	;
 
@@ -72,17 +67,17 @@ public class MechanicalCraftingRecipeGen extends CreateRecipeProvider {
 		super(p_i48262_1_);
 	}
 
-	GeneratedRecipeBuilder create(Supplier<IItemProvider> result) {
+	GeneratedRecipeBuilder create(Supplier<ItemLike> result) {
 		return new GeneratedRecipeBuilder(result);
 	}
 
 	class GeneratedRecipeBuilder {
 
 		private String suffix;
-		private Supplier<IItemProvider> result;
+		private Supplier<ItemLike> result;
 		private int amount;
 
-		public GeneratedRecipeBuilder(Supplier<IItemProvider> result) {
+		public GeneratedRecipeBuilder(Supplier<ItemLike> result) {
 			this.suffix = "";
 			this.result = result;
 			this.amount = 1;

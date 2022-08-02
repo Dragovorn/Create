@@ -6,17 +6,17 @@ import com.simibubi.create.AllTags.AllFluidTags;
 import com.simibubi.create.content.contraptions.fluids.VirtualFluid;
 import com.simibubi.create.content.contraptions.fluids.potion.PotionFluid;
 import com.simibubi.create.content.contraptions.fluids.potion.PotionFluid.PotionFluidAttributes;
-import com.simibubi.create.content.palettes.AllPaletteBlocks;
+import com.simibubi.create.content.palettes.AllPaletteStoneTypes;
 import com.simibubi.create.foundation.data.CreateRegistrate;
 import com.tterrag.registrate.util.entry.FluidEntry;
 
-import net.minecraft.block.BlockState;
+import net.minecraft.client.renderer.ItemBlockRenderTypes;
 import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.RenderTypeLookup;
-import net.minecraft.fluid.Fluid;
-import net.minecraft.fluid.FluidState;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.IBlockDisplayReader;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.BlockAndTintGetter;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.Fluid;
+import net.minecraft.world.level.material.FluidState;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.fluids.FluidAttributes;
@@ -46,6 +46,7 @@ public class AllFluids {
 							.slopeFindDistance(3)
 							.explosionResistance(100f))
 					.tag(AllFluidTags.HONEY.tag)
+					.source(ForgeFlowingFluid.Source::new) // TODO: remove when Registrate fixes FluidBuilder
 					.bucket()
 					.tag(AllTags.forgeItemTag("buckets/honey"))
 					.build()
@@ -73,21 +74,21 @@ public class AllFluids {
 	@OnlyIn(Dist.CLIENT)
 	private static void makeTranslucent(FluidEntry<?> entry) {
 		ForgeFlowingFluid fluid = entry.get();
-		RenderTypeLookup.setRenderLayer(fluid, RenderType.translucent());
-		RenderTypeLookup.setRenderLayer(fluid.getSource(), RenderType.translucent());
+		ItemBlockRenderTypes.setRenderLayer(fluid, RenderType.translucent());
+		ItemBlockRenderTypes.setRenderLayer(fluid.getSource(), RenderType.translucent());
 	}
 
 	@Nullable
 	public static BlockState getLavaInteraction(FluidState fluidState) {
 		Fluid fluid = fluidState.getType();
 		if (fluid.isSame(HONEY.get()))
-			return fluidState.isSource() ? AllPaletteBlocks.LIMESTONE.getDefaultState()
-				: AllPaletteBlocks.LIMESTONE_VARIANTS.registeredBlocks.get(0)
-					.getDefaultState();
+			return AllPaletteStoneTypes.LIMESTONE.getBaseBlock()
+				.get()
+				.defaultBlockState();
 		if (fluid.isSame(CHOCOLATE.get()))
-			return fluidState.isSource() ? AllPaletteBlocks.SCORIA.getDefaultState()
-				: AllPaletteBlocks.SCORIA_VARIANTS.registeredBlocks.get(0)
-					.getDefaultState();
+			return AllPaletteStoneTypes.SCORIA.getBaseBlock()
+				.get()
+				.defaultBlockState();
 		return null;
 	}
 
@@ -102,7 +103,7 @@ public class AllFluids {
 		}
 
 		@Override
-		public int getColor(IBlockDisplayReader world, BlockPos pos) {
+		public int getColor(BlockAndTintGetter world, BlockPos pos) {
 			return 0x00ffffff;
 		}
 

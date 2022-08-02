@@ -27,11 +27,11 @@ import com.simibubi.create.foundation.ponder.PonderScene;
 import com.simibubi.create.foundation.utility.FilesHelper;
 
 import net.minecraft.data.DataGenerator;
-import net.minecraft.data.DirectoryCache;
-import net.minecraft.data.IDataProvider;
-import net.minecraft.util.JSONUtils;
+import net.minecraft.data.DataProvider;
+import net.minecraft.data.HashCache;
+import net.minecraft.util.GsonHelper;
 
-public class LangMerger implements IDataProvider {
+public class LangMerger implements DataProvider {
 
 	private static final Gson GSON = (new GsonBuilder()).setPrettyPrinting()
 		.disableHtmlEscaping()
@@ -76,7 +76,7 @@ public class LangMerger implements IDataProvider {
 	}
 
 	@Override
-	public void run(DirectoryCache cache) throws IOException {
+	public void run(HashCache cache) throws IOException {
 		Path path = this.gen.getOutputFolder()
 			.resolve("assets/" + Create.ID + "/lang/" + "en_us.json");
 
@@ -125,7 +125,7 @@ public class LangMerger implements IDataProvider {
 		}
 
 		try (BufferedReader reader = Files.newBufferedReader(path)) {
-			JsonObject jsonobject = JSONUtils.fromJson(GSON, reader, JsonObject.class);
+			JsonObject jsonobject = GsonHelper.fromJson(GSON, reader, JsonObject.class);
 			addAll("Game Elements", jsonobject);
 			reader.close();
 		}
@@ -199,10 +199,8 @@ public class LangMerger implements IDataProvider {
 		ArrayList<Pair<String, JsonElement>> list = new ArrayList<>();
 
 		String filepath = "assets/" + Create.ID + "/lang/";
-		try {
-			InputStream resourceAsStream = Create.class.getClassLoader()
-				.getResourceAsStream(filepath);
-			BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(resourceAsStream));
+		try (InputStream resourceStream = ClassLoader.getSystemResourceAsStream(filepath)) {
+			BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(resourceStream));
 			while (true) {
 				String readLine = bufferedReader.readLine();
 				if (readLine == null)
@@ -211,10 +209,9 @@ public class LangMerger implements IDataProvider {
 					continue;
 				if (readLine.startsWith("en_us") || readLine.startsWith("en_ud"))
 					continue;
-				list.add(Pair.of(readLine, FilesHelper.loadJsonResource(filepath + "/" + readLine)));
+				list.add(Pair.of(readLine, FilesHelper.loadJsonResource(filepath + readLine)));
 			}
-			resourceAsStream.close();
-		} catch (IOException e) {
+		} catch (IOException | NullPointerException e) {
 			e.printStackTrace();
 		}
 
@@ -227,12 +224,12 @@ public class LangMerger implements IDataProvider {
 				.getAsJsonObject());
 	}
 
-	private void save(DirectoryCache cache, List<Object> dataIn, int missingKeys, Path target, String message)
+	private void save(HashCache cache, List<Object> dataIn, int missingKeys, Path target, String message)
 		throws IOException {
 		String data = createString(dataIn, missingKeys);
 //		data = JavaUnicodeEscaper.outsideOf(0, 0x7f)
 //			.translate(data);
-		String hash = IDataProvider.SHA1.hashUnencodedChars(data)
+		String hash = DataProvider.SHA1.hashUnencodedChars(data)
 			.toString();
 		if (!Objects.equals(cache.getHash(target), hash) || !Files.exists(target)) {
 			Files.createDirectories(target.getParent());

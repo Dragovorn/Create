@@ -11,15 +11,17 @@ import com.simibubi.create.foundation.tileEntity.behaviour.scrollvalue.ScrollVal
 import com.simibubi.create.foundation.tileEntity.behaviour.scrollvalue.ScrollValueBehaviour.StepContext;
 import com.simibubi.create.foundation.utility.Lang;
 
-import net.minecraft.tileentity.TileEntityType;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
 
 public class CreativeMotorTileEntity extends GeneratingKineticTileEntity {
 
 	public static final int DEFAULT_SPEED = 16;
 	protected ScrollValueBehaviour generatedSpeed;
 
-	public CreativeMotorTileEntity(TileEntityType<? extends CreativeMotorTileEntity> type) {
-		super(type);
+	public CreativeMotorTileEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+		super(type, pos, state);
 	}
 
 	@Override
@@ -30,11 +32,11 @@ public class CreativeMotorTileEntity extends GeneratingKineticTileEntity {
 		CenteredSideValueBoxTransform slot = new CenteredSideValueBoxTransform(
 			(motor, side) -> motor.getValue(CreativeMotorBlock.FACING) == side.getOpposite());
 
-		generatedSpeed = new ScrollValueBehaviour(Lang.translate("generic.speed"), this, slot);
+		generatedSpeed = new ScrollValueBehaviour(Lang.translateDirect("generic.speed"), this, slot);
 		generatedSpeed.between(-max, max);
 		generatedSpeed.value = DEFAULT_SPEED;
 		generatedSpeed.scrollableValue = DEFAULT_SPEED;
-		generatedSpeed.withUnit(i -> Lang.translate("generic.unit.rpm"));
+		generatedSpeed.withUnit(i -> Lang.translateDirect("generic.unit.rpm"));
 		generatedSpeed.withCallback(i -> this.updateGeneratedRotation());
 		generatedSpeed.withStepFunction(CreativeMotorTileEntity::step);
 		behaviours.add(generatedSpeed);

@@ -3,24 +3,25 @@ package com.simibubi.create.content.contraptions.relays.belt;
 import java.util.ArrayList;
 import java.util.function.Supplier;
 
-import com.jozufozu.flywheel.backend.instancing.InstanceData;
-import com.jozufozu.flywheel.backend.instancing.Instancer;
-import com.jozufozu.flywheel.backend.material.MaterialManager;
+import com.jozufozu.flywheel.api.InstanceData;
+import com.jozufozu.flywheel.api.Instancer;
+import com.jozufozu.flywheel.api.MaterialManager;
 import com.jozufozu.flywheel.core.PartialModel;
-import com.jozufozu.flywheel.util.transform.MatrixTransformStack;
-import com.mojang.blaze3d.matrix.MatrixStack;
+import com.jozufozu.flywheel.util.transform.TransformStack;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Quaternion;
 import com.simibubi.create.AllBlockPartials;
 import com.simibubi.create.AllBlocks;
 import com.simibubi.create.content.contraptions.base.KineticTileInstance;
-import com.simibubi.create.content.contraptions.base.RotatingData;
+import com.simibubi.create.content.contraptions.base.flwdata.BeltData;
+import com.simibubi.create.content.contraptions.base.flwdata.RotatingData;
 import com.simibubi.create.foundation.block.render.SpriteShiftEntry;
 import com.simibubi.create.foundation.render.AllMaterialSpecs;
 import com.simibubi.create.foundation.utility.Iterate;
 
-import net.minecraft.item.DyeColor;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.vector.Quaternion;
-import net.minecraft.world.LightType;
+import net.minecraft.core.Direction;
+import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.level.LightLayer;
 
 public class BeltInstance extends KineticTileInstance<BeltTileEntity> {
 
@@ -35,7 +36,7 @@ public class BeltInstance extends KineticTileInstance<BeltTileEntity> {
     protected ArrayList<BeltData> keys;
     protected RotatingData pulleyKey;
 
-    public BeltInstance(MaterialManager<?> materialManager, BeltTileEntity tile) {
+    public BeltInstance(MaterialManager materialManager, BeltTileEntity tile) {
         super(materialManager, tile);
 
         if (!AllBlocks.BELT.has(blockState))
@@ -79,14 +80,14 @@ public class BeltInstance extends KineticTileInstance<BeltTileEntity> {
 
     @Override
     public void update() {
-        DyeColor color = tile.color.orElse(null);
+        DyeColor color = blockEntity.color.orElse(null);
 
         boolean bottom = true;
         for (BeltData key : keys) {
 
             SpriteShiftEntry spriteShiftEntry = BeltRenderer.getSpriteShiftEntry(color, diagonal, bottom);
             key.setScrollTexture(spriteShiftEntry)
-               .setColor(tile)
+               .setColor(blockEntity)
                .setRotationalSpeed(getScrollSpeed());
             bottom = false;
         }
@@ -112,7 +113,7 @@ public class BeltInstance extends KineticTileInstance<BeltTileEntity> {
     }
 
     private float getScrollSpeed() {
-        float speed = tile.getSpeed();
+        float speed = blockEntity.getSpeed();
         if (((facing.getAxisDirection() == Direction.AxisDirection.NEGATIVE) ^ upward) ^
                 ((alongX && !diagonal) || (alongZ && diagonal))) {
             speed = -speed;
@@ -128,9 +129,9 @@ public class BeltInstance extends KineticTileInstance<BeltTileEntity> {
 
         Direction.Axis axis = dir.getAxis();
 
-        Supplier<MatrixStack> ms = () -> {
-            MatrixStack modelTransform = new MatrixStack();
-            MatrixTransformStack msr = MatrixTransformStack.of(modelTransform);
+        Supplier<PoseStack> ms = () -> {
+            PoseStack modelTransform = new PoseStack();
+            TransformStack msr = TransformStack.cast(modelTransform);
             msr.centre();
             if (axis == Direction.Axis.X)
                 msr.rotateY(90);
@@ -167,10 +168,10 @@ public class BeltInstance extends KineticTileInstance<BeltTileEntity> {
 				.setRotation(q)
 				.setRotationalSpeed(getScrollSpeed())
 				.setRotationOffset(bottom ? 0.5f : 0f)
-                .setColor(tile)
+                .setColor(blockEntity)
                 .setPosition(getInstancePosition())
-                .setBlockLight(world.getBrightness(LightType.BLOCK, pos))
-                .setSkyLight(world.getBrightness(LightType.SKY, pos));
+                .setBlockLight(world.getBrightness(LightLayer.BLOCK, pos))
+                .setSkyLight(world.getBrightness(LightLayer.SKY, pos));
 
         return key;
     }

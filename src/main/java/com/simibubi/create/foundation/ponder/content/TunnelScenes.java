@@ -8,10 +8,11 @@ import com.simibubi.create.content.contraptions.relays.belt.BeltTileEntity;
 import com.simibubi.create.content.logistics.block.belts.tunnel.BrassTunnelTileEntity;
 import com.simibubi.create.foundation.gui.AllIcons;
 import com.simibubi.create.foundation.ponder.ElementLink;
+import com.simibubi.create.foundation.ponder.PonderPalette;
 import com.simibubi.create.foundation.ponder.SceneBuilder;
 import com.simibubi.create.foundation.ponder.SceneBuildingUtil;
-import com.simibubi.create.foundation.ponder.elements.InputWindowElement;
-import com.simibubi.create.foundation.ponder.elements.WorldSectionElement;
+import com.simibubi.create.foundation.ponder.element.InputWindowElement;
+import com.simibubi.create.foundation.ponder.element.WorldSectionElement;
 import com.simibubi.create.foundation.tileEntity.behaviour.filtering.SidedFilteringBehaviour;
 import com.simibubi.create.foundation.tileEntity.behaviour.scrollvalue.ScrollOptionBehaviour;
 import com.simibubi.create.foundation.utility.Iterate;
@@ -19,15 +20,15 @@ import com.simibubi.create.foundation.utility.NBTHelper;
 import com.simibubi.create.foundation.utility.Pointing;
 import com.simibubi.create.foundation.utility.VecHelper;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.item.ItemEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.vector.Vector3d;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 
 public class TunnelScenes {
 
@@ -85,9 +86,9 @@ public class TunnelScenes {
 		scene.idle(70);
 
 		scene.overlay.showControls(new InputWindowElement(util.vector.topOf(util.grid.at(4, 1, 2)), Pointing.DOWN)
-			.withItem(AllItems.COPPER_INGOT.asStack()), 20);
+			.withItem(new ItemStack(Items.COPPER_INGOT)), 20);
 		scene.idle(7);
-		scene.world.createItemOnBelt(util.grid.at(4, 1, 2), Direction.UP, AllItems.COPPER_INGOT.asStack(64));
+		scene.world.createItemOnBelt(util.grid.at(4, 1, 2), Direction.UP, new ItemStack(Items.COPPER_INGOT, 64));
 		scene.idle(40);
 		scene.world.multiplyKineticSpeed(util.select.everywhere(), 1 / 16f);
 		scene.overlay.showText(80)
@@ -154,7 +155,7 @@ public class TunnelScenes {
 		for (Direction d : Iterate.horizontalDirections) {
 			if (d == Direction.SOUTH)
 				continue;
-			Vector3d filter = getTunnelFilterVec(tunnelPos, d);
+			Vec3 filter = getTunnelFilterVec(tunnelPos, d);
 			scene.overlay.showFilterSlotInput(filter, 40);
 			scene.idle(3);
 		}
@@ -169,14 +170,14 @@ public class TunnelScenes {
 		scene.rotateCameraY(70);
 
 		scene.idle(20);
-		Vector3d tunnelFilterVec = getTunnelFilterVec(tunnelPos, Direction.EAST);
+		Vec3 tunnelFilterVec = getTunnelFilterVec(tunnelPos, Direction.EAST);
 		scene.overlay.showFilterSlotInput(tunnelFilterVec, 40);
 		scene.overlay.showText(60)
 			.attachKeyFrame()
 			.pointAt(tunnelFilterVec)
 			.placeNearTarget()
 			.text("Filters on inbound connections simply block non-matching items");
-		ItemStack copper = AllItems.COPPER_INGOT.asStack();
+		ItemStack copper = new ItemStack(Items.COPPER_INGOT);
 		Class<BrassTunnelTileEntity> tunnelClass = BrassTunnelTileEntity.class;
 		scene.world.modifyTileEntity(tunnelPos, tunnelClass, te -> te.getBehaviour(SidedFilteringBehaviour.TYPE)
 			.setFilter(Direction.EAST, copper));
@@ -225,7 +226,7 @@ public class TunnelScenes {
 			.setFilter(Direction.WEST, ItemStack.EMPTY));
 		scene.idle(10);
 
-		Vector3d tunnelTop = util.vector.topOf(tunnelPos);
+		Vec3 tunnelTop = util.vector.topOf(tunnelPos);
 		scene.overlay.showControls(new InputWindowElement(tunnelTop, Pointing.DOWN).scroll()
 			.withWrench(), 80);
 		scene.idle(7);
@@ -294,20 +295,20 @@ public class TunnelScenes {
 		scene.idle(90);
 
 		BlockPos beltPos = util.grid.at(5, 3, 3);
-		Vector3d m = util.vector.of(0, 0.1, 0);
-		Vector3d spawn = util.vector.centerOf(util.grid.at(5, 3, 2));
+		Vec3 m = util.vector.of(0, 0.1, 0);
+		Vec3 spawn = util.vector.centerOf(util.grid.at(5, 3, 2));
 		scene.world.createItemEntity(spawn, m, item1);
 		scene.idle(12);
 		scene.world.createItemOnBelt(beltPos, Direction.UP, item1);
-		scene.world.modifyEntities(ItemEntity.class, Entity::remove);
+		scene.world.modifyEntities(ItemEntity.class, Entity::discard);
 		scene.world.createItemEntity(spawn, m, item2);
 		scene.idle(12);
 		scene.world.createItemOnBelt(beltPos, Direction.UP, item2);
-		scene.world.modifyEntities(ItemEntity.class, Entity::remove);
+		scene.world.modifyEntities(ItemEntity.class, Entity::discard);
 		scene.world.createItemEntity(spawn, m, item3);
 		scene.idle(12);
 		scene.world.createItemOnBelt(beltPos, Direction.UP, item3);
-		scene.world.modifyEntities(ItemEntity.class, Entity::remove);
+		scene.world.modifyEntities(ItemEntity.class, Entity::discard);
 		scene.idle(50);
 
 		scene.world.showSectionAndMerge(util.select.position(3, 5, 2), Direction.DOWN, newBelt);
@@ -324,22 +325,22 @@ public class TunnelScenes {
 		scene.world.createItemEntity(spawn, m, item1);
 		scene.idle(12);
 		scene.world.createItemOnBelt(beltPos, Direction.EAST, item1);
-		scene.world.modifyEntities(ItemEntity.class, Entity::remove);
+		scene.world.modifyEntities(ItemEntity.class, Entity::discard);
 		scene.world.createItemEntity(spawn, m, item2);
 		scene.idle(12);
 		scene.world.createItemOnBelt(beltPos, Direction.EAST, item2);
-		scene.world.modifyEntities(ItemEntity.class, Entity::remove);
+		scene.world.modifyEntities(ItemEntity.class, Entity::discard);
 		scene.world.createItemEntity(spawn, m, item3);
 		scene.idle(12);
 		scene.world.createItemOnBelt(beltPos, Direction.EAST, item3);
-		scene.world.modifyEntities(ItemEntity.class, Entity::remove);
+		scene.world.modifyEntities(ItemEntity.class, Entity::discard);
 		scene.idle(30);
 
 	}
 
-	protected static Vector3d getTunnelFilterVec(BlockPos pos, Direction d) {
+	protected static Vec3 getTunnelFilterVec(BlockPos pos, Direction d) {
 		return VecHelper.getCenterOf(pos)
-			.add(Vector3d.atLowerCornerOf(d.getNormal()).scale(.5))
+			.add(Vec3.atLowerCornerOf(d.getNormal()).scale(.5))
 			.add(0, 0.3, 0);
 	}
 
@@ -358,7 +359,7 @@ public class TunnelScenes {
 			scene.idle(4);
 		}
 
-		Vector3d tunnelTop = util.vector.topOf(util.grid.at(2, 2, 3));
+		Vec3 tunnelTop = util.vector.topOf(util.grid.at(2, 2, 3));
 		scene.overlay.showControls(new InputWindowElement(tunnelTop, Pointing.DOWN).scroll()
 			.withWrench(), 80);
 		scene.idle(7);
@@ -375,7 +376,7 @@ public class TunnelScenes {
 			scene.world.showIndependentSection(util.select.position(4, 1, 0), Direction.UP);
 		scene.world.moveSection(blockage, util.vector.of(-3, 0, 0), 0);
 
-		Vector3d modeVec = util.vector.of(4, 2.5, 3);
+		Vec3 modeVec = util.vector.of(4, 2.5, 3);
 		scene.overlay.showControls(new InputWindowElement(modeVec, Pointing.RIGHT).showing(AllIcons.I_TUNNEL_SPLIT),
 			140);
 

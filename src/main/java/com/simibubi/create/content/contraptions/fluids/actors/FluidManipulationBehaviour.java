@@ -5,8 +5,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 
-import com.simibubi.create.AllTags;
+import com.simibubi.create.AllTags.AllFluidTags;
 import com.simibubi.create.foundation.config.AllConfigs;
 import com.simibubi.create.foundation.fluid.FluidHelper;
 import com.simibubi.create.foundation.networking.AllPackets;
@@ -15,21 +16,21 @@ import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 import com.simibubi.create.foundation.utility.Iterate;
 import com.simibubi.create.foundation.utility.VecHelper;
 
-import net.minecraft.fluid.Fluid;
-import net.minecraft.fluid.FluidState;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.nbt.NBTUtil;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.Axis;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtUtils;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.FluidTags;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Direction.Axis;
-import net.minecraft.util.SoundCategory;
-import net.minecraft.util.SoundEvent;
-import net.minecraft.util.SoundEvents;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MutableBoundingBox;
-import net.minecraft.util.math.vector.Vector3d;
-import net.minecraft.world.World;
-import net.minecraft.world.server.ServerWorld;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.minecraft.world.level.material.Fluid;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.fluids.FluidStack;
 
 public abstract class FluidManipulationBehaviour extends TileEntityBehaviour {
@@ -44,7 +45,7 @@ public abstract class FluidManipulationBehaviour extends TileEntityBehaviour {
 		}
 	}
 
-	MutableBoundingBox affectedArea;
+	BoundingBox affectedArea;
 	BlockPos rootPos;
 	boolean infinite;
 	protected boolean counterpartActed;
@@ -112,22 +113,22 @@ public abstract class FluidManipulationBehaviour extends TileEntityBehaviour {
 	}
 
 	protected void scheduleUpdatesInAffectedArea() {
-		World world = getWorld();
+		Level world = getWorld();
 		BlockPos
-			.betweenClosedStream(new BlockPos(affectedArea.x0 - 1, affectedArea.y0 - 1, affectedArea.z0 - 1),
-				new BlockPos(affectedArea.x1 + 1, affectedArea.y1 + 1, affectedArea.z1 + 1))
+			.betweenClosedStream(
+				new BlockPos(affectedArea.minX() - 1, affectedArea.minY() - 1, affectedArea.minZ() - 1),
+				new BlockPos(affectedArea.maxX() + 1, affectedArea.maxY() + 1, affectedArea.maxZ() + 1))
 			.forEach(pos -> {
 				FluidState nextFluidState = world.getFluidState(pos);
 				if (nextFluidState.isEmpty())
 					return;
-				world.getLiquidTicks()
-					.scheduleTick(pos, nextFluidState.getType(), world.getRandom()
-						.nextInt(5));
+				world.scheduleTick(pos, nextFluidState.getType(), world.getRandom()
+					.nextInt(5));
 			});
 	}
 
 	protected int comparePositions(BlockPosEntry e1, BlockPosEntry e2) {
-		Vector3d centerOfRoot = VecHelper.getCenterOf(rootPos);
+		Vec3 centerOfRoot = VecHelper.getCenterOf(rootPos);
 		BlockPos pos2 = e2.pos;
 		BlockPos pos1 = e1.pos;
 		if (pos1.getY() != pos2.getY())
@@ -143,7 +144,7 @@ public abstract class FluidManipulationBehaviour extends TileEntityBehaviour {
 
 	protected Fluid search(Fluid fluid, List<BlockPosEntry> frontier, Set<BlockPos> visited,
 		BiConsumer<BlockPos, Integer> add, boolean searchDownward) {
-		World world = getWorld();
+		Level world = getWorld();
 		int maxBlocks = maxBlocks();
 		int maxRange = canDrainInfinitely(fluid) ? maxRange() : maxRange() / 2;
 		int maxRangeSq = maxRange * maxRange;
@@ -194,7 +195,7 @@ public abstract class FluidManipulationBehaviour extends TileEntityBehaviour {
 		return fluid;
 	}
 
-	protected void playEffect(World world, BlockPos pos, Fluid fluid, boolean fillSound) {
+	protected void playEffect(Level world, BlockPos pos, Fluid fluid, boolean fillSound) {
 		BlockPos splooshPos = pos == null ? tileEntity.getBlockPos() : pos;
 
 		SoundEvent soundevent = fillSound ? fluid.getAttributes()
@@ -202,40 +203,70 @@ public abstract class FluidManipulationBehaviour extends TileEntityBehaviour {
 			: fluid.getAttributes()
 				.getEmptySound();
 		if (soundevent == null)
-			soundevent =
-				fluid.is(FluidTags.LAVA) ? fillSound ? SoundEvents.BUCKET_FILL_LAVA : SoundEvents.BUCKET_EMPTY_LAVA
-					: fillSound ? SoundEvents.BUCKET_FILL : SoundEvents.BUCKET_EMPTY;
+			soundevent = FluidHelper.isTag(fluid, FluidTags.LAVA)
+				? fillSound ? SoundEvents.BUCKET_FILL_LAVA : SoundEvents.BUCKET_EMPTY_LAVA
+				: fillSound ? SoundEvents.BUCKET_FILL : SoundEvents.BUCKET_EMPTY;
 
-		world.playSound(null, splooshPos, soundevent, SoundCategory.BLOCKS, 0.3F, 1.0F);
-		if (world instanceof ServerWorld)
+		world.playSound(null, splooshPos, soundevent, SoundSource.BLOCKS, 0.3F, 1.0F);
+		if (world instanceof ServerLevel)
 			AllPackets.sendToNear(world, splooshPos, 10, new FluidSplashPacket(splooshPos, new FluidStack(fluid, 1)));
 	}
 
 	protected boolean canDrainInfinitely(Fluid fluid) {
-		return maxBlocks() != -1 && !AllTags.AllFluidTags.NO_INFINITE_DRAINING.matches(fluid);
+		if (fluid == null)
+			return false;
+		return maxBlocks() != -1 && AllConfigs.SERVER.fluids.bottomlessFluidMode.get()
+			.test(fluid);
 	}
 
 	@Override
-	public void write(CompoundNBT nbt, boolean clientPacket) {
+	public void write(CompoundTag nbt, boolean clientPacket) {
 		if (rootPos != null)
-			nbt.put("LastPos", NBTUtil.writeBlockPos(rootPos));
+			nbt.put("LastPos", NbtUtils.writeBlockPos(rootPos));
 		if (affectedArea != null) {
 			nbt.put("AffectedAreaFrom",
-				NBTUtil.writeBlockPos(new BlockPos(affectedArea.x0, affectedArea.y0, affectedArea.z0)));
+				NbtUtils.writeBlockPos(new BlockPos(affectedArea.minX(), affectedArea.minY(), affectedArea.minZ())));
 			nbt.put("AffectedAreaTo",
-				NBTUtil.writeBlockPos(new BlockPos(affectedArea.x1, affectedArea.y1, affectedArea.z1)));
+				NbtUtils.writeBlockPos(new BlockPos(affectedArea.maxX(), affectedArea.maxY(), affectedArea.maxZ())));
 		}
 		super.write(nbt, clientPacket);
 	}
 
 	@Override
-	public void read(CompoundNBT nbt, boolean clientPacket) {
+	public void read(CompoundTag nbt, boolean clientPacket) {
 		if (nbt.contains("LastPos"))
-			rootPos = NBTUtil.readBlockPos(nbt.getCompound("LastPos"));
+			rootPos = NbtUtils.readBlockPos(nbt.getCompound("LastPos"));
 		if (nbt.contains("AffectedAreaFrom") && nbt.contains("AffectedAreaTo"))
-			affectedArea = new MutableBoundingBox(NBTUtil.readBlockPos(nbt.getCompound("AffectedAreaFrom")),
-				NBTUtil.readBlockPos(nbt.getCompound("AffectedAreaTo")));
+			affectedArea = BoundingBox.fromCorners(NbtUtils.readBlockPos(nbt.getCompound("AffectedAreaFrom")),
+				NbtUtils.readBlockPos(nbt.getCompound("AffectedAreaTo")));
 		super.read(nbt, clientPacket);
+	}
+
+	public enum BottomlessFluidMode implements Predicate<Fluid> {
+		ALLOW_ALL {
+			@Override
+			public boolean test(Fluid fluid) {
+				return true;
+			}
+		},
+		DENY_ALL {
+			@Override
+			public boolean test(Fluid fluid) {
+				return false;
+			}
+		},
+		ALLOW_BY_TAG {
+			@Override
+			public boolean test(Fluid fluid) {
+				return AllFluidTags.BOTTOMLESS_ALLOW.matches(fluid);
+			}
+		},
+		DENY_BY_TAG {
+			@Override
+			public boolean test(Fluid fluid) {
+				return !AllFluidTags.BOTTOMLESS_DENY.matches(fluid);
+			}
+		};
 	}
 
 }

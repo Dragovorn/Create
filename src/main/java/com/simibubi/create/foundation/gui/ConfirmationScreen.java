@@ -6,28 +6,25 @@ import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
 
-import com.jozufozu.flywheel.backend.Backend;
-import com.jozufozu.flywheel.backend.gl.versioned.GlCompat;
-import com.mojang.blaze3d.matrix.MatrixStack;
-import com.simibubi.create.foundation.gui.widgets.BoxWidget;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.simibubi.create.foundation.gui.element.BoxElement;
+import com.simibubi.create.foundation.gui.element.TextStencilElement;
+import com.simibubi.create.foundation.gui.widget.BoxWidget;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.shader.Framebuffer;
-import net.minecraft.client.shader.FramebufferConstants;
-import net.minecraft.util.text.ITextProperties;
-import net.minecraft.util.text.Style;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.FormattedText;
+import net.minecraft.network.chat.Style;
 
 public class ConfirmationScreen extends AbstractSimiScreen {
 
 	private Screen source;
 	private Consumer<Response> action = _success -> {
 	};
-	private List<ITextProperties> text = new ArrayList<>();
+	private List<FormattedText> text = new ArrayList<>();
 	private boolean centered = false;
 	private int x;
 	private int y;
@@ -60,12 +57,12 @@ public class ConfirmationScreen extends AbstractSimiScreen {
 		return this;
 	}
 
-	public ConfirmationScreen addText(ITextProperties text) {
+	public ConfirmationScreen addText(FormattedText text) {
 		this.text.add(text);
 		return this;
 	}
 
-	public ConfirmationScreen withText(ITextProperties text) {
+	public ConfirmationScreen withText(FormattedText text) {
 		return clearText().addText(text);
 	}
 
@@ -102,19 +99,18 @@ public class ConfirmationScreen extends AbstractSimiScreen {
 	@Override
 	public void tick() {
 		super.tick();
-		confirm.tick();
-		cancel.tick();
+		source.tick();
 	}
 
 	@Override
 	protected void init() {
-		widgets.clear();
+		super.init();
 
-		ArrayList<ITextProperties> copy = new ArrayList<>(text);
+		ArrayList<FormattedText> copy = new ArrayList<>(text);
 		text.clear();
-		copy.forEach(t -> text.addAll(minecraft.font.getSplitter().splitLines(t, 300, Style.EMPTY)));
+		copy.forEach(t -> text.addAll(font.getSplitter().splitLines(t, 300, Style.EMPTY)));
 
-		textHeight = text.size() * (minecraft.font.lineHeight + 1) + 4;
+		textHeight = text.size() * (font.lineHeight + 1) + 4;
 		textWidth = 300;
 
 		if (centered) {
@@ -136,35 +132,37 @@ public class ConfirmationScreen extends AbstractSimiScreen {
 		int buttonX = x + textWidth / 2 - 6 - (int) (70 * (tristate ? 1.5f : 1));
 
 		TextStencilElement confirmText =
-				new TextStencilElement(minecraft.font, tristate ? "Save" : "Confirm").centered(true, true);
+				new TextStencilElement(font, tristate ? "Save" : "Confirm").centered(true, true);
 		confirm = new BoxWidget(buttonX, y + textHeight + 6, 70, 16).withCallback(() -> accept(Response.Confirm));
 		confirm.showingElement(confirmText.withElementRenderer(BoxWidget.gradientFactory.apply(confirm)));
-		widgets.add(confirm);
+		addRenderableWidget(confirm);
 
 		buttonX += 12 + 70;
 
 		if (tristate) {
 			TextStencilElement confirmDontSaveText =
-					new TextStencilElement(minecraft.font, "Don't Save").centered(true, true);
+					new TextStencilElement(font, "Don't Save").centered(true, true);
 			confirmDontSave =
 					new BoxWidget(buttonX, y + textHeight + 6, 70, 16).withCallback(() -> accept(Response.ConfirmDontSave));
 			confirmDontSave.showingElement(
 					confirmDontSaveText.withElementRenderer(BoxWidget.gradientFactory.apply(confirmDontSave)));
-			widgets.add(confirmDontSave);
+			addRenderableWidget(confirmDontSave);
 			buttonX += 12 + 70;
 		}
 
-		TextStencilElement cancelText = new TextStencilElement(minecraft.font, "Cancel").centered(true, true);
+		TextStencilElement cancelText = new TextStencilElement(font, "Cancel").centered(true, true);
 		cancel = new BoxWidget(buttonX, y + textHeight + 6, 70, 16)
 				.withCallback(() -> accept(Response.Cancel));
 		cancel.showingElement(cancelText.withElementRenderer(BoxWidget.gradientFactory.apply(cancel)));
-		widgets.add(cancel);
+		addRenderableWidget(cancel);
 
 		textBackground = new BoxElement()
 				.gradientBorder(Theme.p(Theme.Key.BUTTON_DISABLE))
 				.withBounds(width + 10, textHeight + 35)
 				.at(-5, y - 5);
 
+		if (text.size() == 1)
+			x = (width - font.width(text.get(0))) / 2;
 	}
 
 	@Override
@@ -178,31 +176,26 @@ public class ConfirmationScreen extends AbstractSimiScreen {
 	}
 
 	@Override
-	protected void renderWindow(MatrixStack ms, int mouseX, int mouseY, float partialTicks) {
-
+	protected void renderWindow(PoseStack ms, int mouseX, int mouseY, float partialTicks) {
 		textBackground.render(ms);
-		int offset = minecraft.font.lineHeight + 1;
+		int offset = font.lineHeight + 1;
 		int lineY = y - offset;
 
 		ms.pushPose();
 		ms.translate(0, 0, 200);
 
-		for (ITextProperties line : text) {
-			lineY = lineY + offset;
+		for (FormattedText line : text) {
+			lineY += offset;
 			if (line == null)
 				continue;
-			int textX = x;
-			if (text.size() == 1)
-				x = (width - minecraft.font.width(line)) / 2;
-			minecraft.font.draw(ms, line.getString(), textX, lineY, 0xeaeaea);
+			font.draw(ms, line.getString(), x, lineY, 0xeaeaea);
 		}
 
 		ms.popPose();
-
 	}
 
 	@Override
-	protected void renderWindowBackground(MatrixStack ms, int mouseX, int mouseY, float partialTicks) {
+	protected void renderWindowBackground(PoseStack ms, int mouseX, int mouseY, float partialTicks) {
 		endFrame();
 
 		source.render(ms, 0, 0, 10); // zero mouse coords to prevent further tooltips
@@ -212,33 +205,16 @@ public class ConfirmationScreen extends AbstractSimiScreen {
 		this.fillGradient(ms, 0, 0, this.width, this.height, 0x70101010, 0x80101010);
 	}
 
+
 	@Override
 	protected void prepareFrame() {
-		Framebuffer thisBuffer = UIRenderHelper.framebuffer;
-		Framebuffer mainBuffer = Minecraft.getInstance().getMainRenderTarget();
-
-		GlCompat functions = Backend.getInstance().compat;
-		functions.fbo.bindFramebuffer(GL30.GL_READ_FRAMEBUFFER, mainBuffer.frameBufferId);
-		functions.fbo.bindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, thisBuffer.frameBufferId);
-		functions.blit.blitFramebuffer(0, 0, mainBuffer.viewWidth, mainBuffer.viewHeight, 0, 0, mainBuffer.viewWidth, mainBuffer.viewHeight, GL30.GL_COLOR_BUFFER_BIT, GL20.GL_LINEAR);
-
-		functions.fbo.bindFramebuffer(FramebufferConstants.GL_FRAMEBUFFER, thisBuffer.frameBufferId);
-		GL11.glClear(GL30.GL_STENCIL_BUFFER_BIT | GL30.GL_DEPTH_BUFFER_BIT);
-
+		UIRenderHelper.swapAndBlitColor(minecraft.getMainRenderTarget(), UIRenderHelper.framebuffer);
+		RenderSystem.clear(GL30.GL_STENCIL_BUFFER_BIT | GL30.GL_DEPTH_BUFFER_BIT, Minecraft.ON_OSX);
 	}
 
 	@Override
 	protected void endFrame() {
-
-		Framebuffer thisBuffer = UIRenderHelper.framebuffer;
-		Framebuffer mainBuffer = Minecraft.getInstance().getMainRenderTarget();
-
-		GlCompat functions = Backend.getInstance().compat;
-		functions.fbo.bindFramebuffer(GL30.GL_READ_FRAMEBUFFER, thisBuffer.frameBufferId);
-		functions.fbo.bindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, mainBuffer.frameBufferId);
-		functions.blit.blitFramebuffer(0, 0, mainBuffer.viewWidth, mainBuffer.viewHeight, 0, 0, mainBuffer.viewWidth, mainBuffer.viewHeight, GL30.GL_COLOR_BUFFER_BIT, GL20.GL_LINEAR);
-
-		functions.fbo.bindFramebuffer(FramebufferConstants.GL_FRAMEBUFFER, mainBuffer.frameBufferId);
+		UIRenderHelper.swapAndBlitColor(UIRenderHelper.framebuffer, minecraft.getMainRenderTarget());
 	}
 
 	@Override

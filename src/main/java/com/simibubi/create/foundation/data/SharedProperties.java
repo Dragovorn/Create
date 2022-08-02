@@ -1,16 +1,19 @@
 package com.simibubi.create.foundation.data;
 
-import mcp.MethodsReturnNonnullByDefault;
-import net.minecraft.block.Block;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.material.Material;
-import net.minecraft.block.material.MaterialColor;
-import net.minecraft.block.material.PushReaction;
+import net.minecraft.MethodsReturnNonnullByDefault;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.material.Material;
+import net.minecraft.world.level.material.MaterialColor;
+import net.minecraft.world.level.material.PushReaction;
 
 @MethodsReturnNonnullByDefault
 public class SharedProperties {
-	public static Material beltMaterial =
+	public static final Material BELT_MATERIAL =
 		new Material(MaterialColor.COLOR_GRAY, false, true, true, true, false, false, PushReaction.NORMAL);
+
+	public static final Material CRUSHING_WHEEL_CONTROLLER_MATERIAL =
+		new Material(MaterialColor.NONE, false, false, true, true, false, false, PushReaction.BLOCK);
 
 	public static Block stone() {
 		return Blocks.ANDESITE;
@@ -18,6 +21,10 @@ public class SharedProperties {
 
 	public static Block softMetal() {
 		return Blocks.GOLD_BLOCK;
+	}
+	
+	public static Block copperMetal() {
+		return Blocks.COPPER_BLOCK;
 	}
 
 	public static Block wooden() {

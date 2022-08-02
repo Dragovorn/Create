@@ -1,23 +1,28 @@
 package com.simibubi.create.foundation.gui;
 
-import com.mojang.blaze3d.matrix.MatrixStack;
-import com.mojang.blaze3d.matrix.MatrixStack.Entry;
-import com.mojang.blaze3d.vertex.IVertexBuilder;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.math.Matrix4f;
 import com.simibubi.create.Create;
+import com.simibubi.create.foundation.gui.element.DelegatedStencilElement;
+import com.simibubi.create.foundation.gui.element.ScreenElement;
 import com.simibubi.create.foundation.utility.Color;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.AbstractGui;
-import net.minecraft.client.renderer.IRenderTypeBuffer;
+import net.minecraft.client.gui.GuiComponent;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
-import net.minecraft.util.ResourceLocation;
-import net.minecraft.util.math.vector.Vector3d;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 
-public class AllIcons implements IScreenRenderable {
+public class AllIcons implements ScreenElement {
 
 	public static final ResourceLocation ICON_ATLAS = Create.asResource("textures/gui/icons.png");
+	public static final int ICON_ATLAS_SIZE = 256;
+
 	private static int x = 0, y = -1;
 	private int iconX;
 	private int iconY;
@@ -87,6 +92,7 @@ public class AllIcons implements IScreenRenderable {
 		I_TUNNEL_RANDOMIZE = next(),
 		I_TUNNEL_SYNCHRONIZE = next(),
 		I_TOOLBOX = next(),
+		I_VIEW_SCHEDULE = next(),
 
 		I_TOOL_MOVE_XZ = newRow(),
 		I_TOOL_MOVE_Y = next(),
@@ -119,6 +125,7 @@ public class AllIcons implements IScreenRenderable {
 		I_FOLLOW_MATERIAL = next(),
 
 		I_SCHEMATIC = newRow(),
+		I_SEQ_REPEAT = next(),
 
 		I_MTD_LEFT = newRow(),
 		I_MTD_CLOSE = next(),
@@ -162,56 +169,57 @@ public class AllIcons implements IScreenRenderable {
 
 	@OnlyIn(Dist.CLIENT)
 	public void bind() {
-		Minecraft.getInstance()
-			.getTextureManager()
-			.bind(ICON_ATLAS);
+		RenderSystem.setShaderTexture(0, ICON_ATLAS);
 	}
 
+	@OnlyIn(Dist.CLIENT)
 	@Override
-	@OnlyIn(Dist.CLIENT)
-	public void draw(MatrixStack matrixStack, AbstractGui screen, int x, int y) {
+	public void render(PoseStack matrixStack, int x, int y) {
 		bind();
-		screen.blit(matrixStack, x, y, iconX, iconY, 16, 16);
+		GuiComponent.blit(matrixStack, x, y, 0, iconX, iconY, 16, 16, 256, 256);
 	}
 
 	@OnlyIn(Dist.CLIENT)
-	public void draw(MatrixStack ms, IRenderTypeBuffer buffer, int color) {
-		IVertexBuilder builder = buffer.getBuffer(RenderType.textSeeThrough(ICON_ATLAS));
-		float sheetSize = 256;
-		int i = 15 << 20 | 15 << 4;
-		int j = i >> 16 & '\uffff';
-		int k = i & '\uffff';
-		Entry peek = ms.last();
-		Vector3d rgb = Color.vectorFromRGB(color);
+	public void render(PoseStack matrixStack, int x, int y, GuiComponent component) {
+		bind();
+		component.blit(matrixStack, x, y, iconX, iconY, 16, 16);
+	}
 
-		Vector3d vec4 = new Vector3d(1, 1, 0);
-		Vector3d vec3 = new Vector3d(0, 1, 0);
-		Vector3d vec2 = new Vector3d(0, 0, 0);
-		Vector3d vec1 = new Vector3d(1, 0, 0);
+	@OnlyIn(Dist.CLIENT)
+	public void render(PoseStack ms, MultiBufferSource buffer, int color) {
+		VertexConsumer builder = buffer.getBuffer(RenderType.textSeeThrough(ICON_ATLAS));
+		Matrix4f matrix = ms.last().pose();
+		Color rgb = new Color(color);
+		int light = LightTexture.FULL_BRIGHT;
 
-		float u1 = (iconX + 16) / sheetSize;
-		float u2 = iconX / sheetSize;
-		float v1 = iconY / sheetSize;
-		float v2 = (iconY + 16) / sheetSize;
+		Vec3 vec1 = new Vec3(0, 0, 0);
+		Vec3 vec2 = new Vec3(0, 1, 0);
+		Vec3 vec3 = new Vec3(1, 1, 0);
+		Vec3 vec4 = new Vec3(1, 0, 0);
 
-		vertex(peek, builder, j, k, rgb, vec1, u1, v1);
-		vertex(peek, builder, j, k, rgb, vec2, u2, v1);
-		vertex(peek, builder, j, k, rgb, vec3, u2, v2);
-		vertex(peek, builder, j, k, rgb, vec4, u1, v2);
+		float u1 = iconX * 1f / ICON_ATLAS_SIZE;
+		float u2 = (iconX + 16) * 1f / ICON_ATLAS_SIZE;
+		float v1 = iconY * 1f / ICON_ATLAS_SIZE;
+		float v2 = (iconY + 16) * 1f / ICON_ATLAS_SIZE;
+
+		vertex(builder, matrix, vec1, rgb, u1, v1, light);
+		vertex(builder, matrix, vec2, rgb, u1, v2, light);
+		vertex(builder, matrix, vec3, rgb, u2, v2, light);
+		vertex(builder, matrix, vec4, rgb, u2, v1, light);
+	}
+
+	@OnlyIn(Dist.CLIENT)
+	private void vertex(VertexConsumer builder, Matrix4f matrix, Vec3 vec, Color rgb, float u, float v, int light) {
+		builder.vertex(matrix, (float) vec.x, (float) vec.y, (float) vec.z)
+			.color(rgb.getRed(), rgb.getGreen(), rgb.getBlue(), 255)
+			.uv(u, v)
+			.uv2(light)
+			.endVertex();
 	}
 
 	@OnlyIn(Dist.CLIENT)
 	public DelegatedStencilElement asStencil() {
-		return new DelegatedStencilElement().withStencilRenderer((ms, w, h, alpha) -> this.draw(ms, 0, 0)).withBounds(16, 16);
-	}
-
-	@OnlyIn(Dist.CLIENT)
-	private void vertex(Entry peek, IVertexBuilder builder, int j, int k, Vector3d rgb, Vector3d vec, float u, float v) {
-		builder.vertex(peek.pose(), (float) vec.x, (float) vec.y, (float) vec.z)
-			.color((float) rgb.x, (float) rgb.y, (float) rgb.z, 1)
-			.uv(u, v)
-			.uv2(j, k)
-			.endVertex();
+		return new DelegatedStencilElement().withStencilRenderer((ms, w, h, alpha) -> this.render(ms, 0, 0)).withBounds(16, 16);
 	}
 
 }

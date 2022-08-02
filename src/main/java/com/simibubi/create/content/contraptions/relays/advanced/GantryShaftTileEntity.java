@@ -6,17 +6,17 @@ import com.simibubi.create.content.contraptions.components.structureMovement.gan
 import com.simibubi.create.content.contraptions.components.structureMovement.gantry.GantryCarriageTileEntity;
 import com.simibubi.create.foundation.utility.Iterate;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MathHelper;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.util.Mth;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
 
 public class GantryShaftTileEntity extends KineticTileEntity {
 
-	public GantryShaftTileEntity(TileEntityType<?> typeIn) {
-		super(typeIn);
+	public GantryShaftTileEntity(BlockEntityType<?> typeIn, BlockPos pos, BlockState state) {
+		super(typeIn, pos, state);
 	}
 
 	public void checkAttachedCarriageBlocks() {
@@ -32,7 +32,7 @@ public class GantryShaftTileEntity extends KineticTileEntity {
 				continue;
 			if (pinionState.getValue(GantryCarriageBlock.FACING) != d)
 				continue;
-			TileEntity tileEntity = level.getBlockEntity(offset);
+			BlockEntity tileEntity = level.getBlockEntity(offset);
 			if (tileEntity instanceof GantryCarriageTileEntity)
 				((GantryCarriageTileEntity) tileEntity).queueAssembly();
 		}
@@ -99,7 +99,7 @@ public class GantryShaftTileEntity extends KineticTileEntity {
 		BlockState blockState = getBlockState();
 		if (!AllBlocks.GANTRY_SHAFT.has(blockState))
 			return 0;
-		return MathHelper.clamp(convertToLinear(-getSpeed()), -.49f, .49f);
+		return Mth.clamp(convertToLinear(-getSpeed()), -.49f, .49f);
 	}
 
 	@Override

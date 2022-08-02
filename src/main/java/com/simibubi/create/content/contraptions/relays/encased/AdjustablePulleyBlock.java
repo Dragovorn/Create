@@ -1,20 +1,19 @@
 package com.simibubi.create.content.contraptions.relays.encased;
 
 import com.simibubi.create.AllTileEntities;
-import com.simibubi.create.foundation.block.ITE;
+import com.simibubi.create.content.contraptions.base.KineticTileEntity;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.item.BlockItemUseContext;
-import net.minecraft.state.BooleanProperty;
-import net.minecraft.state.StateContainer.Builder;
-import net.minecraft.state.properties.BlockStateProperties;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.IBlockReader;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition.Builder;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
 
-public class AdjustablePulleyBlock extends EncasedBeltBlock implements ITE<AdjustablePulleyTileEntity> {
+public class AdjustablePulleyBlock extends EncasedBeltBlock {
 
 	public static BooleanProperty POWERED = BlockStateProperties.POWERED;
 
@@ -29,20 +28,15 @@ public class AdjustablePulleyBlock extends EncasedBeltBlock implements ITE<Adjus
 	}
 
 	@Override
-	public TileEntity createTileEntity(BlockState state, IBlockReader world) {
-		return AllTileEntities.ADJUSTABLE_PULLEY.create();
-	}
-
-	@Override
-	public void onPlace(BlockState state, World worldIn, BlockPos pos, BlockState oldState, boolean isMoving) {
+	public void onPlace(BlockState state, Level worldIn, BlockPos pos, BlockState oldState, boolean isMoving) {
 		super.onPlace(state, worldIn, pos, oldState, isMoving);
 		if (oldState.getBlock() == state.getBlock())
 			return;
-		withTileEntityDo(worldIn, pos, AdjustablePulleyTileEntity::neighborChanged);
+		withTileEntityDo(worldIn, pos, kte -> ((AdjustablePulleyTileEntity) kte).neighbourChanged());
 	}
 
 	@Override
-	public BlockState getStateForPlacement(BlockItemUseContext context) {
+	public BlockState getStateForPlacement(BlockPlaceContext context) {
 		return super.getStateForPlacement(context).setValue(POWERED, context.getLevel()
 			.hasNeighborSignal(context.getClickedPos()));
 	}
@@ -54,12 +48,12 @@ public class AdjustablePulleyBlock extends EncasedBeltBlock implements ITE<Adjus
 	}
 
 	@Override
-	public void neighborChanged(BlockState state, World worldIn, BlockPos pos, Block blockIn, BlockPos fromPos,
+	public void neighborChanged(BlockState state, Level worldIn, BlockPos pos, Block blockIn, BlockPos fromPos,
 		boolean isMoving) {
 		if (worldIn.isClientSide)
 			return;
 
-		withTileEntityDo(worldIn, pos, AdjustablePulleyTileEntity::neighborChanged);
+		withTileEntityDo(worldIn, pos, kte -> ((AdjustablePulleyTileEntity) kte).neighbourChanged());
 
 		boolean previouslyPowered = state.getValue(POWERED);
 		if (previouslyPowered != worldIn.hasNeighborSignal(pos))
@@ -67,8 +61,8 @@ public class AdjustablePulleyBlock extends EncasedBeltBlock implements ITE<Adjus
 	}
 
 	@Override
-	public Class<AdjustablePulleyTileEntity> getTileEntityClass() {
-		return AdjustablePulleyTileEntity.class;
+	public BlockEntityType<? extends KineticTileEntity> getTileEntityType() {
+		return AllTileEntities.ADJUSTABLE_PULLEY.get();
 	}
 
 }

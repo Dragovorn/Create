@@ -2,12 +2,11 @@ package com.simibubi.create.content.contraptions.itemAssembly;
 
 import com.simibubi.create.foundation.utility.Color;
 
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemGroup;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.util.NonNullList;
-import net.minecraft.util.math.MathHelper;
+import net.minecraft.core.NonNullList;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 
 public class SequencedAssemblyItem extends Item {
 
@@ -15,28 +14,32 @@ public class SequencedAssemblyItem extends Item {
 		super(p_i48487_1_.stacksTo(1));
 	}
 
-	@Override
-	public void fillItemCategory(ItemGroup p_150895_1_, NonNullList<ItemStack> p_150895_2_) {}
-
-	@Override
-	public double getDurabilityForDisplay(ItemStack stack) {
+	public float getProgress(ItemStack stack) {
 		if (!stack.hasTag())
-			return 1;
-		CompoundNBT tag = stack.getTag();
+			return 0;
+		CompoundTag tag = stack.getTag();
 		if (!tag.contains("SequencedAssembly"))
-			return 1;
-		return MathHelper.lerp(tag.getCompound("SequencedAssembly")
-			.getFloat("Progress"), 1, 0);
+			return 0;
+		return tag.getCompound("SequencedAssembly")
+			.getFloat("Progress");
 	}
 
 	@Override
-	public boolean showDurabilityBar(ItemStack stack) {
+	public void fillItemCategory(CreativeModeTab p_150895_1_, NonNullList<ItemStack> p_150895_2_) {}
+
+	@Override
+	public boolean isBarVisible(ItemStack stack) {
 		return true;
 	}
 
 	@Override
-	public int getRGBDurabilityForDisplay(ItemStack stack) {
-		return Color.mixColors(0xFF_46FFE0, 0xFF_FFC074, (float) getDurabilityForDisplay(stack));
+	public int getBarWidth(ItemStack stack) {
+		return Math.round(getProgress(stack) * 13);
+	}
+
+	@Override
+	public int getBarColor(ItemStack stack) {
+		return Color.mixColors(0xFF_FFC074, 0xFF_46FFE0, getProgress(stack));
 	}
 
 }

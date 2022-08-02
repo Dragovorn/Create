@@ -6,8 +6,8 @@ import java.util.List;
 
 import javax.annotation.Nullable;
 
-import com.jozufozu.flywheel.util.transform.MatrixTransformStack;
-import com.mojang.blaze3d.matrix.MatrixStack;
+import com.jozufozu.flywheel.util.transform.TransformStack;
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.simibubi.create.AllBlocks;
 import com.simibubi.create.content.contraptions.base.KineticTileEntity;
 import com.simibubi.create.content.contraptions.relays.belt.transport.TransportedItemStack;
@@ -29,38 +29,38 @@ import com.simibubi.create.foundation.utility.VecHelper;
 import com.simibubi.create.foundation.utility.animation.LerpedFloat;
 import com.simibubi.create.foundation.utility.animation.LerpedFloat.Chaser;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.block.ObserverBlock;
-import net.minecraft.block.material.PushReaction;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.item.ItemEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.inventory.EquipmentSlotType;
-import net.minecraft.item.ElytraItem;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.nbt.NBTUtil;
-import net.minecraft.network.datasync.EntityDataManager;
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Direction.Axis;
-import net.minecraft.util.SoundCategory;
-import net.minecraft.util.SoundEvents;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.BlockRayTraceResult;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.RayTraceContext;
-import net.minecraft.util.math.RayTraceContext.BlockMode;
-import net.minecraft.util.math.RayTraceContext.FluidMode;
-import net.minecraft.util.math.RayTraceResult.Type;
-import net.minecraft.util.math.vector.Vector3d;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.Axis;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtUtils;
+import net.minecraft.nbt.Tag;
+import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ElytraItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.ClipContext.Block;
+import net.minecraft.world.level.ClipContext.Fluid;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.ObserverBlock;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.PushReaction;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult.Type;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.util.Constants.NBT;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.items.ItemStackHandler;
 
@@ -77,7 +77,7 @@ public class EjectorTileEntity extends KineticTileEntity {
 
 	// item collision
 	@Nullable
-	Pair<Vector3d, BlockPos> earlyTarget;
+	Pair<Vec3, BlockPos> earlyTarget;
 	float earlyTargetTime;
 	// runtime stuff
 	int scanCooldown;
@@ -87,12 +87,12 @@ public class EjectorTileEntity extends KineticTileEntity {
 		CHARGED, LAUNCHING, RETRACTING;
 	}
 
-	public EjectorTileEntity(TileEntityType<?> typeIn) {
-		super(typeIn);
+	public EjectorTileEntity(BlockEntityType<?> typeIn, BlockPos pos, BlockState state) {
+		super(typeIn, pos, state);
 		launcher = new EntityLauncher(1, 0);
 		lidProgress = LerpedFloat.linear()
 			.startWithValue(1);
-		state = State.RETRACTING;
+		this.state = State.RETRACTING;
 		launchedItems = new ArrayList<>();
 		powered = false;
 	}
@@ -102,7 +102,7 @@ public class EjectorTileEntity extends KineticTileEntity {
 		super.addBehaviours(behaviours);
 		behaviours.add(depotBehaviour = new DepotBehaviour(this));
 
-		maxStackSize = new ScrollValueBehaviour(Lang.translate("weighted_ejector.stack_size"), this, new EjectorSlot())
+		maxStackSize = new ScrollValueBehaviour(Lang.translateDirect("weighted_ejector.stack_size"), this, new EjectorSlot())
 			.between(0, 64)
 			.withFormatter(i -> i == 0 ? "*" : String.valueOf(i))
 			.onlyActiveWhen(() -> state == State.CHARGED)
@@ -136,7 +136,7 @@ public class EjectorTileEntity extends KineticTileEntity {
 			return;
 		Direction facing = getFacing();
 		List<Entity> entities =
-			level.getEntitiesOfClass(Entity.class, new AxisAlignedBB(worldPosition).inflate(-1 / 16f, 0, -1 / 16f));
+			level.getEntitiesOfClass(Entity.class, new AABB(worldPosition).inflate(-1 / 16f, 0, -1 / 16f));
 
 		// Launch Items
 		boolean doLogic = !level.isClientSide || isVirtual();
@@ -145,7 +145,7 @@ public class EjectorTileEntity extends KineticTileEntity {
 
 		// Launch Entities
 		for (Entity entity : entities) {
-			boolean isPlayerEntity = entity instanceof PlayerEntity;
+			boolean isPlayerEntity = entity instanceof Player;
 			if (!entity.isAlive())
 				continue;
 			if (entity instanceof ItemEntity)
@@ -153,7 +153,7 @@ public class EjectorTileEntity extends KineticTileEntity {
 			if (entity.getPistonPushReaction() == PushReaction.IGNORE)
 				continue;
 
-			entity.onGround = false;
+			entity.setOnGround(false);
 
 			if (isPlayerEntity != level.isClientSide)
 				continue;
@@ -163,13 +163,19 @@ public class EjectorTileEntity extends KineticTileEntity {
 
 			if (!isPlayerEntity)
 				continue;
-			PlayerEntity playerEntity = (PlayerEntity) entity;
-			if (!(playerEntity.getItemBySlot(EquipmentSlotType.CHEST)
+
+			Player playerEntity = (Player) entity;
+
+			if (launcher.getHorizontalDistance() * launcher.getHorizontalDistance()
+				+ launcher.getVerticalDistance() * launcher.getVerticalDistance() >= 25 * 25)
+				AllPackets.channel.sendToServer(new EjectorAwardPacket(worldPosition));
+
+			if (!(playerEntity.getItemBySlot(EquipmentSlot.CHEST)
 				.getItem() instanceof ElytraItem))
 				continue;
 
-			playerEntity.yRot = facing.toYRot();
-			playerEntity.xRot = -35;
+			playerEntity.setXRot(-35);
+			playerEntity.setYRot(facing.toYRot());
 			playerEntity.setDeltaMovement(playerEntity.getDeltaMovement()
 				.scale(.75f));
 			deployElytra(playerEntity);
@@ -180,13 +186,13 @@ public class EjectorTileEntity extends KineticTileEntity {
 			lidProgress.chase(1, .8f, Chaser.EXP);
 			state = State.LAUNCHING;
 			if (!level.isClientSide) {
-				level.playSound(null, worldPosition, SoundEvents.WOODEN_TRAPDOOR_CLOSE, SoundCategory.BLOCKS, .35f, 1f);
-				level.playSound(null, worldPosition, SoundEvents.CHEST_OPEN, SoundCategory.BLOCKS, .1f, 1.4f);
+				level.playSound(null, worldPosition, SoundEvents.WOODEN_TRAPDOOR_CLOSE, SoundSource.BLOCKS, .35f, 1f);
+				level.playSound(null, worldPosition, SoundEvents.CHEST_OPEN, SoundSource.BLOCKS, .1f, 1.4f);
 			}
 		}
 	}
 
-	public void deployElytra(PlayerEntity playerEntity) {
+	public void deployElytra(Player playerEntity) {
 		EntityHack.setElytraFlying(playerEntity);
 	}
 
@@ -329,14 +335,14 @@ public class EjectorTileEntity extends KineticTileEntity {
 					sendData();
 				}
 
-				float value = MathHelper.clamp(lidProgress.getValue() - getWindUpSpeed(), 0, 1);
+				float value = Mth.clamp(lidProgress.getValue() - getWindUpSpeed(), 0, 1);
 				lidProgress.setValue(value);
 
 				int soundRate = (int) (1 / (getWindUpSpeed() * 5)) + 1;
 				float volume = .125f;
 				float pitch = 1.5f - lidProgress.getValue();
 				if (((int) level.getGameTime()) % soundRate == 0 && doLogic)
-					level.playSound(null, worldPosition, SoundEvents.WOODEN_BUTTON_CLICK_OFF, SoundCategory.BLOCKS,
+					level.playSound(null, worldPosition, SoundEvents.WOODEN_BUTTON_CLICK_OFF, SoundSource.BLOCKS,
 						volume, pitch);
 			}
 		}
@@ -349,11 +355,10 @@ public class EjectorTileEntity extends KineticTileEntity {
 		if (time <= 2)
 			return false;
 
-		Vector3d source = getLaunchedItemLocation(time);
-		Vector3d target = getLaunchedItemLocation(time + 1);
+		Vec3 source = getLaunchedItemLocation(time);
+		Vec3 target = getLaunchedItemLocation(time + 1);
 
-		BlockRayTraceResult rayTraceBlocks =
-			level.clip(new RayTraceContext(source, target, BlockMode.COLLIDER, FluidMode.NONE, null));
+		BlockHitResult rayTraceBlocks = level.clip(new ClipContext(source, target, Block.COLLIDER, Fluid.NONE, null));
 		boolean miss = rayTraceBlocks.getType() == Type.MISS;
 
 		if (!miss && rayTraceBlocks.getType() == Type.BLOCK) {
@@ -371,8 +376,8 @@ public class EjectorTileEntity extends KineticTileEntity {
 			return false;
 		}
 
-		Vector3d vec = rayTraceBlocks.getLocation();
-		earlyTarget = Pair.of(vec.add(Vector3d.atLowerCornerOf(rayTraceBlocks.getDirection()
+		Vec3 vec = rayTraceBlocks.getLocation();
+		earlyTarget = Pair.of(vec.add(Vec3.atLowerCornerOf(rayTraceBlocks.getDirection()
 			.getNormal())
 			.scale(.25f)), rayTraceBlocks.getBlockPos());
 		earlyTargetTime = (float) (time + (source.distanceTo(vec) / source.distanceTo(target)));
@@ -382,12 +387,12 @@ public class EjectorTileEntity extends KineticTileEntity {
 
 	protected void nudgeEntities() {
 		for (Entity entity : level.getEntitiesOfClass(Entity.class,
-			new AxisAlignedBB(worldPosition).inflate(-1 / 16f, 0, -1 / 16f))) {
+			new AABB(worldPosition).inflate(-1 / 16f, 0, -1 / 16f))) {
 			if (!entity.isAlive())
 				continue;
 			if (entity.getPistonPushReaction() == PushReaction.IGNORE)
 				continue;
-			if (!(entity instanceof PlayerEntity))
+			if (!(entity instanceof Player))
 				entity.setPos(entity.getX(), entity.getY() + .125f, entity.getZ());
 		}
 	}
@@ -442,8 +447,8 @@ public class EjectorTileEntity extends KineticTileEntity {
 			.isEmpty())
 			return;
 
-		Vector3d ejectVec = earlyTarget != null ? earlyTarget.getFirst() : getLaunchedItemLocation(maxTime);
-		Vector3d ejectMotionVec = getLaunchedItemMotion(maxTime);
+		Vec3 ejectVec = earlyTarget != null ? earlyTarget.getFirst() : getLaunchedItemLocation(maxTime);
+		Vec3 ejectMotionVec = getLaunchedItemMotion(maxTime);
 		ItemEntity item = new ItemEntity(level, ejectVec.x, ejectVec.y, ejectVec.z, intAttached.getValue());
 		item.setDeltaMovement(ejectMotionVec);
 		item.setDefaultPickUpDelay();
@@ -457,19 +462,19 @@ public class EjectorTileEntity extends KineticTileEntity {
 		return TileEntityBehaviour.get(level, targetPos, DirectBeltInputBehaviour.TYPE);
 	}
 
-	public Vector3d getLaunchedItemLocation(float time) {
+	public Vec3 getLaunchedItemLocation(float time) {
 		return launcher.getGlobalPos(time, getFacing().getOpposite(), worldPosition);
 	}
 
-	public Vector3d getLaunchedItemMotion(float time) {
+	public Vec3 getLaunchedItemMotion(float time) {
 		return launcher.getGlobalVelocity(time, getFacing().getOpposite(), worldPosition)
 			.scale(.5f);
 	}
 
 	public void dropFlyingItems() {
 		for (IntAttached<ItemStack> intAttached : launchedItems) {
-			Vector3d ejectVec = getLaunchedItemLocation(intAttached.getFirst());
-			Vector3d ejectMotionVec = getLaunchedItemMotion(intAttached.getFirst());
+			Vec3 ejectVec = getLaunchedItemLocation(intAttached.getFirst());
+			Vec3 ejectMotionVec = getLaunchedItemMotion(intAttached.getFirst());
 			ItemEntity item = new ItemEntity(level, 0, 0, 0, intAttached.getValue());
 			item.setPosRaw(ejectVec.x, ejectVec.y, ejectVec.z);
 			item.setDeltaMovement(ejectMotionVec);
@@ -488,12 +493,12 @@ public class EjectorTileEntity extends KineticTileEntity {
 		if (hd == 0 && vd == 0)
 			distanceFactor = 1;
 		else
-			distanceFactor = 1 * MathHelper.sqrt(Math.pow(hd, 2) + Math.pow(vd, 2));
+			distanceFactor = 1 * Mth.sqrt(hd * hd + vd * vd);
 		return speedFactor / distanceFactor;
 	}
 
 	@Override
-	protected void write(CompoundNBT compound, boolean clientPacket) {
+	protected void write(CompoundTag compound, boolean clientPacket) {
 		super.write(compound, clientPacket);
 		compound.putInt("HorizontalDistance", launcher.getHorizontalDistance());
 		compound.putInt("VerticalDistance", launcher.getVerticalDistance());
@@ -505,21 +510,21 @@ public class EjectorTileEntity extends KineticTileEntity {
 
 		if (earlyTarget != null) {
 			compound.put("EarlyTarget", VecHelper.writeNBT(earlyTarget.getFirst()));
-			compound.put("EarlyTargetPos", NBTUtil.writeBlockPos(earlyTarget.getSecond()));
+			compound.put("EarlyTargetPos", NbtUtils.writeBlockPos(earlyTarget.getSecond()));
 			compound.putFloat("EarlyTargetTime", earlyTargetTime);
 		}
 	}
 
 	@Override
-	public void writeSafe(CompoundNBT compound, boolean clientPacket) {
-		super.writeSafe(compound, clientPacket);
+	public void writeSafe(CompoundTag compound) {
+		super.writeSafe(compound);
 		compound.putInt("HorizontalDistance", launcher.getHorizontalDistance());
 		compound.putInt("VerticalDistance", launcher.getVerticalDistance());
 	}
 
 	@Override
-	protected void fromTag(BlockState blockState, CompoundNBT compound, boolean clientPacket) {
-		super.fromTag(blockState, compound, clientPacket);
+	protected void read(CompoundTag compound, boolean clientPacket) {
+		super.read(compound, clientPacket);
 		int horizontalDistance = compound.getInt("HorizontalDistance");
 		int verticalDistance = compound.getInt("VerticalDistance");
 
@@ -532,14 +537,14 @@ public class EjectorTileEntity extends KineticTileEntity {
 		powered = compound.getBoolean("Powered");
 		state = NBTHelper.readEnum(compound, "State", State.class);
 		lidProgress.readNBT(compound.getCompound("Lid"), false);
-		launchedItems = NBTHelper.readCompoundList(compound.getList("LaunchedItems", NBT.TAG_COMPOUND),
+		launchedItems = NBTHelper.readCompoundList(compound.getList("LaunchedItems", Tag.TAG_COMPOUND),
 			nbt -> IntAttached.read(nbt, ItemStack::of));
 
 		earlyTarget = null;
 		earlyTargetTime = 0;
 		if (compound.contains("EarlyTarget")) {
-			earlyTarget = Pair.of(VecHelper.readNBT(compound.getList("EarlyTarget", NBT.TAG_DOUBLE)),
-				NBTUtil.readBlockPos(compound.getCompound("EarlyTargetPos")));
+			earlyTarget = Pair.of(VecHelper.readNBT(compound.getList("EarlyTarget", Tag.TAG_DOUBLE)),
+				NbtUtils.readBlockPos(compound.getCompound("EarlyTargetPos")));
 			earlyTargetTime = compound.getFloat("EarlyTargetTime");
 		}
 
@@ -576,11 +581,6 @@ public class EjectorTileEntity extends KineticTileEntity {
 		return super.getCapability(cap, side);
 	}
 
-	@Override
-	public boolean shouldRenderNormally() {
-		return true;
-	}
-
 	public float getLidProgress(float pt) {
 		return lidProgress.getValue(pt);
 	}
@@ -591,24 +591,18 @@ public class EjectorTileEntity extends KineticTileEntity {
 
 	@Override
 	@OnlyIn(Dist.CLIENT)
-	public AxisAlignedBB getRenderBoundingBox() {
+	public AABB getRenderBoundingBox() {
 		return INFINITE_EXTENT_AABB;
-	}
-
-	@Override
-	@OnlyIn(Dist.CLIENT)
-	public double getViewDistance() {
-		return super.getViewDistance() * 16;
 	}
 
 	private static abstract class EntityHack extends Entity {
 
-		public EntityHack(EntityType<?> p_i48580_1_, World p_i48580_2_) {
+		public EntityHack(EntityType<?> p_i48580_1_, Level p_i48580_2_) {
 			super(p_i48580_1_, p_i48580_2_);
 		}
 
 		public static void setElytraFlying(Entity e) {
-			EntityDataManager data = e.getEntityData();
+			SynchedEntityData data = e.getEntityData();
 			data.set(DATA_SHARED_FLAGS_ID, (byte) (data.get(DATA_SHARED_FLAGS_ID) | 1 << 7));
 		}
 
@@ -617,13 +611,13 @@ public class EjectorTileEntity extends KineticTileEntity {
 	private static class EjectorSlot extends ValueBoxTransform.Sided {
 
 		@Override
-		protected Vector3d getLocalOffset(BlockState state) {
-			return new Vector3d(.5, 13 / 16f, .5).add(VecHelper.rotate(new Vector3d(0, 0, -.3), angle(state), Axis.Y));
+		protected Vec3 getLocalOffset(BlockState state) {
+			return new Vec3(.5, 13 / 16f, .5).add(VecHelper.rotate(new Vec3(0, 0, -.3), angle(state), Axis.Y));
 		}
 
 		@Override
-		protected void rotate(BlockState state, MatrixStack ms) {
-			MatrixTransformStack.of(ms)
+		protected void rotate(BlockState state, PoseStack ms) {
+			TransformStack.cast(ms)
 				.rotateY(angle(state))
 				.rotateX(90);
 		}
@@ -646,8 +640,8 @@ public class EjectorTileEntity extends KineticTileEntity {
 		}
 
 		@Override
-		protected Vector3d getSouthLocation() {
-			return Vector3d.ZERO;
+		protected Vec3 getSouthLocation() {
+			return Vec3.ZERO;
 		}
 
 	}

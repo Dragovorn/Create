@@ -7,17 +7,19 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import com.simibubi.create.foundation.advancement.AllAdvancements;
 import com.simibubi.create.foundation.utility.VecHelper;
 import com.simibubi.create.foundation.utility.WorldAttached;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectLists;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.util.math.vector.Vector3d;
-import net.minecraft.world.World;
-import net.minecraftforge.common.util.Constants.NBT;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 
 public class ContraptionHandler {
 
@@ -31,7 +33,7 @@ public class ContraptionHandler {
 		queuedAdditions = new WorldAttached<>($ -> ObjectLists.synchronize(new ObjectArrayList<>()));
 	}
 
-	public static void tick(World world) {
+	public static void tick(Level world) {
 		Map<Integer, WeakReference<AbstractContraptionEntity>> map = loadedContraptions.get(world);
 		List<AbstractContraptionEntity> queued = queuedAdditions.get(world);
 
@@ -43,30 +45,44 @@ public class ContraptionHandler {
 		for (Iterator<WeakReference<AbstractContraptionEntity>> iterator = values.iterator(); iterator.hasNext();) {
 			WeakReference<AbstractContraptionEntity> weakReference = iterator.next();
 			AbstractContraptionEntity contraptionEntity = weakReference.get();
-			if (contraptionEntity == null || !contraptionEntity.isAlive()) {
+			if (contraptionEntity == null || !contraptionEntity.isAliveOrStale()) {
 				iterator.remove();
 				continue;
 			}
+			if (!contraptionEntity.isAlive()) {
+				contraptionEntity.staleTicks--;
+				continue;
+			}
+			
 			ContraptionCollider.collideEntities(contraptionEntity);
 		}
 	}
 
-	public static void addSpawnedContraptionsToCollisionList(Entity entity, World world) {
+	public static void addSpawnedContraptionsToCollisionList(Entity entity, Level world) {
 		if (entity instanceof AbstractContraptionEntity)
 			queuedAdditions.get(world)
 				.add((AbstractContraptionEntity) entity);
 	}
 
-	public static void entitiesWhoJustDismountedGetSentToTheRightLocation(LivingEntity entityLiving, World world) {
+	public static void entitiesWhoJustDismountedGetSentToTheRightLocation(LivingEntity entityLiving, Level world) {
 		if (world.isClientSide)
 			return;
-		CompoundNBT data = entityLiving.getPersistentData();
+		CompoundTag data = entityLiving.getPersistentData();
 		if (!data.contains("ContraptionDismountLocation"))
 			return;
-		Vector3d position = VecHelper.readNBT(data.getList("ContraptionDismountLocation", NBT.TAG_DOUBLE));
+		Vec3 position = VecHelper.readNBT(data.getList("ContraptionDismountLocation", Tag.TAG_DOUBLE));
 		if (entityLiving.getVehicle() == null)
 			entityLiving.teleportTo(position.x, position.y, position.z);
 		data.remove("ContraptionDismountLocation");
+		entityLiving.setOnGround(false);
+
+		if (!data.contains("ContraptionMountLocation"))
+			return;
+		Vec3 prevPosition = VecHelper.readNBT(data.getList("ContraptionMountLocation", Tag.TAG_DOUBLE));
+		data.remove("ContraptionMountLocation");
+		
+		if (entityLiving instanceof Player player && !prevPosition.closerThan(position, 5000)) 
+			AllAdvancements.LONG_TRAVEL.awardTo(player);
 	}
 
 }

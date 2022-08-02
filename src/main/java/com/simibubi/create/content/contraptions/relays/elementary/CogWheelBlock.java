@@ -5,28 +5,38 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import com.simibubi.create.AllBlocks;
 import com.simibubi.create.AllShapes;
 import com.simibubi.create.content.contraptions.base.IRotate;
+import com.simibubi.create.content.contraptions.base.KineticTileEntity;
 import com.simibubi.create.content.contraptions.relays.advanced.SpeedControllerBlock;
+import com.simibubi.create.content.contraptions.relays.encased.EncasedCogwheelBlock;
+import com.simibubi.create.foundation.advancement.AllAdvancements;
 import com.simibubi.create.foundation.utility.Iterate;
 
-import mcp.MethodsReturnNonnullByDefault;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.fluid.Fluids;
-import net.minecraft.item.BlockItemUseContext;
-import net.minecraft.state.properties.BlockStateProperties;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Direction.Axis;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.shapes.ISelectionContext;
-import net.minecraft.util.math.shapes.VoxelShape;
-import net.minecraft.world.IBlockReader;
-import net.minecraft.world.IWorldReader;
-import net.minecraft.world.World;
+import net.minecraft.MethodsReturnNonnullByDefault;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.Axis;
+import net.minecraft.core.Direction.AxisDirection;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.material.Fluids;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 @ParametersAreNonnullByDefault
 @MethodsReturnNonnullByDefault
-@SuppressWarnings("deprecation")
-public class CogWheelBlock extends AbstractShaftBlock implements ICogWheel {
+public class CogWheelBlock extends AbstractSimpleShaftBlock implements ICogWheel {
+
 	boolean isLarge;
 
 	protected CogWheelBlock(boolean large, Properties properties) {
@@ -53,16 +63,102 @@ public class CogWheelBlock extends AbstractShaftBlock implements ICogWheel {
 	}
 
 	@Override
-	public VoxelShape getShape(BlockState state, IBlockReader worldIn, BlockPos pos, ISelectionContext context) {
+	public VoxelShape getShape(BlockState state, BlockGetter worldIn, BlockPos pos, CollisionContext context) {
 		return (isLarge ? AllShapes.LARGE_GEAR : AllShapes.SMALL_GEAR).get(state.getValue(AXIS));
 	}
 
 	@Override
-	public boolean canSurvive(BlockState state, IWorldReader worldIn, BlockPos pos) {
+	public boolean canSurvive(BlockState state, LevelReader worldIn, BlockPos pos) {
 		return isValidCogwheelPosition(ICogWheel.isLargeCog(state), worldIn, pos, state.getValue(AXIS));
 	}
 
-	public static boolean isValidCogwheelPosition(boolean large, IWorldReader worldIn, BlockPos pos, Axis cogAxis) {
+	@Override
+	public void setPlacedBy(Level worldIn, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
+		super.setPlacedBy(worldIn, pos, state, placer, stack);
+		if (placer instanceof Player player)
+			triggerShiftingGearsAdvancement(worldIn, pos, state, player);
+	}
+
+	protected void triggerShiftingGearsAdvancement(Level world, BlockPos pos, BlockState state, Player player) {
+		if (world.isClientSide || player == null)
+			return;
+
+		Axis axis = state.getValue(CogWheelBlock.AXIS);
+		for (Axis perpendicular1 : Iterate.axes) {
+			if (perpendicular1 == axis)
+				continue;
+
+			Direction d1 = Direction.get(AxisDirection.POSITIVE, perpendicular1);
+			for (Axis perpendicular2 : Iterate.axes) {
+				if (perpendicular1 == perpendicular2)
+					continue;
+				if (axis == perpendicular2)
+					continue;
+
+				Direction d2 = Direction.get(AxisDirection.POSITIVE, perpendicular2);
+				for (int offset1 : Iterate.positiveAndNegative) {
+					for (int offset2 : Iterate.positiveAndNegative) {
+						BlockPos connectedPos = pos.relative(d1, offset1)
+							.relative(d2, offset2);
+						BlockState blockState = world.getBlockState(connectedPos);
+						if (!(blockState.getBlock() instanceof CogWheelBlock))
+							continue;
+						if (blockState.getValue(CogWheelBlock.AXIS) != axis)
+							continue;
+						if (ICogWheel.isLargeCog(blockState) == isLarge)
+							continue;
+
+						AllAdvancements.COGS.awardTo(player);
+					}
+				}
+			}
+		}
+	}
+
+	@Override
+	public InteractionResult use(BlockState state, Level world, BlockPos pos, Player player, InteractionHand hand,
+		BlockHitResult ray) {
+		if (player.isShiftKeyDown() || !player.mayBuild())
+			return InteractionResult.PASS;
+
+		ItemStack heldItem = player.getItemInHand(hand);
+		EncasedCogwheelBlock[] encasedBlocks = isLarge
+			? new EncasedCogwheelBlock[] { AllBlocks.ANDESITE_ENCASED_LARGE_COGWHEEL.get(),
+				AllBlocks.BRASS_ENCASED_LARGE_COGWHEEL.get() }
+			: new EncasedCogwheelBlock[] { AllBlocks.ANDESITE_ENCASED_COGWHEEL.get(),
+				AllBlocks.BRASS_ENCASED_COGWHEEL.get() };
+
+		for (EncasedCogwheelBlock encasedCog : encasedBlocks) {
+			if (!encasedCog.getCasing()
+				.isIn(heldItem))
+				continue;
+
+			if (world.isClientSide)
+				return InteractionResult.SUCCESS;
+
+			BlockState encasedState = encasedCog.defaultBlockState()
+				.setValue(AXIS, state.getValue(AXIS));
+
+			for (Direction d : Iterate.directionsInAxis(state.getValue(AXIS))) {
+				BlockState adjacentState = world.getBlockState(pos.relative(d));
+				if (!(adjacentState.getBlock() instanceof IRotate))
+					continue;
+				IRotate def = (IRotate) adjacentState.getBlock();
+				if (!def.hasShaftTowards(world, pos.relative(d), adjacentState, d.getOpposite()))
+					continue;
+				encasedState =
+					encasedState.cycle(d.getAxisDirection() == AxisDirection.POSITIVE ? EncasedCogwheelBlock.TOP_SHAFT
+						: EncasedCogwheelBlock.BOTTOM_SHAFT);
+			}
+
+			KineticTileEntity.switchToBlockState(world, pos, encasedState);
+			return InteractionResult.SUCCESS;
+		}
+
+		return InteractionResult.PASS;
+	}
+
+	public static boolean isValidCogwheelPosition(boolean large, LevelReader worldIn, BlockPos pos, Axis cogAxis) {
 		for (Direction facing : Iterate.directions) {
 			if (facing.getAxis() == cogAxis)
 				continue;
@@ -78,17 +174,22 @@ public class CogWheelBlock extends AbstractShaftBlock implements ICogWheel {
 		return true;
 	}
 
-	protected Axis getAxisForPlacement(BlockItemUseContext context) {
-		if (context.getPlayer() != null && context.getPlayer().isShiftKeyDown())
-			return context.getClickedFace().getAxis();
+	protected Axis getAxisForPlacement(BlockPlaceContext context) {
+		if (context.getPlayer() != null && context.getPlayer()
+			.isShiftKeyDown())
+			return context.getClickedFace()
+				.getAxis();
 
-		World world = context.getLevel();
-		BlockState stateBelow = world.getBlockState(context.getClickedPos().below());
+		Level world = context.getLevel();
+		BlockState stateBelow = world.getBlockState(context.getClickedPos()
+			.below());
 
 		if (AllBlocks.ROTATION_SPEED_CONTROLLER.has(stateBelow) && isLargeCog())
 			return stateBelow.getValue(SpeedControllerBlock.HORIZONTAL_AXIS) == Axis.X ? Axis.Z : Axis.X;
 
-		BlockPos placedOnPos = context.getClickedPos().relative(context.getClickedFace().getOpposite());
+		BlockPos placedOnPos = context.getClickedPos()
+			.relative(context.getClickedFace()
+				.getOpposite());
 		BlockState placedAgainst = world.getBlockState(placedOnPos);
 
 		Block block = placedAgainst.getBlock();
@@ -96,12 +197,16 @@ public class CogWheelBlock extends AbstractShaftBlock implements ICogWheel {
 			return ((IRotate) block).getRotationAxis(placedAgainst);
 
 		Axis preferredAxis = getPreferredAxis(context);
-		return preferredAxis != null ? preferredAxis : context.getClickedFace().getAxis();
+		return preferredAxis != null ? preferredAxis
+			: context.getClickedFace()
+				.getAxis();
 	}
 
 	@Override
-	public BlockState getStateForPlacement(BlockItemUseContext context) {
-		boolean shouldWaterlog = context.getLevel().getFluidState(context.getClickedPos()).getType() == Fluids.WATER;
+	public BlockState getStateForPlacement(BlockPlaceContext context) {
+		boolean shouldWaterlog = context.getLevel()
+			.getFluidState(context.getClickedPos())
+			.getType() == Fluids.WATER;
 		return this.defaultBlockState()
 			.setValue(AXIS, getAxisForPlacement(context))
 			.setValue(BlockStateProperties.WATERLOGGED, shouldWaterlog);

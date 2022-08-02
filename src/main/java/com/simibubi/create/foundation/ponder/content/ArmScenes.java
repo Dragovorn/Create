@@ -1,26 +1,26 @@
 package com.simibubi.create.foundation.ponder.content;
 
 import com.simibubi.create.AllBlocks;
-import com.simibubi.create.AllItems;
 import com.simibubi.create.AllShapes;
 import com.simibubi.create.content.contraptions.components.crafter.MechanicalCrafterTileEntity;
 import com.simibubi.create.content.logistics.block.funnel.FunnelTileEntity;
 import com.simibubi.create.content.logistics.block.mechanicalArm.ArmTileEntity.Phase;
 import com.simibubi.create.foundation.ponder.ElementLink;
+import com.simibubi.create.foundation.ponder.PonderPalette;
 import com.simibubi.create.foundation.ponder.SceneBuilder;
 import com.simibubi.create.foundation.ponder.SceneBuildingUtil;
 import com.simibubi.create.foundation.ponder.Selection;
-import com.simibubi.create.foundation.ponder.elements.InputWindowElement;
-import com.simibubi.create.foundation.ponder.elements.WorldSectionElement;
+import com.simibubi.create.foundation.ponder.element.InputWindowElement;
+import com.simibubi.create.foundation.ponder.element.WorldSectionElement;
 import com.simibubi.create.foundation.utility.Pointing;
 
-import net.minecraft.block.Blocks;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.vector.Vector3d;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 public class ArmScenes {
 
@@ -33,8 +33,8 @@ public class ArmScenes {
 		BlockPos armPos = util.grid.at(2, 1, 2);
 		Selection armSel = util.select.position(armPos);
 		BlockPos inputDepot = util.grid.at(4, 2, 1);
-		Vector3d depotSurface = util.vector.blockSurface(inputDepot, Direction.NORTH);
-		Vector3d armSurface = util.vector.blockSurface(armPos, Direction.WEST);
+		Vec3 depotSurface = util.vector.blockSurface(inputDepot, Direction.NORTH);
+		Vec3 armSurface = util.vector.blockSurface(armPos, Direction.WEST);
 
 		scene.idle(20);
 
@@ -56,7 +56,7 @@ public class ArmScenes {
 		scene.overlay.showControls(new InputWindowElement(depotSurface, Pointing.RIGHT).rightClick()
 			.withItem(armItem), 50);
 		scene.idle(7);
-		AxisAlignedBB depotBounds = AllShapes.DEPOT.bounds();
+		AABB depotBounds = AllShapes.DEPOT.bounds();
 		scene.overlay.chaseBoundingBoxOutline(PonderPalette.INPUT, new Object(), depotBounds.move(4, 2, 1), 400);
 
 		scene.overlay.showText(70)
@@ -104,7 +104,7 @@ public class ArmScenes {
 
 		scene.world.showSection(armSel, Direction.DOWN);
 		scene.idle(10);
-		Vector3d armTop = armSurface.add(0.5, 1.5, 0);
+		Vec3 armTop = armSurface.add(0.5, 1.5, 0);
 		scene.overlay.showText(70)
 			.attachKeyFrame()
 			.colored(PonderPalette.GREEN)
@@ -116,7 +116,7 @@ public class ArmScenes {
 		scene.effects.indicateSuccess(armPos);
 		scene.world.showSection(util.select.fromTo(2, 1, 5, 2, 1, 3)
 			.add(util.select.position(2, 0, 5)), Direction.DOWN);
-		ItemStack copper = AllItems.COPPER_INGOT.asStack();
+		ItemStack copper = new ItemStack(Items.COPPER_INGOT);
 		scene.world.createItemOnBeltLike(inputDepot, Direction.SOUTH, copper);
 		scene.idle(10);
 
@@ -157,7 +157,7 @@ public class ArmScenes {
 
 		inputDepot = util.grid.at(1, 3, 4);
 		outputDepot = util.grid.at(1, 1, 0);
-		copper = AllBlocks.COPPER_BLOCK.asStack();
+		copper = new ItemStack(Items.COPPER_BLOCK);
 		scene.world.createItemOnBeltLike(inputDepot, Direction.SOUTH, copper);
 		scene.idle(20);
 		scene.world.instructArm(armPos, Phase.MOVE_TO_INPUT, ItemStack.EMPTY, 2);
@@ -188,8 +188,8 @@ public class ArmScenes {
 
 		Object in = new Object();
 		Object out = new Object();
-		AxisAlignedBB chestBounds = new AxisAlignedBB(1 / 16f, 0, 1 / 16f, 15 / 16f, 14 / 16f, 15 / 16f);
-		AxisAlignedBB funnelBounds = new AxisAlignedBB(0, 0, 8 / 16f, 16 / 16f, 16 / 16f, 16 / 16f);
+		AABB chestBounds = new AABB(1 / 16f, 0, 1 / 16f, 15 / 16f, 14 / 16f, 15 / 16f);
+		AABB funnelBounds = new AABB(0, 0, 8 / 16f, 16 / 16f, 16 / 16f, 16 / 16f);
 
 		scene.overlay.chaseBoundingBoxOutline(PonderPalette.RED, in, chestBounds.move(4, 2, 3), 120);
 		scene.overlay.chaseBoundingBoxOutline(PonderPalette.RED, out, chestBounds.move(0, 2, 3), 120);
@@ -263,6 +263,8 @@ public class ArmScenes {
 				scene.idle(2);
 			}
 		}
+		
+		scene.world.showSection(util.select.position(6, 1, 1), Direction.WEST);
 		scene.world.showSection(util.select.position(2, 1, 1), Direction.EAST);
 
 		ItemStack sand = new ItemStack(Items.SAND, 64);
@@ -302,7 +304,7 @@ public class ArmScenes {
 			scene.idle(2);
 		}
 
-		Vector3d filterSlot = util.vector.of(3.5, 3.75, 2.6);
+		Vec3 filterSlot = util.vector.of(3.5, 3.75, 2.6);
 		scene.overlay.showFilterSlotInput(filterSlot, 80);
 		scene.idle(10);
 		scene.overlay.showText(80)
@@ -392,8 +394,8 @@ public class ArmScenes {
 		scene.world.showSection(util.select.fromTo(1, 1, 1, 5, 1, 2), Direction.SOUTH);
 		scene.idle(10);
 
-		AxisAlignedBB depotBox = AllShapes.DEPOT.bounds();
-		AxisAlignedBB beltBox = depotBox.contract(0, -3 / 16f, 0)
+		AABB depotBox = AllShapes.DEPOT.bounds();
+		AABB beltBox = depotBox.contract(0, -3 / 16f, 0)
 			.inflate(1, 0, 0);
 		BlockPos depotPos = util.grid.at(1, 1, 4);
 		BlockPos armPos = util.grid.at(3, 1, 4);
@@ -424,7 +426,7 @@ public class ArmScenes {
 			.colored(PonderPalette.OUTPUT);
 		scene.idle(70);
 
-		Vector3d scrollSlot = util.vector.of(3.5, 1.25, 4);
+		Vec3 scrollSlot = util.vector.of(3.5, 1.25, 4);
 		scene.overlay.showFilterSlotInput(scrollSlot, 120);
 		scene.overlay.showText(50)
 			.text("...it will act according to its setting")

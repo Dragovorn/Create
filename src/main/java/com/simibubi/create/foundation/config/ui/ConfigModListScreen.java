@@ -4,19 +4,21 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-import com.mojang.blaze3d.matrix.MatrixStack;
+import org.lwjgl.glfw.GLFW;
+
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.simibubi.create.foundation.gui.AllIcons;
-import com.simibubi.create.foundation.gui.DelegatedStencilElement;
 import com.simibubi.create.foundation.gui.ScreenOpener;
 import com.simibubi.create.foundation.gui.Theme;
-import com.simibubi.create.foundation.gui.widgets.BoxWidget;
+import com.simibubi.create.foundation.gui.element.DelegatedStencilElement;
+import com.simibubi.create.foundation.gui.widget.BoxWidget;
 import com.simibubi.create.foundation.item.TooltipHelper;
 
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.util.text.StringTextComponent;
-import net.minecraft.util.text.TextFormatting;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.TextComponent;
 import net.minecraftforge.fml.ModList;
-import net.minecraftforge.fml.loading.moddiscovery.ModInfo;
+import net.minecraftforge.forgespi.language.IModInfo;
 
 public class ConfigModListScreen extends ConfigScreen {
 
@@ -30,24 +32,17 @@ public class ConfigModListScreen extends ConfigScreen {
 	}
 
 	@Override
-	public void tick() {
-		super.tick();
-		list.tick();
-	}
-
-	@Override
 	protected void init() {
-		widgets.clear();
 		super.init();
 
 		int listWidth = Math.min(width - 80, 300);
 
 		list = new ConfigScreenList(minecraft, listWidth, height - 60, 15, height - 45, 40);
 		list.setLeftPos(this.width / 2 - list.getWidth() / 2);
-		children.add(list);
+		addRenderableWidget(list);
 
 		allEntries = new ArrayList<>();
-		ModList.get().getMods().stream().map(ModInfo::getModId).forEach(id -> allEntries.add(new ModEntry(id, this)));
+		ModList.get().getMods().stream().map(IModInfo::getModId).forEach(id -> allEntries.add(new ModEntry(id, this)));
 		allEntries.sort((e1, e2) -> {
 			int empty = (e2.button.active ? 1 : 0) - (e1.button.active ? 1 : 0);
 			if (empty != 0)
@@ -59,32 +54,28 @@ public class ConfigModListScreen extends ConfigScreen {
 		list.children().addAll(allEntries);
 
 		goBack = new BoxWidget(width / 2 - listWidth / 2 - 30, height / 2 + 65, 20, 20).withPadding(2, 2)
-				.withCallback(this::onClose);
+				.withCallback(() -> ScreenOpener.open(parent));
 		goBack.showingElement(AllIcons.I_CONFIG_BACK.asStencil()
 				.withElementRenderer(BoxWidget.gradientFactory.apply(goBack)));
 		goBack.getToolTip()
-				.add(new StringTextComponent("Go Back"));
-		widgets.add(goBack);
+				.add(new TextComponent("Go Back"));
+		addRenderableWidget(goBack);
 
 		search = new HintableTextFieldWidget(font, width / 2 - listWidth / 2, height - 35, listWidth, 20);
 		search.setResponder(this::updateFilter);
-		search.setHint("Search..");
+		search.setHint("Search...");
 		search.moveCursorToStart();
-		widgets.add(search);
-
+		addRenderableWidget(search);
 	}
 
 	@Override
-	protected void renderWindow(MatrixStack ms, int mouseX, int mouseY, float partialTicks) {
-
-		list.render(ms, mouseX, mouseY, partialTicks);
-
-	}
-
-	@Override
-	public void onClose() {
-		super.onClose();
-		ScreenOpener.open(parent);
+	public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+		if (super.keyPressed(keyCode, scanCode, modifiers))
+			return true;
+		if (keyCode == GLFW.GLFW_KEY_BACKSPACE) {
+			ScreenOpener.open(parent);
+		}
+		return false;
 	}
 
 	private void updateFilter(String search) {
@@ -115,14 +106,14 @@ public class ConfigModListScreen extends ConfigScreen {
 					.showingElement(AllIcons.I_CONFIG_OPEN.asStencil().at(10, 0));
 			button.modifyElement(e -> ((DelegatedStencilElement) e).withElementRenderer(BoxWidget.gradientFactory.apply(button)));
 
-			if (ConfigHelper.hasAnyConfig(id)) {
+			if (ConfigHelper.hasAnyForgeConfig(id)) {
 				button.withCallback(() -> ScreenOpener.open(new BaseConfigScreen(parent, id)));
 			} else {
 				button.active = false;
 				button.updateColorsFromState();
 				button.modifyElement(e -> ((DelegatedStencilElement) e).withElementRenderer(BaseConfigScreen.DISABLED_RENDERER));
-				labelTooltip.add(new StringTextComponent(toHumanReadable(id)));
-				labelTooltip.addAll(TooltipHelper.cutTextComponent(new StringTextComponent("This Mod does not have any configs registered or is not using Forge's config system"), TextFormatting.GRAY, TextFormatting.GRAY));
+				labelTooltip.add(new TextComponent(toHumanReadable(id)));
+				labelTooltip.addAll(TooltipHelper.cutTextComponent(new TextComponent("This Mod does not have any configs registered or is not using Forge's config system"), ChatFormatting.GRAY, ChatFormatting.GRAY));
 			}
 
 			listeners.add(button);
@@ -139,7 +130,7 @@ public class ConfigModListScreen extends ConfigScreen {
 		}
 
 		@Override
-		public void render(MatrixStack ms, int index, int y, int x, int width, int height, int mouseX, int mouseY, boolean p_230432_9_, float partialTicks) {
+		public void render(PoseStack ms, int index, int y, int x, int width, int height, int mouseX, int mouseY, boolean p_230432_9_, float partialTicks) {
 			super.render(ms, index, y, x, width, height, mouseX, mouseY, p_230432_9_, partialTicks);
 
 			button.x = x + width - 108;

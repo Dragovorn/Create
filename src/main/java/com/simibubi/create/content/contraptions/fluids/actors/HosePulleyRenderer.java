@@ -4,16 +4,16 @@ import com.jozufozu.flywheel.core.PartialModel;
 import com.simibubi.create.AllBlockPartials;
 import com.simibubi.create.content.contraptions.base.KineticTileEntity;
 import com.simibubi.create.content.contraptions.components.structureMovement.pulley.AbstractPulleyRenderer;
-import com.simibubi.create.foundation.render.PartialBufferer;
+import com.simibubi.create.foundation.render.CachedBufferer;
 import com.simibubi.create.foundation.render.SuperByteBuffer;
 
-import net.minecraft.client.renderer.tileentity.TileEntityRendererDispatcher;
-import net.minecraft.util.Direction.Axis;
+import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
+import net.minecraft.core.Direction.Axis;
 
 public class HosePulleyRenderer extends AbstractPulleyRenderer {
 
-	public HosePulleyRenderer(TileEntityRendererDispatcher dispatcher) {
-		super(dispatcher, AllBlockPartials.HOSE_HALF, AllBlockPartials.HOSE_HALF_MAGNET);
+	public HosePulleyRenderer(BlockEntityRendererProvider.Context context) {
+		super(context, AllBlockPartials.HOSE_HALF, AllBlockPartials.HOSE_HALF_MAGNET);
 	}
 
 	@Override
@@ -31,12 +31,12 @@ public class HosePulleyRenderer extends AbstractPulleyRenderer {
 
 	@Override
 	protected SuperByteBuffer renderRope(KineticTileEntity te) {
-		return PartialBufferer.get(AllBlockPartials.HOSE, te.getBlockState());
+		return CachedBufferer.partial(AllBlockPartials.HOSE, te.getBlockState());
 	}
 
 	@Override
 	protected SuperByteBuffer renderMagnet(KineticTileEntity te) {
-		return PartialBufferer.get(AllBlockPartials.HOSE_MAGNET, te.getBlockState());
+		return CachedBufferer.partial(AllBlockPartials.HOSE_MAGNET, te.getBlockState());
 	}
 
 	@Override

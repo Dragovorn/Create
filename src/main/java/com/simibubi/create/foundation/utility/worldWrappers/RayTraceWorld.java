@@ -2,25 +2,25 @@ package com.simibubi.create.foundation.utility.worldWrappers;
 
 import java.util.function.BiFunction;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.fluid.FluidState;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.IBlockReader;
-import net.minecraft.world.IWorld;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.LevelAccessor;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.FluidState;
 
-public class RayTraceWorld implements IBlockReader {
+public class RayTraceWorld implements BlockGetter {
 
-	private IWorld template;
-	private BiFunction<BlockPos, BlockState, BlockState> stateGetter;
+	private final LevelAccessor template;
+	private final BiFunction<BlockPos, BlockState, BlockState> stateGetter;
 
-	public RayTraceWorld(IWorld template, BiFunction<BlockPos, BlockState, BlockState> stateGetter) {
+	public RayTraceWorld(LevelAccessor template, BiFunction<BlockPos, BlockState, BlockState> stateGetter) {
 		this.template = template;
 		this.stateGetter = stateGetter;
 	}
 
 	@Override
-	public TileEntity getBlockEntity(BlockPos pos) {
+	public BlockEntity getBlockEntity(BlockPos pos) {
 		return template.getBlockEntity(pos);
 	}
 
@@ -32,6 +32,16 @@ public class RayTraceWorld implements IBlockReader {
 	@Override
 	public FluidState getFluidState(BlockPos pos) {
 		return template.getFluidState(pos);
+	}
+
+	@Override
+	public int getHeight() {
+		return template.getHeight();
+	}
+
+	@Override
+	public int getMinBuildHeight() {
+		return template.getMinBuildHeight();
 	}
 
 }

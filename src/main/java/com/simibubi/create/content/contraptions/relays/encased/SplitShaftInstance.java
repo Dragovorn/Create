@@ -2,31 +2,31 @@ package com.simibubi.create.content.contraptions.relays.encased;
 
 import java.util.ArrayList;
 
-import com.jozufozu.flywheel.backend.instancing.InstanceData;
-import com.jozufozu.flywheel.backend.instancing.Instancer;
-import com.jozufozu.flywheel.backend.material.InstanceMaterial;
-import com.jozufozu.flywheel.backend.material.MaterialManager;
+import com.jozufozu.flywheel.api.InstanceData;
+import com.jozufozu.flywheel.api.Instancer;
+import com.jozufozu.flywheel.api.Material;
+import com.jozufozu.flywheel.api.MaterialManager;
 import com.simibubi.create.AllBlockPartials;
 import com.simibubi.create.content.contraptions.base.IRotate;
 import com.simibubi.create.content.contraptions.base.KineticTileInstance;
-import com.simibubi.create.content.contraptions.base.RotatingData;
+import com.simibubi.create.content.contraptions.base.flwdata.RotatingData;
 import com.simibubi.create.foundation.utility.Iterate;
 
-import net.minecraft.block.Block;
-import net.minecraft.util.Direction;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.block.Block;
 
 public class SplitShaftInstance extends KineticTileInstance<SplitShaftTileEntity> {
 
     protected final ArrayList<RotatingData> keys;
 
-    public SplitShaftInstance(MaterialManager<?> modelManager, SplitShaftTileEntity tile) {
+    public SplitShaftInstance(MaterialManager modelManager, SplitShaftTileEntity tile) {
         super(modelManager, tile);
 
         keys = new ArrayList<>(2);
 
         float speed = tile.getSpeed();
 
-        InstanceMaterial<RotatingData> rotatingMaterial = getRotatingMaterial();
+        Material<RotatingData> rotatingMaterial = getRotatingMaterial();
 
         for (Direction dir : Iterate.directionsInAxis(getRotationAxis())) {
 
@@ -46,7 +46,7 @@ public class SplitShaftInstance extends KineticTileInstance<SplitShaftTileEntity
         Direction[] directions = Iterate.directionsInAxis(boxAxis);
 
         for (int i : Iterate.zeroAndOne) {
-            updateRotation(keys.get(i), tile.getSpeed() * tile.getRotationSpeedModifier(directions[i]));
+            updateRotation(keys.get(i), blockEntity.getSpeed() * blockEntity.getRotationSpeedModifier(directions[i]));
         }
     }
 

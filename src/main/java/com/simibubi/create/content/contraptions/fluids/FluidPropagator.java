@@ -11,29 +11,39 @@ import com.simibubi.create.AllBlocks;
 import com.simibubi.create.content.contraptions.fluids.PipeConnection.Flow;
 import com.simibubi.create.content.contraptions.fluids.pipes.AxisPipeBlock;
 import com.simibubi.create.content.contraptions.fluids.pipes.FluidPipeBlock;
+import com.simibubi.create.content.contraptions.fluids.pipes.VanillaFluidTargets;
+import com.simibubi.create.foundation.advancement.AllAdvancements;
+import com.simibubi.create.foundation.advancement.CreateAdvancement;
 import com.simibubi.create.foundation.config.AllConfigs;
 import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 import com.simibubi.create.foundation.utility.BlockHelper;
 import com.simibubi.create.foundation.utility.Iterate;
 import com.simibubi.create.foundation.utility.Pair;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.FlowingFluidBlock;
-import net.minecraft.state.properties.BlockStateProperties;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Direction.Axis;
-import net.minecraft.util.Direction.AxisDirection;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.IBlockReader;
-import net.minecraft.world.IWorld;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.Axis;
+import net.minecraft.core.Direction.AxisDirection;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelAccessor;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.LiquidBlock;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
+import net.minecraftforge.fluids.capability.IFluidHandler;
 
 public class FluidPropagator {
 
-	public static void propagateChangedPipe(IWorld world, BlockPos pipePos, BlockState pipeState) {
+	public static CreateAdvancement[] getSharedTriggers() {
+		return new CreateAdvancement[] { AllAdvancements.WATER_SUPPLY, AllAdvancements.CROSS_STREAMS,
+			AllAdvancements.HONEY_DRAIN };
+	}
+
+	public static void propagateChangedPipe(LevelAccessor world, BlockPos pipePos, BlockState pipeState) {
 		List<Pair<Integer, BlockPos>> frontier = new ArrayList<>();
 		Set<BlockPos> visited = new HashSet<>();
 		Set<Pair<PumpTileEntity, Direction>> discoveredPumps = new HashSet<>();
@@ -55,10 +65,10 @@ public class FluidPropagator {
 
 			for (Direction direction : getPipeConnections(currentState, pipe)) {
 				BlockPos target = currentPos.relative(direction);
-				if (!world.isAreaLoaded(target, 0))
+				if (world instanceof Level l && !l.isLoaded(target))
 					continue;
 
-				TileEntity tileEntity = world.getBlockEntity(target);
+				BlockEntity tileEntity = world.getBlockEntity(target);
 				BlockState targetState = world.getBlockState(target);
 				if (tileEntity instanceof PumpTileEntity) {
 					if (!AllBlocks.MECHANICAL_PUMP.has(targetState) || targetState.getValue(PumpBlock.FACING)
@@ -84,7 +94,7 @@ public class FluidPropagator {
 			.updatePipesOnSide(pair.getSecond()));
 	}
 
-	public static void resetAffectedFluidNetworks(World world, BlockPos start, Direction side) {
+	public static void resetAffectedFluidNetworks(Level world, BlockPos start, Direction side) {
 		List<BlockPos> frontier = new ArrayList<>();
 		Set<BlockPos> visited = new HashSet<>();
 		frontier.add(start);
@@ -121,19 +131,21 @@ public class FluidPropagator {
 		}
 	}
 
-	public static Direction validateNeighbourChange(BlockState state, World world, BlockPos pos, Block otherBlock,
+	public static Direction validateNeighbourChange(BlockState state, Level world, BlockPos pos, Block otherBlock,
 		BlockPos neighborPos, boolean isMoving) {
 		if (world.isClientSide)
 			return null;
-		// calling getblockstate() as otherBlock param seems to contain the block which was replaced
-		otherBlock = world.getBlockState(neighborPos).getBlock();
+		// calling getblockstate() as otherBlock param seems to contain the block which
+		// was replaced
+		otherBlock = world.getBlockState(neighborPos)
+			.getBlock();
 		if (otherBlock instanceof FluidPipeBlock)
 			return null;
 		if (otherBlock instanceof AxisPipeBlock)
 			return null;
 		if (otherBlock instanceof PumpBlock)
 			return null;
-		if (otherBlock instanceof FlowingFluidBlock)
+		if (otherBlock instanceof LiquidBlock)
 			return null;
 		if (getStraightPipeAxis(state) == null && !AllBlocks.ENCASED_FLUID_PIPE.has(state))
 			return null;
@@ -146,11 +158,11 @@ public class FluidPropagator {
 		return null;
 	}
 
-	public static FluidTransportBehaviour getPipe(IBlockReader reader, BlockPos pos) {
+	public static FluidTransportBehaviour getPipe(BlockGetter reader, BlockPos pos) {
 		return TileEntityBehaviour.get(reader, pos, FluidTransportBehaviour.TYPE);
 	}
 
-	public static boolean isOpenEnd(IBlockReader reader, BlockPos pos, Direction side) {
+	public static boolean isOpenEnd(BlockGetter reader, BlockPos pos, Direction side) {
 		BlockPos connectedPos = pos.relative(side);
 		BlockState connectedState = reader.getBlockState(connectedPos);
 		FluidTransportBehaviour pipe = FluidPropagator.getPipe(reader, connectedPos);
@@ -159,7 +171,7 @@ public class FluidPropagator {
 		if (PumpBlock.isPump(connectedState) && connectedState.getValue(PumpBlock.FACING)
 			.getAxis() == side.getAxis())
 			return false;
-		if (connectedState.hasProperty(BlockStateProperties.LEVEL_HONEY))
+		if (VanillaFluidTargets.shouldPipesConnectTo(connectedState))
 			return true;
 		if (BlockHelper.hasBlockSolidSide(connectedState, reader, connectedPos, side.getOpposite()))
 			return false;
@@ -184,31 +196,13 @@ public class FluidPropagator {
 		return AllConfigs.SERVER.fluids.mechanicalPumpRange.get();
 	}
 
-//	static AxisAlignedBB smallCenter = new AxisAlignedBB(BlockPos.ZERO).shrink(.25);
-//	
-//	@Deprecated 
-//	public static OutlineParams showBlockFace(BlockFace face) {
-//		MutableObject<OutlineParams> params = new MutableObject<>(new OutlineParams());
-//		DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
-//			Vector3d directionVec = new Vector3d(face.getFace()
-//				.getDirectionVec());
-//			Vector3d scaleVec = directionVec.scale(-.25f * face.getFace()
-//				.getAxisDirection()
-//				.getOffset());
-//			directionVec = directionVec.scale(.45f);
-//			params.setValue(CreateClient.outliner.showAABB(face,
-//				FluidPropagator.smallCenter.offset(directionVec.add(new Vector3d(face.getPos())))
-//					.grow(scaleVec.x, scaleVec.y, scaleVec.z)
-//					.grow(1 / 16f)));
-//		});
-//		return params.getValue()
-//			.lineWidth(1 / 16f);
-//	}
-
-	public static boolean hasFluidCapability(IBlockReader world, BlockPos pos, Direction side) {
-		TileEntity tileEntity = world.getBlockEntity(pos);
-		return tileEntity != null && tileEntity.getCapability(CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, side)
-			.isPresent();
+	public static boolean hasFluidCapability(BlockGetter world, BlockPos pos, Direction side) {
+		BlockEntity tileEntity = world.getBlockEntity(pos);
+		if (tileEntity == null)
+			return false;
+		LazyOptional<IFluidHandler> capability =
+			tileEntity.getCapability(CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, side);
+		return capability.isPresent();
 	}
 
 	@Nullable

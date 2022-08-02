@@ -1,11 +1,9 @@
 package com.simibubi.create.content.contraptions.fluids.pipes;
 
-import com.jozufozu.flywheel.backend.instancing.IDynamicInstance;
-import com.jozufozu.flywheel.backend.material.MaterialManager;
+import com.jozufozu.flywheel.api.MaterialManager;
+import com.jozufozu.flywheel.api.instance.DynamicInstance;
 import com.jozufozu.flywheel.core.Materials;
-import com.jozufozu.flywheel.core.materials.ModelData;
-import com.jozufozu.flywheel.util.transform.MatrixTransformStack;
-import com.mojang.blaze3d.matrix.MatrixStack;
+import com.jozufozu.flywheel.core.materials.model.ModelData;
 import com.simibubi.create.AllBlockPartials;
 import com.simibubi.create.content.contraptions.base.KineticTileEntity;
 import com.simibubi.create.content.contraptions.base.KineticTileEntityRenderer;
@@ -13,19 +11,21 @@ import com.simibubi.create.content.contraptions.relays.encased.ShaftInstance;
 import com.simibubi.create.foundation.utility.AngleHelper;
 import com.simibubi.create.foundation.utility.AnimationTickHolder;
 
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.MathHelper;
+import net.minecraft.core.Direction;
+import net.minecraft.util.Mth;
 
-public class FluidValveInstance extends ShaftInstance implements IDynamicInstance {
+public class FluidValveInstance extends ShaftInstance implements DynamicInstance {
 
-    protected ModelData pointer;
+	private final FluidValveTileEntity tile;
+	protected ModelData pointer;
 
     protected final double xRot;
     protected final double yRot;
     protected final int pointerRotationOffset;
 
-    public FluidValveInstance(MaterialManager<?> dispatcher, KineticTileEntity tile) {
+    public FluidValveInstance(MaterialManager dispatcher, KineticTileEntity tile) {
         super(dispatcher, tile);
+		this.tile = (FluidValveTileEntity) tile;
 
         Direction facing = blockState.getValue(FluidValveBlock.FACING);
 
@@ -35,40 +35,34 @@ public class FluidValveInstance extends ShaftInstance implements IDynamicInstanc
         Direction.Axis pipeAxis = FluidValveBlock.getPipeAxis(blockState);
         Direction.Axis shaftAxis = KineticTileEntityRenderer.getRotationAxisOf(tile);
 
-        boolean twist = pipeAxis.isHorizontal() && shaftAxis == Direction.Axis.Z || pipeAxis.isVertical();
+        boolean twist = pipeAxis.isHorizontal() && shaftAxis == Direction.Axis.X || pipeAxis.isVertical();
         pointerRotationOffset = twist ? 90 : 0;
 
         pointer = materialManager.defaultSolid()
                 .material(Materials.TRANSFORMED)
                 .getModel(AllBlockPartials.FLUID_VALVE_POINTER, blockState).createInstance();
 
-        transformPointer((FluidValveTileEntity) tile);
+		transformPointer();
     }
 
     @Override
     public void beginFrame() {
+		if (tile.pointer.settled()) return;
 
-        FluidValveTileEntity valve = (FluidValveTileEntity) tile;
-
-        if (valve.pointer.settled()) return;
-
-        transformPointer(valve);
+        transformPointer();
     }
 
-    private void transformPointer(FluidValveTileEntity valve) {
-        float pointerRotation = MathHelper.lerp(valve.pointer.getValue(AnimationTickHolder.getPartialTicks()), 0, -90);
+    private void transformPointer() {
+        float pointerRotation = Mth.lerp(tile.pointer.getValue(AnimationTickHolder.getPartialTicks()), 0, -90);
 
-        MatrixStack ms = new MatrixStack();
-        MatrixTransformStack.of(ms)
-                     .translate(getInstancePosition())
-                     .centre()
-                     .rotateY(yRot)
-                     .rotateX(xRot)
-                     .rotateY(pointerRotationOffset + pointerRotation)
-                     .unCentre();
-
-        pointer.setTransform(ms);
-    }
+        pointer.loadIdentity()
+				 .translate(getInstancePosition())
+				 .centre()
+				 .rotateY(yRot)
+				 .rotateX(xRot)
+				 .rotateY(pointerRotationOffset + pointerRotation)
+				 .unCentre();
+	}
 
     @Override
     public void updateLight() {

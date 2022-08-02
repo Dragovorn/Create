@@ -1,25 +1,24 @@
 package com.simibubi.create.content.contraptions.components.actors;
 
 import com.simibubi.create.AllTileEntities;
+import com.simibubi.create.foundation.block.ITE;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.world.IBlockReader;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 
-public class HarvesterBlock extends AttachedActorBlock {
+public class HarvesterBlock extends AttachedActorBlock implements ITE<HarvesterTileEntity> {
 
 	public HarvesterBlock(Properties p_i48377_1_) {
 		super(p_i48377_1_);
 	}
 
 	@Override
-	public boolean hasTileEntity(BlockState state) {
-		return true;
+	public Class<HarvesterTileEntity> getTileEntityClass() {
+		return HarvesterTileEntity.class;
 	}
 
 	@Override
-	public TileEntity createTileEntity(BlockState state, IBlockReader world) {
-		return new HarvesterTileEntity(AllTileEntities.HARVESTER.get());
+	public BlockEntityType<? extends HarvesterTileEntity> getTileEntityType() {
+		return AllTileEntities.HARVESTER.get();
 	}
 	
 }

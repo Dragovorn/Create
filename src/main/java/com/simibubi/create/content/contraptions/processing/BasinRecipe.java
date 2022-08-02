@@ -17,11 +17,12 @@ import com.simibubi.create.foundation.tileEntity.behaviour.filtering.FilteringBe
 import com.simibubi.create.foundation.tileEntity.behaviour.fluid.SmartFluidTankBehaviour;
 import com.simibubi.create.foundation.tileEntity.behaviour.fluid.SmartFluidTankBehaviour.TankSegment;
 import com.simibubi.create.foundation.utility.Iterate;
+import com.simibubi.create.foundation.utility.recipe.IRecipeTypeInfo;
 
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.crafting.IRecipe;
-import net.minecraft.item.crafting.Ingredient;
-import net.minecraft.world.World;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.level.Level;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidHandler;
@@ -30,7 +31,7 @@ import net.minecraftforge.items.IItemHandler;
 
 public class BasinRecipe extends ProcessingRecipe<SmartInventory> {
 
-	public static boolean match(BasinTileEntity basin, IRecipe<?> recipe) {
+	public static boolean match(BasinTileEntity basin, Recipe<?> recipe) {
 		FilteringBehaviour filter = basin.getFilter();
 		if (filter == null)
 			return false;
@@ -52,11 +53,11 @@ public class BasinRecipe extends ProcessingRecipe<SmartInventory> {
 		return apply(basin, recipe, true);
 	}
 
-	public static boolean apply(BasinTileEntity basin, IRecipe<?> recipe) {
+	public static boolean apply(BasinTileEntity basin, Recipe<?> recipe) {
 		return apply(basin, recipe, false);
 	}
 
-	private static boolean apply(BasinTileEntity basin, IRecipe<?> recipe, boolean test) {
+	private static boolean apply(BasinTileEntity basin, Recipe<?> recipe, boolean test) {
 		boolean isBasinRecipe = recipe instanceof BasinRecipe;
 		IItemHandler availableItems = basin.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY)
 			.orElse(null);
@@ -165,7 +166,7 @@ public class BasinRecipe extends ProcessingRecipe<SmartInventory> {
 		return true;
 	}
 
-	public static BasinRecipe convertShapeless(IRecipe<?> recipe) {
+	public static BasinRecipe convertShapeless(Recipe<?> recipe) {
 		BasinRecipe basinRecipe =
 			new ProcessingRecipeBuilder<>(BasinRecipe::new, recipe.getId()).withItemIngredients(recipe.getIngredients())
 				.withSingleItemOutput(recipe.getResultItem())
@@ -173,7 +174,7 @@ public class BasinRecipe extends ProcessingRecipe<SmartInventory> {
 		return basinRecipe;
 	}
 
-	protected BasinRecipe(AllRecipeTypes type, ProcessingRecipeParams params) {
+	protected BasinRecipe(IRecipeTypeInfo type, ProcessingRecipeParams params) {
 		super(type, params);
 	}
 
@@ -207,7 +208,7 @@ public class BasinRecipe extends ProcessingRecipe<SmartInventory> {
 	}
 
 	@Override
-	public boolean matches(SmartInventory inv, @Nonnull World worldIn) {
+	public boolean matches(SmartInventory inv, @Nonnull Level worldIn) {
 		return false;
 	}
 

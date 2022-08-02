@@ -1,112 +1,55 @@
 package com.simibubi.create.content.contraptions.components.fan;
 
+import java.util.List;
+
 import javax.annotation.Nullable;
 
-import com.simibubi.create.AllBlocks;
-import com.simibubi.create.AllTags.AllBlockTags;
-import com.simibubi.create.content.contraptions.base.GeneratingKineticTileEntity;
-import com.simibubi.create.content.contraptions.processing.burner.BlazeBurnerBlock;
+import com.simibubi.create.content.contraptions.base.KineticTileEntity;
 import com.simibubi.create.content.logistics.block.chute.ChuteTileEntity;
+import com.simibubi.create.foundation.advancement.AllAdvancements;
 import com.simibubi.create.foundation.config.AllConfigs;
+import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 
-import mcp.MethodsReturnNonnullByDefault;
-import net.minecraft.block.BlockState;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.state.properties.BlockStateProperties;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
+import net.minecraft.MethodsReturnNonnullByDefault;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 
 @MethodsReturnNonnullByDefault
-public class EncasedFanTileEntity extends GeneratingKineticTileEntity implements IAirCurrentSource {
+public class EncasedFanTileEntity extends KineticTileEntity implements IAirCurrentSource {
 
 	public AirCurrent airCurrent;
 	protected int airCurrentUpdateCooldown;
 	protected int entitySearchCooldown;
-	protected boolean isGenerator;
 	protected boolean updateAirFlow;
-	protected boolean updateGenerator;
 
-	public EncasedFanTileEntity(TileEntityType<? extends EncasedFanTileEntity> type) {
-		super(type);
-		isGenerator = false;
+	public EncasedFanTileEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+		super(type, pos, state);
 		airCurrent = new AirCurrent(this);
 		updateAirFlow = true;
-		updateGenerator = false;
 	}
 
 	@Override
-	protected void fromTag(BlockState state, CompoundNBT compound, boolean clientPacket) {
-		super.fromTag(state, compound, clientPacket);
-		if (!wasMoved) 
-			isGenerator = compound.getBoolean("Generating");
+	public void addBehaviours(List<TileEntityBehaviour> behaviours) {
+		super.addBehaviours(behaviours);
+		registerAwardables(behaviours, AllAdvancements.ENCASED_FAN, AllAdvancements.FAN_PROCESSING);
+	}
+	
+	@Override
+	protected void read(CompoundTag compound, boolean clientPacket) {
+		super.read(compound, clientPacket);
 		if (clientPacket)
 			airCurrent.rebuild();
 	}
 
 	@Override
-	public void write(CompoundNBT compound, boolean clientPacket) {
-		compound.putBoolean("Generating", isGenerator);
+	public void write(CompoundTag compound, boolean clientPacket) {
 		super.write(compound, clientPacket);
-	}
-
-	@Override
-	public float calculateAddedStressCapacity() {
-		return lastCapacityProvided = (isGenerator ? super.calculateAddedStressCapacity() : 0);
-	}
-
-	@Override
-	public float calculateStressApplied() {
-		return isGenerator ? 0 : super.calculateStressApplied();
-	}
-
-	@Override
-	public float getGeneratedSpeed() {
-		return isGenerator ? AllConfigs.SERVER.kinetics.generatingFanSpeed.get() : 0;
-	}
-
-	public void queueGeneratorUpdate() {
-		updateGenerator = true;
-	}
-
-	public void updateGenerator() {
-		BlockState blockState = getBlockState();
-		boolean shouldGenerate = true;
-
-		if (!AllBlocks.ENCASED_FAN.has(blockState))
-			shouldGenerate = false;
-
-		if (shouldGenerate && blockState.getValue(EncasedFanBlock.FACING) != Direction.DOWN)
-			shouldGenerate = false;
-
-		if (shouldGenerate)
-			shouldGenerate = level != null && level.hasNeighborSignal(worldPosition) && level.isLoaded(worldPosition.below()) && blockBelowIsHot();
-
-		if (shouldGenerate == isGenerator)
-			return;
-		isGenerator = shouldGenerate;
-		updateGeneratedRotation();
-	}
-
-	public boolean blockBelowIsHot() {
-		if (level == null)
-			return false;
-		BlockState checkState = level.getBlockState(worldPosition.below());
-
-		if (!checkState.getBlock()
-			.is(AllBlockTags.FAN_HEATERS.tag))
-			return false;
-
-		if (checkState.hasProperty(BlazeBurnerBlock.HEAT_LEVEL) && !checkState.getValue(BlazeBurnerBlock.HEAT_LEVEL)
-			.isAtLeast(BlazeBurnerBlock.HeatLevel.FADING))
-			return false;
-
-		if (checkState.hasProperty(BlockStateProperties.LIT) && !checkState.getValue(BlockStateProperties.LIT))
-			return false;
-
-		return true;
 	}
 
 	@Override
@@ -116,7 +59,7 @@ public class EncasedFanTileEntity extends GeneratingKineticTileEntity implements
 
 	@Nullable
 	@Override
-	public World getAirCurrentWorld() {
+	public Level getAirCurrentWorld() {
 		return level;
 	}
 
@@ -158,7 +101,7 @@ public class EncasedFanTileEntity extends GeneratingKineticTileEntity implements
 		if (!direction.getAxis()
 			.isVertical())
 			return;
-		TileEntity poweredChute = level.getBlockEntity(worldPosition.relative(direction));
+		BlockEntity poweredChute = level.getBlockEntity(worldPosition.relative(direction));
 		if (!(poweredChute instanceof ChuteTileEntity))
 			return;
 		ChuteTileEntity chuteTE = (ChuteTileEntity) poweredChute;
@@ -177,7 +120,7 @@ public class EncasedFanTileEntity extends GeneratingKineticTileEntity implements
 		super.tick();
 
 		boolean server = !level.isClientSide || isVirtual();
-		
+
 		if (server && airCurrentUpdateCooldown-- <= 0) {
 			airCurrentUpdateCooldown = AllConfigs.SERVER.kinetics.fanBlockCheckRate.get();
 			updateAirFlow = true;
@@ -186,15 +129,12 @@ public class EncasedFanTileEntity extends GeneratingKineticTileEntity implements
 		if (updateAirFlow) {
 			updateAirFlow = false;
 			airCurrent.rebuild();
+			if (airCurrent.maxDistance > 0)
+				award(AllAdvancements.ENCASED_FAN);
 			sendData();
 		}
-		
-		if (updateGenerator) {
-			updateGenerator = false;
-			updateGenerator();
-		}
 
-		if (getSpeed() == 0 || isGenerator)
+		if (getSpeed() == 0)
 			return;
 
 		if (entitySearchCooldown-- <= 0) {

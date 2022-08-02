@@ -2,15 +2,15 @@ package com.simibubi.create.content.contraptions.base;
 
 import com.simibubi.create.foundation.utility.Iterate;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.item.BlockItemUseContext;
-import net.minecraft.state.DirectionProperty;
-import net.minecraft.state.StateContainer.Builder;
-import net.minecraft.state.properties.BlockStateProperties;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Mirror;
-import net.minecraft.util.Rotation;
+import net.minecraft.core.Direction;
+import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Mirror;
+import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition.Builder;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.DirectionProperty;
 
 public abstract class DirectionalKineticBlock extends KineticBlock {
 
@@ -26,7 +26,7 @@ public abstract class DirectionalKineticBlock extends KineticBlock {
 		super.createBlockStateDefinition(builder);
 	}
 
-	public Direction getPreferredFacing(BlockItemUseContext context) {
+	public Direction getPreferredFacing(BlockPlaceContext context) {
 		Direction prefferedSide = null;
 		for (Direction side : Iterate.directions) {
 			BlockState blockState = context.getLevel()
@@ -47,7 +47,7 @@ public abstract class DirectionalKineticBlock extends KineticBlock {
 	}
 
 	@Override
-	public BlockState getStateForPlacement(BlockItemUseContext context) {
+	public BlockState getStateForPlacement(BlockPlaceContext context) {
 		Direction preferred = getPreferredFacing(context);
 		if (preferred == null || (context.getPlayer() != null && context.getPlayer()
 			.isShiftKeyDown())) {
@@ -64,6 +64,7 @@ public abstract class DirectionalKineticBlock extends KineticBlock {
 	}
 
 	@Override
+	@SuppressWarnings("deprecation")
 	public BlockState mirror(BlockState state, Mirror mirrorIn) {
 		return state.rotate(mirrorIn.getRotation(state.getValue(FACING)));
 	}

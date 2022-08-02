@@ -10,7 +10,7 @@ import com.simibubi.create.content.contraptions.components.structureMovement.Ass
 import com.simibubi.create.content.contraptions.components.structureMovement.ControlledContraptionEntity;
 import com.simibubi.create.content.contraptions.components.structureMovement.IDisplayAssemblyExceptions;
 import com.simibubi.create.content.contraptions.components.structureMovement.bearing.ClockworkContraption.HandType;
-import com.simibubi.create.foundation.advancement.AllTriggers;
+import com.simibubi.create.foundation.advancement.AllAdvancements;
 import com.simibubi.create.foundation.gui.AllIcons;
 import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 import com.simibubi.create.foundation.tileEntity.behaviour.scrollvalue.INamedIconOptions;
@@ -19,14 +19,14 @@ import com.simibubi.create.foundation.utility.AngleHelper;
 import com.simibubi.create.foundation.utility.Lang;
 import com.simibubi.create.foundation.utility.ServerSpeedProvider;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.state.properties.BlockStateProperties;
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Direction.Axis;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MathHelper;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.Axis;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.util.Mth;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 
 public class ClockworkBearingTileEntity extends KineticTileEntity
 	implements IBearingTileEntity, IDisplayAssemblyExceptions {
@@ -45,8 +45,8 @@ public class ClockworkBearingTileEntity extends KineticTileEntity
 
 	private float prevForcedAngle;
 
-	public ClockworkBearingTileEntity(TileEntityType<? extends ClockworkBearingTileEntity> type) {
-		super(type);
+	public ClockworkBearingTileEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+		super(type, pos, state);
 		setLazyTickRate(3);
 	}
 
@@ -54,9 +54,10 @@ public class ClockworkBearingTileEntity extends KineticTileEntity
 	public void addBehaviours(List<TileEntityBehaviour> behaviours) {
 		super.addBehaviours(behaviours);
 		operationMode = new ScrollOptionBehaviour<>(ClockHands.class,
-			Lang.translate("contraptions.clockwork.clock_hands"), this, getMovementModeSlot());
+			Lang.translateDirect("contraptions.clockwork.clock_hands"), this, getMovementModeSlot());
 		operationMode.requiresWrench();
 		behaviours.add(operationMode);
+		registerAwardables(behaviours, AllAdvancements.CLOCKWORK_BEARING);
 	}
 
 	@Override
@@ -177,23 +178,25 @@ public class ClockworkBearingTileEntity extends KineticTileEntity
 	}
 
 	protected float getHourTarget(boolean cycle24) {
-		boolean isNatural = level.dimensionType().natural();
+		boolean isNatural = level.dimensionType()
+			.natural();
 		int dayTime = (int) ((level.getDayTime() * (isNatural ? 1 : 24)) % 24000);
 		int hours = (dayTime / 1000 + 6) % 24;
 		int offset = getBlockState().getValue(ClockworkBearingBlock.FACING)
-				.getAxisDirection()
-				.getStep();
+			.getAxisDirection()
+			.getStep();
 		float hourTarget = (float) (offset * -360 / (cycle24 ? 24f : 12f) * (hours % (cycle24 ? 24 : 12)));
 		return hourTarget;
 	}
 
 	protected float getMinuteTarget() {
-		boolean isNatural = level.dimensionType().natural();
+		boolean isNatural = level.dimensionType()
+			.natural();
 		int dayTime = (int) ((level.getDayTime() * (isNatural ? 1 : 24)) % 24000);
 		int minutes = (dayTime % 1000) * 60 / 1000;
 		int offset = getBlockState().getValue(ClockworkBearingBlock.FACING)
-				.getAxisDirection()
-				.getStep();
+			.getAxisDirection()
+			.getStep();
 		float minuteTarget = (float) (offset * -360 / 60f * (minutes));
 		return minuteTarget;
 	}
@@ -238,8 +241,10 @@ public class ClockworkBearingTileEntity extends KineticTileEntity
 		hourHand.setPos(anchor.getX(), anchor.getY(), anchor.getZ());
 		hourHand.setRotationAxis(direction.getAxis());
 		level.addFreshEntity(hourHand);
-
-		AllTriggers.triggerForNearbyPlayers(AllTriggers.CLOCKWORK_BEARING, level, worldPosition, 5);
+		
+		if (contraption.getLeft()
+			.containsBlockBreakers())
+			award(AllAdvancements.CONTRAPTION_ACTORS);
 
 		if (contraption.getRight() != null) {
 			anchor = worldPosition.relative(direction, contraption.getRight().offset + 1);
@@ -249,7 +254,13 @@ public class ClockworkBearingTileEntity extends KineticTileEntity
 			minuteHand.setPos(anchor.getX(), anchor.getY(), anchor.getZ());
 			minuteHand.setRotationAxis(direction.getAxis());
 			level.addFreshEntity(minuteHand);
+			
+			if (contraption.getRight()
+				.containsBlockBreakers())
+				award(AllAdvancements.CONTRAPTION_ACTORS);
 		}
+		
+		award(AllAdvancements.CLOCKWORK_BEARING);
 
 		// Run
 		running = true;
@@ -301,7 +312,7 @@ public class ClockworkBearingTileEntity extends KineticTileEntity
 	}
 
 	@Override
-	public void write(CompoundNBT compound, boolean clientPacket) {
+	public void write(CompoundTag compound, boolean clientPacket) {
 		compound.putBoolean("Running", running);
 		compound.putFloat("HourAngle", hourAngle);
 		compound.putFloat("MinuteAngle", minuteAngle);
@@ -310,7 +321,7 @@ public class ClockworkBearingTileEntity extends KineticTileEntity
 	}
 
 	@Override
-	protected void fromTag(BlockState state, CompoundNBT compound, boolean clientPacket) {
+	protected void read(CompoundTag compound, boolean clientPacket) {
 		float hourAngleBefore = hourAngle;
 		float minuteAngleBefore = minuteAngle;
 
@@ -318,7 +329,7 @@ public class ClockworkBearingTileEntity extends KineticTileEntity
 		hourAngle = compound.getFloat("HourAngle");
 		minuteAngle = compound.getFloat("MinuteAngle");
 		lastException = AssemblyException.read(compound);
-		super.fromTag(state, compound, clientPacket);
+		super.read(compound, clientPacket);
 
 		if (!clientPacket)
 			return;
@@ -348,10 +359,10 @@ public class ClockworkBearingTileEntity extends KineticTileEntity
 	@Override
 	public float getInterpolatedAngle(float partialTicks) {
 		if (isVirtual())
-			return MathHelper.lerp(partialTicks, prevForcedAngle, hourAngle);
+			return Mth.lerp(partialTicks, prevForcedAngle, hourAngle);
 		if (hourHand == null || hourHand.isStalled())
 			partialTicks = 0;
-		return MathHelper.lerp(partialTicks, hourAngle, hourAngle + getHourArmSpeed());
+		return Mth.lerp(partialTicks, hourAngle, hourAngle + getHourArmSpeed());
 	}
 
 	@Override
@@ -362,9 +373,14 @@ public class ClockworkBearingTileEntity extends KineticTileEntity
 
 	@Override
 	public void setRemoved() {
+		super.setRemoved();
+	}
+
+	@Override
+	protected void setRemovedNotDueToChunkUnload() {
 		if (!level.isClientSide)
 			disassemble();
-		super.setRemoved();
+		super.setRemovedNotDueToChunkUnload();
 	}
 
 	@Override
@@ -413,11 +429,6 @@ public class ClockworkBearingTileEntity extends KineticTileEntity
 	@Override
 	public BlockPos getBlockPosition() {
 		return worldPosition;
-	}
-
-	@Override
-	public boolean shouldRenderNormally() {
-		return true;
 	}
 
 	public void setAngle(float forcedAngle) {

@@ -1,12 +1,15 @@
 package com.simibubi.create.foundation.block.connected;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.util.Direction;
+import org.jetbrains.annotations.Nullable;
 
-public class HorizontalCTBehaviour extends ConnectedTextureBehaviour {
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.block.state.BlockState;
 
-	CTSpriteShiftEntry topShift;
-	CTSpriteShiftEntry layerShift;
+public class HorizontalCTBehaviour extends ConnectedTextureBehaviour.Base {
+
+	protected CTSpriteShiftEntry topShift;
+	protected CTSpriteShiftEntry layerShift;
 
 	public HorizontalCTBehaviour(CTSpriteShiftEntry layerShift) {
 		this(layerShift, null);
@@ -18,7 +21,7 @@ public class HorizontalCTBehaviour extends ConnectedTextureBehaviour {
 	}
 
 	@Override
-	public CTSpriteShiftEntry get(BlockState state, Direction direction) {
+	public CTSpriteShiftEntry getShift(BlockState state, Direction direction, @Nullable TextureAtlasSprite sprite) {
 		return direction.getAxis()
 			.isHorizontal() ? layerShift : topShift;
 	}

@@ -7,7 +7,7 @@ import java.util.List;
 import com.simibubi.create.AllBlocks;
 import com.simibubi.create.AllItems;
 import com.simibubi.create.content.contraptions.components.press.MechanicalPressTileEntity;
-import com.simibubi.create.content.contraptions.components.press.MechanicalPressTileEntity.Mode;
+import com.simibubi.create.content.contraptions.components.press.PressingBehaviour.Mode;
 import com.simibubi.create.content.contraptions.fluids.actors.SpoutTileEntity;
 import com.simibubi.create.content.contraptions.relays.belt.BeltBlock;
 import com.simibubi.create.content.contraptions.relays.belt.BeltPart;
@@ -15,29 +15,30 @@ import com.simibubi.create.content.contraptions.relays.belt.BeltTileEntity;
 import com.simibubi.create.content.contraptions.relays.elementary.ShaftBlock;
 import com.simibubi.create.content.logistics.block.mechanicalArm.ArmTileEntity.Phase;
 import com.simibubi.create.foundation.ponder.ElementLink;
+import com.simibubi.create.foundation.ponder.PonderPalette;
 import com.simibubi.create.foundation.ponder.SceneBuilder;
 import com.simibubi.create.foundation.ponder.SceneBuildingUtil;
 import com.simibubi.create.foundation.ponder.Selection;
-import com.simibubi.create.foundation.ponder.elements.EntityElement;
-import com.simibubi.create.foundation.ponder.elements.InputWindowElement;
-import com.simibubi.create.foundation.ponder.elements.ParrotElement;
-import com.simibubi.create.foundation.ponder.elements.ParrotElement.FaceCursorPose;
-import com.simibubi.create.foundation.ponder.elements.ParrotElement.FacePointOfInterestPose;
-import com.simibubi.create.foundation.ponder.elements.WorldSectionElement;
+import com.simibubi.create.foundation.ponder.element.EntityElement;
+import com.simibubi.create.foundation.ponder.element.InputWindowElement;
+import com.simibubi.create.foundation.ponder.element.ParrotElement;
+import com.simibubi.create.foundation.ponder.element.ParrotElement.FaceCursorPose;
+import com.simibubi.create.foundation.ponder.element.ParrotElement.FacePointOfInterestPose;
+import com.simibubi.create.foundation.ponder.element.WorldSectionElement;
 import com.simibubi.create.foundation.utility.NBTHelper;
 import com.simibubi.create.foundation.utility.Pointing;
 
-import net.minecraft.block.Blocks;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.item.ItemEntity;
-import net.minecraft.item.DyeColor;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Direction.Axis;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.vector.Vector3d;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.Axis;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 public class BeltScenes {
 
@@ -58,9 +59,9 @@ public class BeltScenes {
 		BlockPos backEnd = util.grid.at(4, 1, 2);
 		BlockPos frontEnd = util.grid.at(0, 1, 2);
 		ItemStack beltItem = AllItems.BELT_CONNECTOR.asStack();
-		Vector3d backEndCenter = util.vector.centerOf(backEnd);
-		AxisAlignedBB connectBB = new AxisAlignedBB(backEndCenter, backEndCenter);
-		AxisAlignedBB shaftBB = AllBlocks.SHAFT.getDefaultState()
+		Vec3 backEndCenter = util.vector.centerOf(backEnd);
+		AABB connectBB = new AABB(backEndCenter, backEndCenter);
+		AABB shaftBB = AllBlocks.SHAFT.getDefaultState()
 			.setValue(ShaftBlock.AXIS, Axis.Z)
 			.getShape(null, null)
 			.bounds();
@@ -78,7 +79,8 @@ public class BeltScenes {
 		scene.idle(7);
 
 		scene.overlay.chaseBoundingBoxOutline(PonderPalette.GREEN, frontEnd, shaftBB.move(frontEnd), 17);
-		scene.overlay.chaseBoundingBoxOutline(PonderPalette.BLACK, backEndCenter, connectBB.expandTowards(-4, 0, 0), 20);
+		scene.overlay.chaseBoundingBoxOutline(PonderPalette.BLACK, backEndCenter, connectBB.expandTowards(-4, 0, 0),
+			20);
 		scene.idle(20);
 
 		scene.world.moveSection(shafts, util.vector.of(0, -2, 0), 0);
@@ -92,7 +94,7 @@ public class BeltScenes {
 			.pointAt(util.vector.topOf(2, 1, 2));
 		scene.idle(90);
 
-		Vector3d falseSelection = util.vector.topOf(backEnd.south(1));
+		Vec3 falseSelection = util.vector.topOf(backEnd.south(1));
 		scene.overlay.showControls(new InputWindowElement(falseSelection, Pointing.DOWN).rightClick()
 			.withItem(beltItem), 37);
 		scene.idle(7);
@@ -166,6 +168,7 @@ public class BeltScenes {
 			.text("Mechanical Belts can be dyed for aesthetic purposes")
 			.placeNearTarget()
 			.pointAt(util.vector.topOf(shaftLocation.east()));
+		scene.idle(50);
 	}
 
 	public static void directions(SceneBuilder scene, SceneBuildingUtil util) {
@@ -188,8 +191,8 @@ public class BeltScenes {
 
 		scene.idle(20);
 
-		Vector3d from = util.vector.centerOf(3, 1, 2);
-		Vector3d to = util.vector.centerOf(1, 2, 2);
+		Vec3 from = util.vector.centerOf(3, 1, 2);
+		Vec3 to = util.vector.centerOf(1, 2, 2);
 
 		scene.overlay.showLine(PonderPalette.RED, from, to, 70);
 		scene.idle(10);
@@ -332,11 +335,11 @@ public class BeltScenes {
 		scene.idle(10);
 		scene.special.movePointOfInterest(util.grid.at(2, 2, 0));
 
-		ItemStack stack = AllBlocks.COPPER_BLOCK.asStack();
+		ItemStack stack = new ItemStack(Items.COPPER_BLOCK);
 		ElementLink<EntityElement> item =
 			scene.world.createItemEntity(util.vector.centerOf(0, 4, 2), util.vector.of(0, 0, 0), stack);
 		scene.idle(13);
-		scene.world.modifyEntity(item, Entity::remove);
+		scene.world.modifyEntity(item, Entity::discard);
 		BlockPos beltEnd = util.grid.at(0, 1, 2);
 		scene.world.createItemOnBelt(beltEnd, Direction.DOWN, stack);
 
@@ -358,7 +361,7 @@ public class BeltScenes {
 		scene.idle(10);
 		scene.special.movePointOfInterest(beltEnd);
 		scene.idle(3);
-		scene.world.modifyEntity(item, Entity::remove);
+		scene.world.modifyEntity(item, Entity::discard);
 		scene.world.createItemOnBelt(beltEnd, Direction.DOWN, stack);
 		scene.idle(8);
 
@@ -373,10 +376,10 @@ public class BeltScenes {
 		scene.idle(5);
 		scene.world.setKineticSpeed(util.select.everywhere(), 0f);
 		scene.idle(10);
-		scene.world.modifyEntities(ItemEntity.class, Entity::remove);
+		scene.world.modifyEntities(ItemEntity.class, Entity::discard);
 		scene.special.movePointOfInterest(util.grid.at(2, 5, 4));
 
-		Vector3d topOf = util.vector.topOf(util.grid.at(3, 2, 2))
+		Vec3 topOf = util.vector.topOf(util.grid.at(3, 2, 2))
 			.add(-0.1, 0.3, 0);
 		scene.overlay.showControls(new InputWindowElement(topOf, Pointing.DOWN).rightClick(), 60);
 		scene.idle(10);
@@ -487,7 +490,7 @@ public class BeltScenes {
 
 		BlockPos depotPos = util.grid.at(2, 1, 2);
 		scene.world.showSection(util.select.position(2, 1, 2), Direction.DOWN);
-		Vector3d topOf = util.vector.topOf(depotPos);
+		Vec3 topOf = util.vector.topOf(depotPos);
 		scene.overlay.showText(60)
 			.attachKeyFrame()
 			.text("Depots can serve as 'stationary' belt elements")
@@ -496,9 +499,9 @@ public class BeltScenes {
 		scene.idle(70);
 
 		scene.overlay.showControls(new InputWindowElement(topOf, Pointing.DOWN).rightClick()
-			.withItem(AllBlocks.COPPER_BLOCK.asStack()), 20);
+			.withItem(new ItemStack(Items.COPPER_BLOCK)), 20);
 		scene.idle(7);
-		scene.world.createItemOnBeltLike(depotPos, Direction.NORTH, AllBlocks.COPPER_BLOCK.asStack());
+		scene.world.createItemOnBeltLike(depotPos, Direction.NORTH, new ItemStack(Items.COPPER_BLOCK));
 		scene.idle(10);
 		scene.overlay.showText(70)
 			.attachKeyFrame()
@@ -533,22 +536,24 @@ public class BeltScenes {
 		scene.world.removeItemsFromBelt(depotPos);
 		scene.world.hideSection(util.select.position(depotPos.above(2)), Direction.SOUTH);
 		scene.idle(20);
-		ElementLink<WorldSectionElement> spout = scene.world.showIndependentSection(util.select.position(depotPos.above(2)
-			.west()), Direction.SOUTH);
+		ElementLink<WorldSectionElement> spout =
+			scene.world.showIndependentSection(util.select.position(depotPos.above(2)
+				.west()), Direction.SOUTH);
 		scene.world.moveSection(spout, util.vector.of(1, 0, 0), 0);
 
 		BlockPos pressPos = depotPos.above(2)
 			.west();
-		ItemStack copper = AllItems.COPPER_INGOT.asStack();
+		ItemStack copper = new ItemStack(Items.COPPER_INGOT);
 		scene.world.createItemOnBeltLike(depotPos, Direction.NORTH, copper);
-		Vector3d depotCenter = util.vector.centerOf(depotPos);
+		Vec3 depotCenter = util.vector.centerOf(depotPos);
 		scene.idle(10);
 
 		Class<MechanicalPressTileEntity> type = MechanicalPressTileEntity.class;
-		scene.world.modifyTileEntity(pressPos, type, pte -> pte.start(Mode.BELT));
+		scene.world.modifyTileEntity(pressPos, type, pte -> pte.getPressingBehaviour()
+			.start(Mode.BELT));
 		scene.idle(15);
-		scene.world.modifyTileEntity(pressPos, type,
-			pte -> pte.makePressingParticleEffect(depotCenter.add(0, 8 / 16f, 0), copper));
+		scene.world.modifyTileEntity(pressPos, type, pte -> pte.getPressingBehaviour()
+			.makePressingParticleEffect(depotCenter.add(0, 8 / 16f, 0), copper));
 		scene.world.removeItemsFromBelt(depotPos);
 		ItemStack sheet = AllItems.COPPER_SHEET.asStack();
 		scene.world.createItemOnBeltLike(depotPos, Direction.UP, sheet);

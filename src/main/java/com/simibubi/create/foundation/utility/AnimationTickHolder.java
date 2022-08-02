@@ -1,20 +1,20 @@
 package com.simibubi.create.foundation.utility;
 
-import com.simibubi.create.foundation.ponder.PonderUI;
 import com.simibubi.create.foundation.ponder.PonderWorld;
+import com.simibubi.create.foundation.ponder.ui.PonderUI;
 import com.simibubi.create.foundation.utility.worldWrappers.WrappedClientWorld;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.world.IWorld;
+import net.minecraft.world.level.LevelAccessor;
 
 public class AnimationTickHolder {
 
 	private static int ticks;
-	private static int paused_ticks;
+	private static int pausedTicks;
 
 	public static void reset() {
 		ticks = 0;
-		paused_ticks = 0;
+		pausedTicks = 0;
 	}
 
 	public static void tick() {
@@ -22,7 +22,7 @@ public class AnimationTickHolder {
 			.isPaused()) {
 			ticks = (ticks + 1) % 1_728_000; // wrap around every 24 hours so we maintain enough floating point precision
 		} else {
-			paused_ticks = (paused_ticks + 1) % 1_728_000;
+			pausedTicks = (pausedTicks + 1) % 1_728_000;
 		}
 	}
 
@@ -31,7 +31,7 @@ public class AnimationTickHolder {
 	}
 
 	public static int getTicks(boolean includePaused) {
-		return includePaused ? ticks + paused_ticks : ticks;
+		return includePaused ? ticks + pausedTicks : ticks;
 	}
 
 	public static float getRenderTime() {
@@ -43,17 +43,17 @@ public class AnimationTickHolder {
 		return (mc.isPaused() ? mc.pausePartialTick : mc.getFrameTime());
 	}
 
-	public static int getTicks(IWorld world) {
+	public static int getTicks(LevelAccessor world) {
 		if (world instanceof WrappedClientWorld)
 			return getTicks(((WrappedClientWorld) world).getWrappedWorld());
 		return world instanceof PonderWorld ? PonderUI.ponderTicks : getTicks();
 	}
 
-	public static float getRenderTime(IWorld world) {
+	public static float getRenderTime(LevelAccessor world) {
 		return getTicks(world) + getPartialTicks(world);
 	}
 
-	public static float getPartialTicks(IWorld world) {
+	public static float getPartialTicks(LevelAccessor world) {
 		return world instanceof PonderWorld ? PonderUI.getPartialTicks() : getPartialTicks();
 	}
 }

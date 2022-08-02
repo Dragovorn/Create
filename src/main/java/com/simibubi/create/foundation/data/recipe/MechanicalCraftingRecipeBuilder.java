@@ -1,5 +1,6 @@
 package com.simibubi.create.foundation.data.recipe;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -15,13 +16,17 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.simibubi.create.AllRecipeTypes;
 
-import net.minecraft.data.IFinishedRecipe;
-import net.minecraft.item.Item;
-import net.minecraft.item.crafting.IRecipeSerializer;
-import net.minecraft.item.crafting.Ingredient;
-import net.minecraft.tags.Tag;
-import net.minecraft.util.IItemProvider;
-import net.minecraft.util.ResourceLocation;
+import net.minecraft.data.recipes.FinishedRecipe;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.RecipeSerializer;
+import net.minecraft.world.level.ItemLike;
+import net.minecraftforge.common.crafting.CraftingHelper;
+import net.minecraftforge.common.crafting.conditions.ICondition;
+import net.minecraftforge.common.crafting.conditions.ModLoadedCondition;
+import net.minecraftforge.common.crafting.conditions.NotCondition;
 import net.minecraftforge.registries.ForgeRegistries;
 
 public class MechanicalCraftingRecipeBuilder {
@@ -31,38 +36,40 @@ public class MechanicalCraftingRecipeBuilder {
 	private final List<String> pattern = Lists.newArrayList();
 	private final Map<Character, Ingredient> key = Maps.newLinkedHashMap();
 	private boolean acceptMirrored;
+	private List<ICondition> recipeConditions;
 
-	public MechanicalCraftingRecipeBuilder(IItemProvider p_i48261_1_, int p_i48261_2_) {
+	public MechanicalCraftingRecipeBuilder(ItemLike p_i48261_1_, int p_i48261_2_) {
 		result = p_i48261_1_.asItem();
 		count = p_i48261_2_;
 		acceptMirrored = true;
+		recipeConditions = new ArrayList<>();
 	}
 
 	/**
 	 * Creates a new builder for a shaped recipe.
 	 */
-	public static MechanicalCraftingRecipeBuilder shapedRecipe(IItemProvider p_200470_0_) {
+	public static MechanicalCraftingRecipeBuilder shapedRecipe(ItemLike p_200470_0_) {
 		return shapedRecipe(p_200470_0_, 1);
 	}
 
 	/**
 	 * Creates a new builder for a shaped recipe.
 	 */
-	public static MechanicalCraftingRecipeBuilder shapedRecipe(IItemProvider p_200468_0_, int p_200468_1_) {
+	public static MechanicalCraftingRecipeBuilder shapedRecipe(ItemLike p_200468_0_, int p_200468_1_) {
 		return new MechanicalCraftingRecipeBuilder(p_200468_0_, p_200468_1_);
 	}
 
 	/**
 	 * Adds a key to the recipe pattern.
 	 */
-	public MechanicalCraftingRecipeBuilder key(Character p_200469_1_, Tag<Item> p_200469_2_) {
+	public MechanicalCraftingRecipeBuilder key(Character p_200469_1_, TagKey<Item> p_200469_2_) {
 		return this.key(p_200469_1_, Ingredient.of(p_200469_2_));
 	}
 
 	/**
 	 * Adds a key to the recipe pattern.
 	 */
-	public MechanicalCraftingRecipeBuilder key(Character p_200462_1_, IItemProvider p_200462_2_) {
+	public MechanicalCraftingRecipeBuilder key(Character p_200462_1_, ItemLike p_200462_2_) {
 		return this.key(p_200462_1_, Ingredient.of(p_200462_2_));
 	}
 
@@ -102,17 +109,17 @@ public class MechanicalCraftingRecipeBuilder {
 	}
 
 	/**
-	 * Builds this recipe into an {@link IFinishedRecipe}.
+	 * Builds this recipe into a {@link FinishedRecipe}.
 	 */
-	public void build(Consumer<IFinishedRecipe> p_200464_1_) {
+	public void build(Consumer<FinishedRecipe> p_200464_1_) {
 		this.build(p_200464_1_, ForgeRegistries.ITEMS.getKey(this.result));
 	}
 
 	/**
-	 * Builds this recipe into an {@link IFinishedRecipe}. Use
+	 * Builds this recipe into a {@link FinishedRecipe}. Use
 	 * {@link #build(Consumer)} if save is the same as the ID for the result.
 	 */
-	public void build(Consumer<IFinishedRecipe> p_200466_1_, String p_200466_2_) {
+	public void build(Consumer<FinishedRecipe> p_200466_1_, String p_200466_2_) {
 		ResourceLocation resourcelocation = ForgeRegistries.ITEMS.getKey(this.result);
 		if ((new ResourceLocation(p_200466_2_)).equals(resourcelocation)) {
 			throw new IllegalStateException("Shaped Recipe " + p_200466_2_ + " should remove its 'save' argument");
@@ -122,12 +129,12 @@ public class MechanicalCraftingRecipeBuilder {
 	}
 
 	/**
-	 * Builds this recipe into an {@link IFinishedRecipe}.
+	 * Builds this recipe into a {@link FinishedRecipe}.
 	 */
-	public void build(Consumer<IFinishedRecipe> p_200467_1_, ResourceLocation p_200467_2_) {
+	public void build(Consumer<FinishedRecipe> p_200467_1_, ResourceLocation p_200467_2_) {
 		validate(p_200467_2_);
 		p_200467_1_
-			.accept(new MechanicalCraftingRecipeBuilder.Result(p_200467_2_, result, count, pattern, key, acceptMirrored));
+			.accept(new MechanicalCraftingRecipeBuilder.Result(p_200467_2_, result, count, pattern, key, acceptMirrored, recipeConditions));
 	}
 
 	/**
@@ -156,22 +163,37 @@ public class MechanicalCraftingRecipeBuilder {
 		}
 	}
 
-	public class Result implements IFinishedRecipe {
+	public MechanicalCraftingRecipeBuilder whenModLoaded(String modid) {
+		return withCondition(new ModLoadedCondition(modid));
+	}
+
+	public MechanicalCraftingRecipeBuilder whenModMissing(String modid) {
+		return withCondition(new NotCondition(new ModLoadedCondition(modid)));
+	}
+
+	public MechanicalCraftingRecipeBuilder withCondition(ICondition condition) {
+		recipeConditions.add(condition);
+		return this;
+	}
+
+	public class Result implements FinishedRecipe {
 		private final ResourceLocation id;
 		private final Item result;
 		private final int count;
 		private final List<String> pattern;
 		private final Map<Character, Ingredient> key;
 		private final boolean acceptMirrored;
+		private List<ICondition> recipeConditions;
 
 		public Result(ResourceLocation p_i48271_2_, Item p_i48271_3_, int p_i48271_4_, List<String> p_i48271_6_,
-			Map<Character, Ingredient> p_i48271_7_, boolean asymmetrical) {
+			Map<Character, Ingredient> p_i48271_7_, boolean asymmetrical, List<ICondition> recipeConditions) {
 			this.id = p_i48271_2_;
 			this.result = p_i48271_3_;
 			this.count = p_i48271_4_;
 			this.pattern = p_i48271_6_;
 			this.key = p_i48271_7_;
 			this.acceptMirrored = asymmetrical;
+			this.recipeConditions = recipeConditions;
 		}
 
 		public void serializeRecipeData(JsonObject p_218610_1_) {
@@ -194,9 +216,16 @@ public class MechanicalCraftingRecipeBuilder {
 
 			p_218610_1_.add("result", jsonobject1);
 			p_218610_1_.addProperty("acceptMirrored", acceptMirrored);
+
+			if (recipeConditions.isEmpty())
+				return;
+
+			JsonArray conds = new JsonArray();
+			recipeConditions.forEach(c -> conds.add(CraftingHelper.serialize(c)));
+			p_218610_1_.add("conditions", conds);
 		}
 
-		public IRecipeSerializer<?> getType() {
+		public RecipeSerializer<?> getType() {
 			return AllRecipeTypes.MECHANICAL_CRAFTING.getSerializer();
 		}
 

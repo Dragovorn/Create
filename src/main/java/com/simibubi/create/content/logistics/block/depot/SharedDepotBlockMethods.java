@@ -8,41 +8,42 @@ import com.simibubi.create.foundation.item.ItemHelper;
 import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 import com.simibubi.create.foundation.tileEntity.behaviour.belt.DirectBeltInputBehaviour;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.item.ItemEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.inventory.InventoryHelper;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.ActionResultType;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Hand;
-import net.minecraft.util.SoundCategory;
-import net.minecraft.util.SoundEvents;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.BlockRayTraceResult;
-import net.minecraft.world.IBlockReader;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.Mth;
+import net.minecraft.world.Containers;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.items.ItemStackHandler;
 
 public class SharedDepotBlockMethods {
 
-	protected static DepotBehaviour get(IBlockReader worldIn, BlockPos pos) {
+	protected static DepotBehaviour get(BlockGetter worldIn, BlockPos pos) {
 		return TileEntityBehaviour.get(worldIn, pos, DepotBehaviour.TYPE);
 	}
 
-	public static ActionResultType onUse(BlockState state, World world, BlockPos pos, PlayerEntity player, Hand hand,
-		BlockRayTraceResult ray) {
+	public static InteractionResult onUse(BlockState state, Level world, BlockPos pos, Player player,
+		InteractionHand hand, BlockHitResult ray) {
 		if (ray.getDirection() != Direction.UP)
-			return ActionResultType.PASS;
+			return InteractionResult.PASS;
 		if (world.isClientSide)
-			return ActionResultType.SUCCESS;
+			return InteractionResult.SUCCESS;
 
 		DepotBehaviour behaviour = get(world, pos);
 		if (behaviour == null)
-			return ActionResultType.PASS;
+			return InteractionResult.PASS;
 		if (!behaviour.canAcceptItems.get())
-			return ActionResultType.SUCCESS;
+			return InteractionResult.SUCCESS;
 
 		ItemStack heldItem = player.getItemInHand(hand);
 		boolean wasEmptyHanded = heldItem.isEmpty();
@@ -50,14 +51,16 @@ public class SharedDepotBlockMethods {
 
 		ItemStack mainItemStack = behaviour.getHeldItemStack();
 		if (!mainItemStack.isEmpty()) {
-			player.inventory.placeItemBackInInventory(world, mainItemStack);
+			player.getInventory()
+				.placeItemBackInInventory(mainItemStack);
 			behaviour.removeHeldItem();
-			world.playSound(null, pos, SoundEvents.ITEM_PICKUP, SoundCategory.PLAYERS, .2f,
-					1f + Create.RANDOM.nextFloat());
+			world.playSound(null, pos, SoundEvents.ITEM_PICKUP, SoundSource.PLAYERS, .2f,
+				1f + Create.RANDOM.nextFloat());
 		}
 		ItemStackHandler outputs = behaviour.processingOutputBuffer;
 		for (int i = 0; i < outputs.getSlots(); i++)
-			player.inventory.placeItemBackInInventory(world, outputs.extractItem(i, 64, false));
+			player.getInventory()
+				.placeItemBackInInventory(outputs.extractItem(i, 64, false));
 
 		if (!wasEmptyHanded && !shouldntPlaceItem) {
 			TransportedItemStack transported = new TransportedItemStack(heldItem);
@@ -70,26 +73,26 @@ public class SharedDepotBlockMethods {
 		}
 
 		behaviour.tileEntity.notifyUpdate();
-		return ActionResultType.SUCCESS;
+		return InteractionResult.SUCCESS;
 	}
 
-	public static void onReplaced(BlockState state, World worldIn, BlockPos pos, BlockState newState,
+	public static void onReplaced(BlockState state, Level worldIn, BlockPos pos, BlockState newState,
 		boolean isMoving) {
-		if (!state.hasTileEntity() || state.getBlock() == newState.getBlock())
+		if (!state.hasBlockEntity() || state.getBlock() == newState.getBlock())
 			return;
 		DepotBehaviour behaviour = get(worldIn, pos);
 		if (behaviour == null)
 			return;
 		ItemHelper.dropContents(worldIn, pos, behaviour.processingOutputBuffer);
 		for (TransportedItemStack transportedItemStack : behaviour.incoming)
-			InventoryHelper.dropItemStack(worldIn, pos.getX(), pos.getY(), pos.getZ(), transportedItemStack.stack);
+			Containers.dropItemStack(worldIn, pos.getX(), pos.getY(), pos.getZ(), transportedItemStack.stack);
 		if (!behaviour.getHeldItemStack()
 			.isEmpty())
-			InventoryHelper.dropItemStack(worldIn, pos.getX(), pos.getY(), pos.getZ(), behaviour.getHeldItemStack());
+			Containers.dropItemStack(worldIn, pos.getX(), pos.getY(), pos.getZ(), behaviour.getHeldItemStack());
 		worldIn.removeBlockEntity(pos);
 	}
 
-	public static void onLanded(IBlockReader worldIn, Entity entityIn) {
+	public static void onLanded(BlockGetter worldIn, Entity entityIn) {
 		if (!(entityIn instanceof ItemEntity))
 			return;
 		if (!entityIn.isAlive())
@@ -105,14 +108,17 @@ public class SharedDepotBlockMethods {
 		ItemStack remainder = inputBehaviour.handleInsertion(itemEntity.getItem(), Direction.DOWN, false);
 		itemEntity.setItem(remainder);
 		if (remainder.isEmpty())
-			itemEntity.remove();
+			itemEntity.discard();
 	}
 
-	public static int getComparatorInputOverride(BlockState blockState, World worldIn, BlockPos pos) {
+	public static int getComparatorInputOverride(BlockState blockState, Level worldIn, BlockPos pos) {
 		DepotBehaviour depotBehaviour = get(worldIn, pos);
 		if (depotBehaviour == null)
 			return 0;
-		return ItemHelper.calcRedstoneFromInventory(depotBehaviour.itemHandler);
+		float f = depotBehaviour.getPresentStackSize();
+		Integer max = depotBehaviour.maxStackSize.get();
+		f = f / (max == 0 ? 64 : max);
+		return Mth.clamp(Mth.floor(f * 14.0F) + (f > 0 ? 1 : 0), 0, 15);
 	}
 
 }

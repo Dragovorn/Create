@@ -4,12 +4,11 @@ import com.simibubi.create.AllFluids;
 import com.simibubi.create.AllItems;
 import com.simibubi.create.AllRecipeTypes;
 import com.simibubi.create.AllTags.AllFluidTags;
-import com.simibubi.create.content.palettes.AllPaletteBlocks;
 
-import net.minecraft.block.Blocks;
 import net.minecraft.data.DataGenerator;
-import net.minecraft.fluid.Fluids;
-import net.minecraft.item.Items;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.material.Fluids;
 import net.minecraftforge.common.Tags;
 
 public class CompactingRecipeGen extends ProcessingRecipeGen {
@@ -25,7 +24,7 @@ public class CompactingRecipeGen extends ProcessingRecipeGen {
 		DIORITE = create("diorite_from_flint", b -> b.require(Items.FLINT)
 			.require(Items.FLINT)
 			.require(Fluids.LAVA, 100)
-			.require(AllPaletteBlocks.LIMESAND.get())
+			.require(Items.CALCITE)
 			.output(Blocks.DIORITE, 1)),
 
 		ANDESITE = create("andesite_from_flint", b -> b.require(Items.FLINT)

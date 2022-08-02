@@ -1,85 +1,81 @@
 package com.simibubi.create.content.logistics.block.redstone;
 
-import com.jozufozu.flywheel.backend.instancing.IDynamicInstance;
-import com.jozufozu.flywheel.backend.instancing.tile.TileEntityInstance;
-import com.jozufozu.flywheel.backend.material.InstanceMaterial;
-import com.jozufozu.flywheel.backend.material.MaterialManager;
-import com.jozufozu.flywheel.core.materials.ModelData;
-import com.jozufozu.flywheel.util.transform.MatrixTransformStack;
-import com.mojang.blaze3d.matrix.MatrixStack;
+import com.jozufozu.flywheel.api.Material;
+import com.jozufozu.flywheel.api.MaterialManager;
+import com.jozufozu.flywheel.api.instance.DynamicInstance;
+import com.jozufozu.flywheel.backend.instancing.blockentity.BlockEntityInstance;
+import com.jozufozu.flywheel.core.materials.model.ModelData;
+import com.jozufozu.flywheel.util.transform.Rotate;
+import com.jozufozu.flywheel.util.transform.Translate;
 import com.simibubi.create.AllBlockPartials;
 import com.simibubi.create.foundation.utility.AngleHelper;
 import com.simibubi.create.foundation.utility.AnimationTickHolder;
 import com.simibubi.create.foundation.utility.Color;
 
-import net.minecraft.state.properties.AttachFace;
-import net.minecraft.util.Direction;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.block.state.properties.AttachFace;
 
-public class AnalogLeverInstance extends TileEntityInstance<AnalogLeverTileEntity> implements IDynamicInstance {
+public class AnalogLeverInstance extends BlockEntityInstance<AnalogLeverTileEntity> implements DynamicInstance {
 
-    protected final ModelData handle;
-    protected final ModelData indicator;
+	protected final ModelData handle;
+	protected final ModelData indicator;
 
-    final float rX;
-    final float rY;
+	final float rX;
+	final float rY;
 
-    public AnalogLeverInstance(MaterialManager<?> modelManager, AnalogLeverTileEntity tile) {
-        super(modelManager, tile);
+	public AnalogLeverInstance(MaterialManager modelManager, AnalogLeverTileEntity tile) {
+		super(modelManager, tile);
 
-        InstanceMaterial<ModelData> mat = getTransformMaterial();
+		Material<ModelData> mat = getTransformMaterial();
 
-        handle = mat.getModel(AllBlockPartials.ANALOG_LEVER_HANDLE, blockState).createInstance();
-        indicator = mat.getModel(AllBlockPartials.ANALOG_LEVER_INDICATOR, blockState).createInstance();
+		handle = mat.getModel(AllBlockPartials.ANALOG_LEVER_HANDLE, blockState)
+			.createInstance();
+		indicator = mat.getModel(AllBlockPartials.ANALOG_LEVER_INDICATOR, blockState)
+			.createInstance();
 
-        AttachFace face = blockState.getValue(AnalogLeverBlock.FACE);
-        rX = face == AttachFace.FLOOR ? 0 : face == AttachFace.WALL ? 90 : 180;
-        rY = AngleHelper.horizontalAngle(blockState.getValue(AnalogLeverBlock.FACING));
+		transform(indicator);
 
-        animateLever();
-    }
+		AttachFace face = blockState.getValue(AnalogLeverBlock.FACE);
+		rX = face == AttachFace.FLOOR ? 0 : face == AttachFace.WALL ? 90 : 180;
+		rY = AngleHelper.horizontalAngle(blockState.getValue(AnalogLeverBlock.FACING));
 
-    @Override
-    public void beginFrame() {
-        if (!tile.clientState.settled())
-            animateLever();
-    }
+		animateLever();
+	}
 
-    protected void animateLever() {
-        MatrixStack ms = new MatrixStack();
-        MatrixTransformStack msr = MatrixTransformStack.of(ms);
+	@Override
+	public void beginFrame() {
+		if (!blockEntity.clientState.settled())
+			animateLever();
+	}
 
-        msr.translate(getInstancePosition());
-        transform(msr);
+	protected void animateLever() {
+		float state = blockEntity.clientState.getValue(AnimationTickHolder.getPartialTicks());
 
-        float state = tile.clientState.get(AnimationTickHolder.getPartialTicks());
+		indicator.setColor(Color.mixColors(0x2C0300, 0xCD0000, state / 15f));
 
-        int color = Color.mixColors(0x2C0300, 0xCD0000, state / 15f);
-        indicator.setTransform(ms)
-                 .setColor(color);
+		float angle = (float) ((state / 15) * 90 / 180 * Math.PI);
 
-        float angle = (float) ((state / 15) * 90 / 180 * Math.PI);
-        msr.translate(1 / 2f, 1 / 16f, 1 / 2f)
-           .rotate(Direction.EAST, angle)
-           .translate(-1 / 2f, -1 / 16f, -1 / 2f);
+		transform(handle.loadIdentity()).translate(1 / 2f, 1 / 16f, 1 / 2f)
+			.rotate(Direction.EAST, angle)
+			.translate(-1 / 2f, -1 / 16f, -1 / 2f);
+	}
 
-        handle.setTransform(ms);
-    }
+	@Override
+	public void remove() {
+		handle.delete();
+		indicator.delete();
+	}
 
-    @Override
-    public void remove() {
-        handle.delete();
-        indicator.delete();
-    }
+	@Override
+	public void updateLight() {
+		relight(pos, handle, indicator);
+	}
 
-    @Override
-    public void updateLight() {
-        relight(pos, handle, indicator);
-    }
-
-    private void transform(MatrixTransformStack msr) {
-        msr.centre()
-           .rotate(Direction.UP, (float) (rY / 180 * Math.PI))
-           .rotate(Direction.EAST, (float) (rX / 180 * Math.PI))
-           .unCentre();
-    }
+	private <T extends Translate<T> & Rotate<T>> T transform(T msr) {
+		return msr.translate(getInstancePosition())
+			.centre()
+			.rotate(Direction.UP, (float) (rY / 180 * Math.PI))
+			.rotate(Direction.EAST, (float) (rX / 180 * Math.PI))
+			.unCentre();
+	}
 }

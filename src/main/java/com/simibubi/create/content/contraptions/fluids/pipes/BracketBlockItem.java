@@ -5,17 +5,17 @@ import java.util.Optional;
 import com.simibubi.create.content.contraptions.relays.elementary.BracketedTileEntityBehaviour;
 import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.BlockItem;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.ItemUseContext;
-import net.minecraft.util.ActionResultType;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 
 public class BracketBlockItem extends BlockItem {
 
@@ -24,47 +24,52 @@ public class BracketBlockItem extends BlockItem {
 	}
 
 	@Override
-	public ActionResultType useOn(ItemUseContext context) {
-		World world = context.getLevel();
+	public InteractionResult useOn(UseOnContext context) {
+		Level world = context.getLevel();
 		BlockPos pos = context.getClickedPos();
 		BlockState state = world.getBlockState(pos);
 		BracketBlock bracketBlock = getBracketBlock();
-		PlayerEntity player = context.getPlayer();
+		Player player = context.getPlayer();
 
 		BracketedTileEntityBehaviour behaviour = TileEntityBehaviour.get(world, pos, BracketedTileEntityBehaviour.TYPE);
 
 		if (behaviour == null)
-			return ActionResultType.FAIL;
+			return InteractionResult.FAIL;
 		if (!behaviour.canHaveBracket())
-			return ActionResultType.FAIL;
+			return InteractionResult.FAIL;
 		if (world.isClientSide)
-			return ActionResultType.SUCCESS;
+			return InteractionResult.SUCCESS;
 
 		Optional<BlockState> suitableBracket = bracketBlock.getSuitableBracket(state, context.getClickedFace());
 		if (!suitableBracket.isPresent() && player != null)
 			suitableBracket =
 				bracketBlock.getSuitableBracket(state, Direction.orderedByNearest(player)[0].getOpposite());
 		if (!suitableBracket.isPresent())
-			return ActionResultType.SUCCESS;
+			return InteractionResult.SUCCESS;
 
 		BlockState bracket = behaviour.getBracket();
-		behaviour.applyBracket(suitableBracket.get());
+		BlockState newBracket = suitableBracket.get();
 		
-		if (!world.isClientSide && player != null)
-			behaviour.triggerAdvancements(world, player, state);
+		if (bracket == newBracket)
+			return InteractionResult.SUCCESS;
+		
+		world.playSound(null, pos, newBracket
+			.getSoundType()
+			.getPlaceSound(), SoundSource.BLOCKS, 0.75f, 1);
+		behaviour.applyBracket(newBracket);
 		
 		if (player == null || !player.isCreative()) {
 			context.getItemInHand()
 				.shrink(1);
-			if (bracket != Blocks.AIR.defaultBlockState()) {
+			if (bracket != null) {
 				ItemStack returnedStack = new ItemStack(bracket.getBlock());
 				if (player == null)
 					Block.popResource(world, pos, returnedStack);
 				else
-					player.inventory.placeItemBackInInventory(world, returnedStack);
+					player.getInventory().placeItemBackInInventory(returnedStack);
 			}
 		}
-		return ActionResultType.SUCCESS;
+		return InteractionResult.SUCCESS;
 	}
 
 	private BracketBlock getBracketBlock() {

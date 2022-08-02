@@ -1,27 +1,24 @@
 package com.simibubi.create.content.contraptions.components.actors;
 
-import com.simibubi.create.foundation.tileEntity.SyncedTileEntity;
+import com.simibubi.create.foundation.tileEntity.CachedRenderBBTileEntity;
 
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 
-public class HarvesterTileEntity extends SyncedTileEntity {
-
-	private static final AxisAlignedBB RENDER_BOX = new AxisAlignedBB(0, 0, 0, 1, 1, 1);
+public class HarvesterTileEntity extends CachedRenderBBTileEntity {
 
 	// For simulations such as Ponder
 	private float manuallyAnimatedSpeed;
 
-	public HarvesterTileEntity(TileEntityType<? extends HarvesterTileEntity> type) {
-		super(type);
+	public HarvesterTileEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+		super(type, pos, state);
 	}
 
 	@Override
-	@OnlyIn(Dist.CLIENT)
-	public AxisAlignedBB getRenderBoundingBox() {
-		return RENDER_BOX.move(worldPosition);
+	protected AABB createRenderBoundingBox() {
+		return new AABB(worldPosition);
 	}
 
 	public float getAnimatedSpeed() {

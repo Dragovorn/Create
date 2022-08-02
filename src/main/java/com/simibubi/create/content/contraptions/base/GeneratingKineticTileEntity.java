@@ -4,22 +4,23 @@ import java.util.List;
 
 import com.simibubi.create.content.contraptions.KineticNetwork;
 import com.simibubi.create.content.contraptions.base.IRotate.SpeedLevel;
-import com.simibubi.create.content.contraptions.goggles.IHaveGoggleInformation;
+import com.simibubi.create.content.contraptions.base.IRotate.StressImpact;
 import com.simibubi.create.foundation.utility.Lang;
 
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.text.ITextComponent;
-import net.minecraft.util.text.StringTextComponent;
-import net.minecraft.util.text.TextFormatting;
+import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
 
 public abstract class GeneratingKineticTileEntity extends KineticTileEntity {
 
 	public boolean reActivateSource;
 
-	public GeneratingKineticTileEntity(TileEntityType<?> typeIn) {
-		super(typeIn);
+	public GeneratingKineticTileEntity(BlockEntityType<?> typeIn, BlockPos pos, BlockState state) {
+		super(typeIn, pos, state);
 	}
 
 	protected void notifyStressCapacityChange(float capacity) {
@@ -36,7 +37,7 @@ public abstract class GeneratingKineticTileEntity extends KineticTileEntity {
 	@Override
 	public void setSource(BlockPos source) {
 		super.setSource(source);
-		TileEntity tileEntity = level.getBlockEntity(source);
+		BlockEntity tileEntity = level.getBlockEntity(source);
 		if (!(tileEntity instanceof KineticTileEntity))
 			return;
 		KineticTileEntity sourceTe = (KineticTileEntity) tileEntity;
@@ -54,33 +55,37 @@ public abstract class GeneratingKineticTileEntity extends KineticTileEntity {
 	}
 
 	@Override
-	public boolean addToGoggleTooltip(List<ITextComponent> tooltip, boolean isPlayerSneaking) {
+	public boolean addToGoggleTooltip(List<Component> tooltip, boolean isPlayerSneaking) {
 		boolean added = super.addToGoggleTooltip(tooltip, isPlayerSneaking);
+		if (!StressImpact.isEnabled())
+			return added;
 
 		float stressBase = calculateAddedStressCapacity();
-		if (stressBase != 0 && IRotate.StressImpact.isEnabled()) {
-			tooltip.add(componentSpacing.plainCopy().append(Lang.translate("gui.goggles.generator_stats")));
-			tooltip.add(componentSpacing.plainCopy().append(Lang.translate("tooltip.capacityProvided").withStyle(TextFormatting.GRAY)));
+		if (Mth.equal(stressBase, 0))
+			return added;
 
-			float speed = getTheoreticalSpeed();
-			if (speed != getGeneratedSpeed() && speed != 0)
-				stressBase *= getGeneratedSpeed() / speed;
+		Lang.translate("gui.goggles.generator_stats")
+			.forGoggles(tooltip);
+		Lang.translate("tooltip.capacityProvided")
+			.style(ChatFormatting.GRAY)
+			.forGoggles(tooltip);
 
-			speed = Math.abs(speed);
-			float stressTotal = stressBase * speed;
+		float speed = getTheoreticalSpeed();
+		if (speed != getGeneratedSpeed() && speed != 0)
+			stressBase *= getGeneratedSpeed() / speed;
+		speed = Math.abs(speed);
 
-			tooltip.add(
-					componentSpacing.plainCopy()
-					.append(new StringTextComponent(" " + IHaveGoggleInformation.format(stressTotal))
-							.append(Lang.translate("generic.unit.stress"))
-							.withStyle(TextFormatting.AQUA))
-					.append(" ")
-					.append(Lang.translate("gui.goggles.at_current_speed").withStyle(TextFormatting.DARK_GRAY)));
+		float stressTotal = stressBase * speed;
 
-			added = true;
-		}
+		Lang.number(stressTotal)
+			.translate("generic.unit.stress")
+			.style(ChatFormatting.AQUA)
+			.space()
+			.add(Lang.translate("gui.goggles.at_current_speed")
+				.style(ChatFormatting.DARK_GRAY))
+			.forGoggles(tooltip, 1);
 
-		return added;
+		return true;
 	}
 
 	public void updateGeneratedRotation() {

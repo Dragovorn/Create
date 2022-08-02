@@ -2,38 +2,55 @@ package com.simibubi.create.foundation.tileEntity;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
-import mcp.MethodsReturnNonnullByDefault;
-import net.minecraft.block.BlockState;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.network.NetworkManager;
-import net.minecraft.network.play.server.SUpdateTileEntityPacket;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.math.SectionPos;
-import net.minecraft.world.chunk.Chunk;
-import net.minecraftforge.fml.network.PacketDistributor;
+import net.minecraft.MethodsReturnNonnullByDefault;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.Connection;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraftforge.network.PacketDistributor;
 
 @MethodsReturnNonnullByDefault
 @ParametersAreNonnullByDefault
-public abstract class SyncedTileEntity extends TileEntity {
+public abstract class SyncedTileEntity extends BlockEntity {
 
-	public SyncedTileEntity(TileEntityType<?> tileEntityTypeIn) {
-		super(tileEntityTypeIn);
+	public SyncedTileEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+		super(type, pos, state);
 	}
 
 	@Override
-	public CompoundNBT getTileData() {
-		return super.getTileData();
+	public CompoundTag getUpdateTag() {
+		return writeClient(new CompoundTag());
 	}
 
 	@Override
-	public CompoundNBT getUpdateTag() {
-		return save(new CompoundNBT());
+	public ClientboundBlockEntityDataPacket getUpdatePacket() {
+		return ClientboundBlockEntityDataPacket.create(this);
 	}
 
 	@Override
-	public void handleUpdateTag(BlockState state, CompoundNBT tag) {
-		load(state, tag);
+	public void handleUpdateTag(CompoundTag tag) {
+		readClient(tag);
+	}
+
+	@Override
+	public void onDataPacket(Connection connection, ClientboundBlockEntityDataPacket packet) {
+		CompoundTag tag = packet.getTag();
+		readClient(tag == null ? new CompoundTag() : tag);
+	}
+
+	// Special handling for client update packets
+	public void readClient(CompoundTag tag) {
+		load(tag);
+	}
+
+	// Special handling for client update packets
+	public CompoundTag writeClient(CompoundTag tag) {
+		saveAdditional(tag);
+		return tag;
 	}
 
 	public void sendData() {
@@ -46,26 +63,6 @@ public abstract class SyncedTileEntity extends TileEntity {
 			level.sendBlockUpdated(getBlockPos(), getBlockState(), getBlockState(), 1);
 	}
 
-	@Override
-	public SUpdateTileEntityPacket getUpdatePacket() {
-		return new SUpdateTileEntityPacket(getBlockPos(), 0, writeToClient(new CompoundNBT()));
-	}
-
-	@Override
-	public void onDataPacket(NetworkManager net, SUpdateTileEntityPacket pkt) {
-		readClientUpdate(getBlockState(), pkt.getTag());
-	}
-
-	// Special handling for client update packets
-	public void readClientUpdate(BlockState state, CompoundNBT tag) {
-		load(state, tag);
-	}
-
-	// Special handling for client update packets
-	public CompoundNBT writeToClient(CompoundNBT tag) {
-		return save(tag);
-	}
-
 	public void notifyUpdate() {
 		setChanged();
 		sendData();
@@ -75,8 +72,7 @@ public abstract class SyncedTileEntity extends TileEntity {
 		return PacketDistributor.TRACKING_CHUNK.with(this::containedChunk);
 	}
 
-	public Chunk containedChunk() {
-		SectionPos sectionPos = SectionPos.of(worldPosition);
-		return level.getChunk(sectionPos.x(), sectionPos.z());
+	public LevelChunk containedChunk() {
+		return level.getChunkAt(worldPosition);
 	}
 }

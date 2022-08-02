@@ -13,17 +13,19 @@ import com.simibubi.create.content.contraptions.processing.EmptyingByBasin;
 import com.simibubi.create.foundation.tileEntity.SmartTileEntity;
 import com.simibubi.create.foundation.utility.Pair;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.fluid.Fluid;
-import net.minecraft.fluid.Fluids;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.JsonToNBT;
-import net.minecraft.util.Hand;
-import net.minecraft.util.JSONUtils;
-import net.minecraft.util.ResourceLocation;
-import net.minecraft.world.World;
+import net.minecraft.nbt.TagParser;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
+import net.minecraft.util.GsonHelper;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.Fluid;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.level.material.Fluids;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.ForgeFlowingFluid;
@@ -45,6 +47,19 @@ public class FluidHelper {
 
 	public static boolean isLava(Fluid fluid) {
 		return convertToStill(fluid) == Fluids.LAVA;
+	}
+
+	@SuppressWarnings("deprecation")
+	public static boolean isTag(Fluid fluid, TagKey<Fluid> tag) {
+		return fluid.is(tag);
+	}
+
+	public static boolean isTag(FluidState fluid, TagKey<Fluid> tag) {
+		return fluid.is(tag);
+	}
+
+	public static boolean isTag(FluidStack fluid, TagKey<Fluid> tag) {
+		return isTag(fluid.getFluid(), tag);
 	}
 
 	public static boolean hasBlockState(Fluid fluid) {
@@ -96,11 +111,11 @@ public class FluidHelper {
 	}
 
 	public static FluidStack deserializeFluidStack(JsonObject json) {
-		ResourceLocation id = new ResourceLocation(JSONUtils.getAsString(json, "fluid"));
+		ResourceLocation id = new ResourceLocation(GsonHelper.getAsString(json, "fluid"));
 		Fluid fluid = ForgeRegistries.FLUIDS.getValue(id);
 		if (fluid == null)
 			throw new JsonSyntaxException("Unknown fluid '" + id + "'");
-		int amount = JSONUtils.getAsInt(json, "amount");
+		int amount = GsonHelper.getAsInt(json, "amount");
 		FluidStack stack = new FluidStack(fluid, amount);
 
 		if (!json.has("nbt"))
@@ -108,8 +123,8 @@ public class FluidHelper {
 
 		try {
 			JsonElement element = json.get("nbt");
-			stack.setTag(JsonToNBT.parseTag(
-				element.isJsonObject() ? Create.GSON.toJson(element) : JSONUtils.convertToString(element, "nbt")));
+			stack.setTag(TagParser.parseTag(
+				element.isJsonObject() ? Create.GSON.toJson(element) : GsonHelper.convertToString(element, "nbt")));
 
 		} catch (CommandSyntaxException e) {
 			e.printStackTrace();
@@ -118,7 +133,7 @@ public class FluidHelper {
 		return stack;
 	}
 
-	public static boolean tryEmptyItemIntoTE(World worldIn, PlayerEntity player, Hand handIn, ItemStack heldItem,
+	public static boolean tryEmptyItemIntoTE(Level worldIn, Player player, InteractionHand handIn, ItemStack heldItem,
 		SmartTileEntity te) {
 		if (!EmptyingByBasin.canItemBeEmptied(worldIn, heldItem))
 			return false;
@@ -142,13 +157,13 @@ public class FluidHelper {
 				player.setItemInHand(handIn, emptyingResult.getSecond());
 			else {
 				player.setItemInHand(handIn, copyOfHeld);
-				player.inventory.placeItemBackInInventory(worldIn, emptyingResult.getSecond());
+				player.getInventory().placeItemBackInInventory(emptyingResult.getSecond());
 			}
 		}
 		return true;
 	}
 
-	public static boolean tryFillItemFromTE(World world, PlayerEntity player, Hand handIn, ItemStack heldItem,
+	public static boolean tryFillItemFromTE(Level world, Player player, InteractionHand handIn, ItemStack heldItem,
 		SmartTileEntity te) {
 		if (!GenericItemFilling.canItemBeFilled(world, heldItem))
 			return false;
@@ -181,7 +196,7 @@ public class FluidHelper {
 			tank.drain(copy, FluidAction.EXECUTE);
 
 			if (!player.isCreative())
-				player.inventory.placeItemBackInInventory(world, out);
+				player.getInventory().placeItemBackInInventory(out);
 			te.notifyUpdate();
 			return true;
 		}

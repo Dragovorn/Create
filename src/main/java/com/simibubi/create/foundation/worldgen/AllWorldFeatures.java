@@ -3,51 +3,60 @@ package com.simibubi.create.foundation.worldgen;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.google.common.collect.ImmutableList;
 import com.simibubi.create.AllBlocks;
 import com.simibubi.create.Create;
-import com.simibubi.create.content.palettes.AllPaletteBlocks;
-import com.tterrag.registrate.util.nullness.NonNullSupplier;
+import com.simibubi.create.foundation.utility.Couple;
 
-import net.minecraft.block.Block;
-import net.minecraft.util.registry.Registry;
-import net.minecraft.util.registry.WorldGenRegistries;
-import net.minecraft.world.biome.Biome.Category;
-import net.minecraft.world.biome.Biomes;
-import net.minecraft.world.gen.GenerationStage;
-import net.minecraft.world.gen.feature.Feature;
-import net.minecraft.world.gen.placement.Placement;
+import net.minecraft.core.Registry;
+import net.minecraft.data.BuiltinRegistries;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.biome.Biome.BiomeCategory;
+import net.minecraft.world.level.levelgen.GenerationStep;
+import net.minecraft.world.level.levelgen.GenerationStep.Decoration;
+import net.minecraft.world.level.levelgen.feature.Feature;
+import net.minecraft.world.level.levelgen.placement.PlacedFeature;
 import net.minecraftforge.common.ForgeConfigSpec;
+import net.minecraftforge.common.world.BiomeGenerationSettingsBuilder;
 import net.minecraftforge.event.RegistryEvent;
 import net.minecraftforge.event.world.BiomeLoadingEvent;
 
 public class AllWorldFeatures {
 
-	static Map<String, ConfigDrivenFeatureEntry> entries = new HashMap<>();
+	public static final Map<ResourceLocation, ConfigDrivenFeatureEntry> ENTRIES = new HashMap<>();
 
-	static final ConfigDrivenFeatureEntry
+	private static final BiomeFilter OVERWORLD_BIOMES =
+		(r, b) -> b != BiomeCategory.NETHER && b != BiomeCategory.THEEND && b != BiomeCategory.NONE;
 
-	COPPER = register("copper_ore", AllBlocks.COPPER_ORE, 18, 2).between(40, 85),
+	private static final BiomeFilter NETHER_BIOMES = (r, b) -> b == BiomeCategory.NETHER;
 
-		ZINC = register("zinc_ore", AllBlocks.ZINC_ORE, 14, 4).between(15, 70),
+	//
 
-		LIMESTONE = register("limestone", AllPaletteBlocks.LIMESTONE, 128, 1 / 64f).between(30, 70),
+	public static final ConfigDrivenFeatureEntry ZINC_ORE =
+		register("zinc_ore", 12, 8, OVERWORLD_BIOMES).between(-63, 70)
+			.withBlocks(Couple.create(AllBlocks.ZINC_ORE, AllBlocks.DEEPSLATE_ZINC_ORE));
 
-		WEATHERED_LIMESTONE =
-			register("weathered_limestone", AllPaletteBlocks.WEATHERED_LIMESTONE, 128, 1 / 64f).between(10, 30),
+	public static final ConfigDrivenFeatureEntry STRIATED_ORES_OVERWORLD =
+		register("striated_ores_overworld", 32, 1 / 12f, OVERWORLD_BIOMES).between(-30, 70)
+			.withLayerPattern(AllLayerPatterns.SCORIA)
+			.withLayerPattern(AllLayerPatterns.CINNABAR)
+			.withLayerPattern(AllLayerPatterns.MAGNETITE)
+			.withLayerPattern(AllLayerPatterns.MALACHITE)
+			.withLayerPattern(AllLayerPatterns.LIMESTONE)
+			.withLayerPattern(AllLayerPatterns.OCHRESTONE);
 
-		DOLOMITE = register("dolomite", AllPaletteBlocks.DOLOMITE, 128, 1 / 64f).between(20, 70),
+	public static final ConfigDrivenFeatureEntry STRIATED_ORES_NETHER =
+		register("striated_ores_nether", 32, 1 / 12f, NETHER_BIOMES).between(40, 90)
+			.withLayerPattern(AllLayerPatterns.SCORIA_NETHER)
+			.withLayerPattern(AllLayerPatterns.SCORCHIA_NETHER);
 
-		GABBRO = register("gabbro", AllPaletteBlocks.GABBRO, 128, 1 / 64f).between(20, 70),
+	//
 
-		SCORIA = register("scoria", AllPaletteBlocks.NATURAL_SCORIA, 128, 1 / 32f).between(0, 10)
-
-	;
-
-	private static ConfigDrivenFeatureEntry register(String id, NonNullSupplier<? extends Block> block, int clusterSize,
-		float frequency) {
-		ConfigDrivenFeatureEntry configDrivenFeatureEntry =
-			new ConfigDrivenFeatureEntry(id, block, clusterSize, frequency);
-		entries.put(id, configDrivenFeatureEntry);
+	private static ConfigDrivenFeatureEntry register(String id, int clusterSize, float frequency,
+		BiomeFilter biomeFilter) {
+		ConfigDrivenFeatureEntry configDrivenFeatureEntry = new ConfigDrivenFeatureEntry(id, clusterSize, frequency);
+		configDrivenFeatureEntry.biomeFilter = biomeFilter;
+		ENTRIES.put(Create.asResource(id), configDrivenFeatureEntry);
 		return configDrivenFeatureEntry;
 	}
 
@@ -59,30 +68,32 @@ public class AllWorldFeatures {
 	public static final int forcedUpdateVersion = 2;
 
 	public static void registerFeatures() {
-		// ForgeRegistries.FEATURES.register(ConfigDrivenOreFeature.INSTANCE);
-		// ForgeRegistries.DECORATORS.register(ConfigDrivenDecorator.INSTANCE);
-		entries.entrySet()
+		ENTRIES.entrySet()
 			.forEach(entry -> {
-				Registry.register(WorldGenRegistries.CONFIGURED_FEATURE, Create.ID + "_" + entry.getKey(),
-					entry.getValue()
-						.getFeature());
+				String id = Create.ID + "_" + entry.getKey()
+					.getPath();
+				ConfigDrivenFeatureEntry featureEntry = entry.getValue();
+				featureEntry.configuredFeature = BuiltinRegistries.register(BuiltinRegistries.CONFIGURED_FEATURE, id,
+					featureEntry.factory.apply(featureEntry));
+				featureEntry.placedFeature =
+					BuiltinRegistries.register(BuiltinRegistries.PLACED_FEATURE, id, new PlacedFeature(
+						featureEntry.configuredFeature, ImmutableList.of(new ConfigDrivenDecorator(featureEntry.id))));
 			});
 	}
 
 	public static void reload(BiomeLoadingEvent event) {
-		entries.values()
+		BiomeGenerationSettingsBuilder generation = event.getGeneration();
+		Decoration decoStep = GenerationStep.Decoration.UNDERGROUND_ORES;
+		ENTRIES.values()
 			.forEach(entry -> {
-				if (event.getName() == Biomes.THE_VOID.getRegistryName())
-					return;
-				if (event.getCategory() == Category.NETHER)
-					return;
-				event.getGeneration()
-					.addFeature(GenerationStage.Decoration.UNDERGROUND_ORES, entry.getFeature());
+				ConfigDrivenFeatureEntry value = entry;
+				if (value.biomeFilter.test(event.getName(), event.getCategory()))
+					generation.addFeature(decoStep, value.placedFeature);
 			});
 	}
 
 	public static void fillConfig(ForgeConfigSpec.Builder builder) {
-		entries.values()
+		ENTRIES.values()
 			.forEach(entry -> {
 				builder.push(entry.id);
 				entry.addToConfig(builder);
@@ -94,11 +105,12 @@ public class AllWorldFeatures {
 
 	public static void registerOreFeatures(RegistryEvent.Register<Feature<?>> event) {
 		event.getRegistry()
-			.register(ConfigDrivenOreFeature.INSTANCE);
+			.registerAll(VanillaStyleOreFeature.INSTANCE, LayeredOreFeature.INSTANCE);
 	}
 
-	public static void registerDecoratorFeatures(RegistryEvent.Register<Placement<?>> event) {
-		event.getRegistry()
-			.register(ConfigDrivenDecorator.INSTANCE);
+	public static void registerPlacementTypes() {
+		ConfigDrivenDecorator.TYPE =
+			Registry.register(Registry.PLACEMENT_MODIFIERS, "create_config_driven", () -> ConfigDrivenDecorator.CODEC);
 	}
+
 }

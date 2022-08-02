@@ -7,29 +7,30 @@ import java.util.LinkedList;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
-import com.mojang.blaze3d.matrix.MatrixStack;
-import com.simibubi.create.foundation.gui.AbstractSimiContainerScreen;
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.simibubi.create.foundation.gui.AllGuiTextures;
 import com.simibubi.create.foundation.gui.AllIcons;
-import com.simibubi.create.foundation.gui.GuiGameElement;
-import com.simibubi.create.foundation.gui.widgets.IconButton;
+import com.simibubi.create.foundation.gui.container.AbstractSimiContainerScreen;
+import com.simibubi.create.foundation.gui.element.GuiGameElement;
+import com.simibubi.create.foundation.gui.widget.IconButton;
+import com.simibubi.create.foundation.utility.ControlsUtil;
 import com.simibubi.create.foundation.utility.Lang;
 
-import net.minecraft.client.renderer.Rectangle2d;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.text.ITextComponent;
-import net.minecraft.util.text.TextFormatting;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.renderer.Rect2i;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.ItemStack;
 
 public class LinkedControllerScreen extends AbstractSimiContainerScreen<LinkedControllerContainer> {
 
 	protected AllGuiTextures background;
-	private List<Rectangle2d> extraAreas = Collections.emptyList();
+	private List<Rect2i> extraAreas = Collections.emptyList();
 
 	private IconButton resetButton;
 	private IconButton confirmButton;
 
-	public LinkedControllerScreen(LinkedControllerContainer container, PlayerInventory inv, ITextComponent title) {
+	public LinkedControllerScreen(LinkedControllerContainer container, Inventory inv, Component title) {
 		super(container, inv, title);
 		this.background = AllGuiTextures.LINKED_CONTROLLER;
 	}
@@ -37,26 +38,30 @@ public class LinkedControllerScreen extends AbstractSimiContainerScreen<LinkedCo
 	@Override
 	protected void init() {
 		setWindowSize(background.width, background.height + 4 + PLAYER_INVENTORY.height);
-		setWindowOffset(2 + (width % 2 == 0 ? 0 : -1), 0);
+		setWindowOffset(1, 0);
 		super.init();
-		widgets.clear();
 
 		int x = leftPos;
 		int y = topPos;
 
 		resetButton = new IconButton(x + background.width - 62, y + background.height - 24, AllIcons.I_TRASH);
+		resetButton.withCallback(() -> {
+			menu.clearContents();
+			menu.sendClearPacket();
+		});
 		confirmButton = new IconButton(x + background.width - 33, y + background.height - 24, AllIcons.I_CONFIRM);
+		confirmButton.withCallback(() -> {
+			minecraft.player.closeContainer();
+		});
 
-		widgets.add(resetButton);
-		widgets.add(confirmButton);
+		addRenderableWidget(resetButton);
+		addRenderableWidget(confirmButton);
 
-		extraAreas = ImmutableList.of(
-			new Rectangle2d(x + background.width + 4, y + background.height - 44, 64, 56)
-		);
+		extraAreas = ImmutableList.of(new Rect2i(x + background.width + 4, y + background.height - 44, 64, 56));
 	}
 
 	@Override
-	protected void renderWindow(MatrixStack ms, int mouseX, int mouseY, float partialTicks) {
+	protected void renderBg(PoseStack ms, float partialTicks, int mouseX, int mouseY) {
 		int invX = getLeftOfCentered(PLAYER_INVENTORY.width);
 		int invY = topPos + background.height + 4;
 		renderPlayerInventory(ms, invX, invY);
@@ -64,76 +69,56 @@ public class LinkedControllerScreen extends AbstractSimiContainerScreen<LinkedCo
 		int x = leftPos;
 		int y = topPos;
 
-		background.draw(ms, this, x, y);
+		background.render(ms, x, y, this);
 		font.draw(ms, title, x + 15, y + 4, 0x442000);
 
-		GuiGameElement.of(menu.mainItem)
-			.<GuiGameElement.GuiRenderBuilder>at(x + background.width - 4, y + background.height - 56, -200)
+		GuiGameElement.of(menu.contentHolder).<GuiGameElement
+			.GuiRenderBuilder>at(x + background.width - 4, y + background.height - 56, -200)
 			.scale(5)
 			.render(ms);
 	}
 
 	@Override
-	public void tick() {
-		super.tick();
+	protected void containerTick() {
 		if (!menu.player.getMainHandItem()
-			.equals(menu.mainItem, false))
-			minecraft.player.closeContainer();
+			.equals(menu.contentHolder, false))
+			menu.player.closeContainer();
+
+		super.containerTick();
 	}
 
 	@Override
-	public boolean mouseClicked(double x, double y, int button) {
-		boolean mouseClicked = super.mouseClicked(x, y, button);
-
-		if (button == 0) {
-			if (confirmButton.isHovered()) {
-				minecraft.player.closeContainer();
-				return true;
-			}
-			if (resetButton.isHovered()) {
-				menu.clearContents();
-				menu.sendClearPacket();
-				return true;
-			}
-		}
-
-		return mouseClicked;
-	}
-
-	@Override
-	protected void renderTooltip(MatrixStack ms, int x, int y) {
-		if (!this.minecraft.player.inventory.getCarried()
+	protected void renderTooltip(PoseStack ms, int x, int y) {
+		if (!menu.getCarried()
 			.isEmpty() || this.hoveredSlot == null || this.hoveredSlot.hasItem()
 			|| hoveredSlot.container == menu.playerInventory) {
 			super.renderTooltip(ms, x, y);
 			return;
 		}
-		renderWrappedToolTip(ms, addToTooltip(new LinkedList<>(), hoveredSlot.getSlotIndex()), x, y, font);
+		renderComponentTooltip(ms, addToTooltip(new LinkedList<>(), hoveredSlot.getSlotIndex()), x, y, font);
 	}
 
 	@Override
-	public List<ITextComponent> getTooltipFromItem(ItemStack stack) {
-		List<ITextComponent> list = super.getTooltipFromItem(stack);
+	public List<Component> getTooltipFromItem(ItemStack stack) {
+		List<Component> list = super.getTooltipFromItem(stack);
 		if (hoveredSlot.container == menu.playerInventory)
 			return list;
 		return hoveredSlot != null ? addToTooltip(list, hoveredSlot.getSlotIndex()) : list;
 	}
 
-	private List<ITextComponent> addToTooltip(List<ITextComponent> list, int slot) {
+	private List<Component> addToTooltip(List<Component> list, int slot) {
 		if (slot < 0 || slot >= 12)
 			return list;
-		list.add(Lang
-			.createTranslationTextComponent("linked_controller.frequency_slot_" + ((slot % 2) + 1),
-				LinkedControllerClientHandler.getControls()
-					.get(slot / 2)
-					.getTranslatedKeyMessage()
-					.getString())
-			.withStyle(TextFormatting.GOLD));
+		list.add(Lang.translateDirect("linked_controller.frequency_slot_" + ((slot % 2) + 1), ControlsUtil.getControls()
+			.get(slot / 2)
+			.getTranslatedKeyMessage()
+			.getString())
+			.withStyle(ChatFormatting.GOLD));
 		return list;
 	}
 
 	@Override
-	public List<Rectangle2d> getExtraAreas() {
+	public List<Rect2i> getExtraAreas() {
 		return extraAreas;
 	}
 

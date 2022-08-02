@@ -1,102 +1,98 @@
 package com.simibubi.create.compat.jei.category;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
-import com.mojang.blaze3d.matrix.MatrixStack;
+import javax.annotation.ParametersAreNonnullByDefault;
+
+import org.jetbrains.annotations.NotNull;
+
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.simibubi.create.AllBlocks;
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.simibubi.create.compat.jei.category.animations.AnimatedCrafter;
 import com.simibubi.create.foundation.gui.AllGuiTextures;
 
 import mezz.jei.api.constants.VanillaTypes;
-import mezz.jei.api.gui.IRecipeLayout;
-import mezz.jei.api.gui.ingredient.IGuiItemStackGroup;
+import mezz.jei.api.gui.builder.IRecipeLayoutBuilder;
+import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import mezz.jei.api.ingredients.IIngredientRenderer;
-import mezz.jei.api.ingredients.IIngredients;
+import mezz.jei.api.recipe.IFocusGroup;
+import mezz.jei.api.recipe.RecipeIngredientRole;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.FontRenderer;
-import net.minecraft.client.renderer.ItemRenderer;
-import net.minecraft.client.renderer.RenderHelper;
-import net.minecraft.client.util.ITooltipFlag;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.crafting.ICraftingRecipe;
-import net.minecraft.item.crafting.Ingredient;
-import net.minecraft.item.crafting.ShapedRecipe;
-import net.minecraft.util.NonNullList;
-import net.minecraft.util.text.ITextComponent;
-import net.minecraft.util.text.TextFormatting;
-import net.minecraft.util.text.TranslationTextComponent;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.renderer.entity.ItemRenderer;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.TranslatableComponent;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.crafting.CraftingRecipe;
+import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraftforge.common.crafting.IShapedRecipe;
 
-public class MechanicalCraftingCategory extends CreateRecipeCategory<ICraftingRecipe> {
+@ParametersAreNonnullByDefault
+public class MechanicalCraftingCategory extends CreateRecipeCategory<CraftingRecipe> {
 
 	private final AnimatedCrafter crafter = new AnimatedCrafter();
 
-	public MechanicalCraftingCategory() {
-		super(itemIcon(AllBlocks.MECHANICAL_CRAFTER.get()), emptyBackground(177, 107));
+	public MechanicalCraftingCategory(Info<CraftingRecipe> info) {
+		super(info);
 	}
 
 	@Override
-	public void setIngredients(ICraftingRecipe recipe, IIngredients ingredients) {
-		ingredients.setInputIngredients(recipe.getIngredients());
-		ingredients.setOutput(VanillaTypes.ITEM, recipe.getResultItem());
-	}
-
-	@Override
-	public void setRecipe(IRecipeLayout recipeLayout, ICraftingRecipe recipe, IIngredients ingredients) {
-		IGuiItemStackGroup itemStacks = recipeLayout.getItemStacks();
-		NonNullList<Ingredient> recipeIngredients = recipe.getIngredients();
-
-		itemStacks.init(0, false, 133, 80);
-		itemStacks.set(0, recipe.getResultItem()
-			.getStack());
+	public void setRecipe(IRecipeLayoutBuilder builder, CraftingRecipe recipe, IFocusGroup focuses) {
+		builder.addSlot(RecipeIngredientRole.OUTPUT, 134, 81)
+			.addItemStack(recipe.getResultItem());
 
 		int x = getXPadding(recipe);
 		int y = getYPadding(recipe);
 		float scale = getScale(recipe);
-		int size = recipeIngredients.size();
-		IIngredientRenderer<ItemStack> renderer = new CrafterIngredientRenderer(recipe);
 
-		for (int i = 0; i < size; i++) {
+		IIngredientRenderer<ItemStack> renderer = new CrafterIngredientRenderer(recipe);
+		int i = 0;
+
+		for (Ingredient ingredient : recipe.getIngredients()) {
 			float f = 19 * scale;
-			int slotSize = (int) (16 * scale);
 			int xPosition = (int) (x + 1 + (i % getWidth(recipe)) * f);
 			int yPosition = (int) (y + 1 + (i / getWidth(recipe)) * f);
-			itemStacks.init(i + 1, true, renderer, xPosition, yPosition, slotSize, slotSize, 0, 0);
-			itemStacks.set(i + 1, Arrays.asList(recipeIngredients.get(i)
-				.getItems()));
+
+			builder.addSlot(RecipeIngredientRole.INPUT, xPosition, yPosition)
+				.setCustomRenderer(VanillaTypes.ITEM_STACK, renderer)
+				.addIngredients(ingredient);
+
+			i++;
 		}
 
 	}
 
 	static int maxSize = 100;
 
-	public static float getScale(ICraftingRecipe recipe) {
+	public static float getScale(CraftingRecipe recipe) {
 		int w = getWidth(recipe);
 		int h = getHeight(recipe);
 		return Math.min(1, maxSize / (19f * Math.max(w, h)));
 	}
 
-	public static int getYPadding(ICraftingRecipe recipe) {
+	public static int getYPadding(CraftingRecipe recipe) {
 		return 3 + 50 - (int) (getScale(recipe) * getHeight(recipe) * 19 * .5);
 	}
 
-	public static int getXPadding(ICraftingRecipe recipe) {
+	public static int getXPadding(CraftingRecipe recipe) {
 		return 3 + 50 - (int) (getScale(recipe) * getWidth(recipe) * 19 * .5);
 	}
 
-	private static int getWidth(ICraftingRecipe recipe) {
-		return recipe instanceof ShapedRecipe ? ((ShapedRecipe) recipe).getWidth() : 1;
+	private static int getWidth(CraftingRecipe recipe) {
+		return recipe instanceof IShapedRecipe<?> ? ((IShapedRecipe<?>) recipe).getRecipeWidth() : 1;
 	}
 
-	private static int getHeight(ICraftingRecipe recipe) {
-		return recipe instanceof ShapedRecipe ? ((ShapedRecipe) recipe).getHeight() : 1;
+	private static int getHeight(CraftingRecipe recipe) {
+		return recipe instanceof IShapedRecipe<?> ? ((IShapedRecipe<?>) recipe).getRecipeHeight() : 1;
 	}
 
 	@Override
-	public void draw(ICraftingRecipe recipe, MatrixStack matrixStack, double mouseX, double mouseY) {
+	public void draw(CraftingRecipe recipe, IRecipeSlotsView iRecipeSlotsView, PoseStack matrixStack, double mouseX,
+		double mouseY) {
 		matrixStack.pushPose();
 		float scale = getScale(recipe);
 		matrixStack.translate(getXPadding(recipe), getYPadding(recipe), 0);
@@ -109,20 +105,19 @@ public class MechanicalCraftingCategory extends CreateRecipeCategory<ICraftingRe
 					matrixStack.pushPose();
 					matrixStack.translate(col * 19 * scale, row * 19 * scale, 0);
 					matrixStack.scale(scale, scale, scale);
-					AllGuiTextures.JEI_SLOT.draw(matrixStack, 0, 0);
+					AllGuiTextures.JEI_SLOT.render(matrixStack, 0, 0);
 					matrixStack.popPose();
 				}
 
 		matrixStack.popPose();
 
-		AllGuiTextures.JEI_SLOT.draw(matrixStack, 133, 80);
-		AllGuiTextures.JEI_DOWN_ARROW.draw(matrixStack, 128, 59);
+		AllGuiTextures.JEI_SLOT.render(matrixStack, 133, 80);
+		AllGuiTextures.JEI_DOWN_ARROW.render(matrixStack, 128, 59);
 		crafter.draw(matrixStack, 129, 25);
 
 		matrixStack.pushPose();
 		matrixStack.translate(0, 0, 300);
 
-		RenderHelper.turnOff();
 		int amount = 0;
 		for (Ingredient ingredient : recipe.getIngredients()) {
 			if (Ingredient.EMPTY == ingredient)
@@ -134,54 +129,62 @@ public class MechanicalCraftingCategory extends CreateRecipeCategory<ICraftingRe
 		matrixStack.popPose();
 	}
 
-	@Override
-	public Class<? extends ICraftingRecipe> getRecipeClass() {
-		return ICraftingRecipe.class;
-	}
-
 	private static final class CrafterIngredientRenderer implements IIngredientRenderer<ItemStack> {
 
-		private final ICraftingRecipe recipe;
+		private final CraftingRecipe recipe;
+		private final float scale;
 
-		public CrafterIngredientRenderer(ICraftingRecipe recipe) {
+		public CrafterIngredientRenderer(CraftingRecipe recipe) {
 			this.recipe = recipe;
+			scale = getScale(recipe);
 		}
 
 		@Override
-		public void render(MatrixStack matrixStack, int xPosition, int yPosition, ItemStack ingredient) {
+		public void render(PoseStack matrixStack, @NotNull ItemStack ingredient) {
 			matrixStack.pushPose();
-			matrixStack.translate(xPosition, yPosition, 0);
 			float scale = getScale(recipe);
 			matrixStack.scale(scale, scale, scale);
 
 			if (ingredient != null) {
-				RenderSystem.pushMatrix();
-				RenderSystem.multMatrix(matrixStack.last().pose());
+				PoseStack modelViewStack = RenderSystem.getModelViewStack();
+				modelViewStack.pushPose();
+				modelViewStack.mulPoseMatrix(matrixStack.last()
+					.pose());
+				RenderSystem.applyModelViewMatrix();
 				RenderSystem.enableDepthTest();
-				RenderHelper.turnBackOn();
 				Minecraft minecraft = Minecraft.getInstance();
-				FontRenderer font = getFontRenderer(minecraft, ingredient);
+				Font font = getFontRenderer(minecraft, ingredient);
 				ItemRenderer itemRenderer = minecraft.getItemRenderer();
-				itemRenderer.renderAndDecorateItem(null, ingredient, 0, 0);
+				itemRenderer.renderAndDecorateFakeItem(ingredient, 0, 0);
 				itemRenderer.renderGuiItemDecorations(font, ingredient, 0, 0, null);
 				RenderSystem.disableBlend();
-				RenderHelper.turnOff();
-				RenderSystem.popMatrix();
+				modelViewStack.popPose();
+				RenderSystem.applyModelViewMatrix();
 			}
 
 			matrixStack.popPose();
 		}
 
 		@Override
-		public List<ITextComponent> getTooltip(ItemStack ingredient, ITooltipFlag tooltipFlag) {
+		public int getWidth() {
+			return (int) (16 * scale);
+		}
+
+		@Override
+		public int getHeight() {
+			return (int) (16 * scale);
+		}
+
+		@Override
+		public List<Component> getTooltip(ItemStack ingredient, TooltipFlag tooltipFlag) {
 			Minecraft minecraft = Minecraft.getInstance();
-			PlayerEntity player = minecraft.player;
+			Player player = minecraft.player;
 			try {
 				return ingredient.getTooltipLines(player, tooltipFlag);
 			} catch (RuntimeException | LinkageError e) {
-				List<ITextComponent> list = new ArrayList<>();
-				TranslationTextComponent crash = new TranslationTextComponent("jei.tooltip.error.crash");
-				list.add(crash.withStyle(TextFormatting.RED));
+				List<Component> list = new ArrayList<>();
+				TranslatableComponent crash = new TranslatableComponent("jei.tooltip.error.crash");
+				list.add(crash.withStyle(ChatFormatting.RED));
 				return list;
 			}
 		}

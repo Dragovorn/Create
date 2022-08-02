@@ -7,6 +7,7 @@ import com.simibubi.create.content.contraptions.base.KineticTileEntity;
 import com.simibubi.create.content.contraptions.components.motor.CreativeMotorTileEntity;
 import com.simibubi.create.content.contraptions.relays.elementary.CogWheelBlock;
 import com.simibubi.create.content.contraptions.relays.elementary.ICogWheel;
+import com.simibubi.create.foundation.advancement.AllAdvancements;
 import com.simibubi.create.foundation.config.AllConfigs;
 import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 import com.simibubi.create.foundation.tileEntity.behaviour.ValueBoxTransform;
@@ -14,10 +15,11 @@ import com.simibubi.create.foundation.tileEntity.behaviour.scrollvalue.ScrollVal
 import com.simibubi.create.foundation.utility.Lang;
 import com.simibubi.create.foundation.utility.VecHelper;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.vector.Vector3d;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 
 public class SpeedControllerTileEntity extends KineticTileEntity {
 
@@ -26,8 +28,8 @@ public class SpeedControllerTileEntity extends KineticTileEntity {
 
 	boolean hasBracket;
 
-	public SpeedControllerTileEntity(TileEntityType<? extends SpeedControllerTileEntity> type) {
-		super(type);
+	public SpeedControllerTileEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+		super(type, pos, state);
 		hasBracket = false;
 	}
 
@@ -43,14 +45,16 @@ public class SpeedControllerTileEntity extends KineticTileEntity {
 		Integer max = AllConfigs.SERVER.kinetics.maxRotationSpeed.get();
 
 		targetSpeed =
-			new ScrollValueBehaviour(Lang.translate("generic.speed"), this, new ControllerValueBoxTransform());
+			new ScrollValueBehaviour(Lang.translateDirect("generic.speed"), this, new ControllerValueBoxTransform());
 		targetSpeed.between(-max, max);
 		targetSpeed.value = DEFAULT_SPEED;
-		targetSpeed.moveText(new Vector3d(9, 0, 10));
-		targetSpeed.withUnit(i -> Lang.translate("generic.unit.rpm"));
+		targetSpeed.moveText(new Vec3(9, 0, 10));
+		targetSpeed.withUnit(i -> Lang.translateDirect("generic.unit.rpm"));
 		targetSpeed.withCallback(i -> this.updateTargetRotation());
 		targetSpeed.withStepFunction(CreativeMotorTileEntity::step);
 		behaviours.add(targetSpeed);
+		
+		registerAwardables(behaviours, AllAdvancements.SPEED_CONTROLLER);
 	}
 
 	private void updateTargetRotation() {
@@ -59,6 +63,9 @@ public class SpeedControllerTileEntity extends KineticTileEntity {
 		RotationPropagator.handleRemoved(level, worldPosition, this);
 		removeSource();
 		attachKinetics();
+		
+		if (isCogwheelPresent() && getSpeed() != 0)
+			award(AllAdvancements.SPEED_CONTROLLER);
 	}
 
 	public static float getConveyedSpeed(KineticTileEntity cogWheel, KineticTileEntity speedControllerIn,
@@ -110,22 +117,20 @@ public class SpeedControllerTileEntity extends KineticTileEntity {
 	}
 
 	public void updateBracket() {
-		if (level == null || !level.isClientSide)
-			return;
-		BlockState stateAbove = level.getBlockState(worldPosition.above());
-		hasBracket = ICogWheel.isDedicatedCogWheel(stateAbove.getBlock()) && ICogWheel.isLargeCog(stateAbove)
-			&& stateAbove.getValue(CogWheelBlock.AXIS).isHorizontal();
+		if (level != null && level.isClientSide)
+			hasBracket = isCogwheelPresent();
 	}
 
-	@Override
-	public boolean shouldRenderNormally() {
-		return true;
+	private boolean isCogwheelPresent() {
+		BlockState stateAbove = level.getBlockState(worldPosition.above());
+		return ICogWheel.isDedicatedCogWheel(stateAbove.getBlock()) && ICogWheel.isLargeCog(stateAbove)
+			&& stateAbove.getValue(CogWheelBlock.AXIS).isHorizontal();
 	}
 
 	private class ControllerValueBoxTransform extends ValueBoxTransform.Sided {
 
 		@Override
-		protected Vector3d getSouthLocation() {
+		protected Vec3 getSouthLocation() {
 			return VecHelper.voxelSpace(8, 11f, 16);
 		}
 

@@ -1,62 +1,67 @@
 package com.simibubi.create.content.curiosities.tools;
 
+import java.util.Random;
+import java.util.function.Consumer;
+
 import javax.annotation.ParametersAreNonnullByDefault;
 
+import com.simibubi.create.AllSoundEvents;
+import com.simibubi.create.foundation.item.CustomUseEffectsItem;
+import com.simibubi.create.foundation.item.render.SimpleCustomRenderer;
+import com.simibubi.create.foundation.mixin.accessor.LivingEntityAccessor;
 import com.simibubi.create.foundation.utility.VecHelper;
 
-import mcp.MethodsReturnNonnullByDefault;
-import net.minecraft.enchantment.Enchantment;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.item.ItemEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.ItemUseContext;
-import net.minecraft.item.UseAction;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.particles.ItemParticleData;
-import net.minecraft.particles.ParticleTypes;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.ActionResultType;
-import net.minecraft.util.Hand;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.BlockRayTraceResult;
-import net.minecraft.util.math.RayTraceContext;
-import net.minecraft.util.math.RayTraceResult;
-import net.minecraft.util.math.vector.Vector3d;
-import net.minecraft.world.World;
+import net.minecraft.MethodsReturnNonnullByDefault;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.ItemParticleOption;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.UseAnim;
+import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraftforge.client.IItemRenderProperties;
+import net.minecraftforge.common.ToolAction;
+import net.minecraftforge.common.ToolActions;
 import net.minecraftforge.common.util.FakePlayer;
 
 @MethodsReturnNonnullByDefault
 @ParametersAreNonnullByDefault
-public class SandPaperItem extends Item {
+public class SandPaperItem extends Item implements CustomUseEffectsItem {
 
 	public SandPaperItem(Properties properties) {
-		super(properties.durability(8));
+		super(properties.defaultDurability(8));
 	}
 
 	@Override
-	public UseAction getUseAnimation(ItemStack stack) {
-		return UseAction.EAT;
-	}
-
-	@Override
-	public ActionResultType useOn(ItemUseContext context) {
-		return ActionResultType.PASS;
-	}
-
-	@Override
-	public ActionResult<ItemStack> use(World worldIn, PlayerEntity playerIn, Hand handIn) {
+	public InteractionResultHolder<ItemStack> use(Level worldIn, Player playerIn, InteractionHand handIn) {
 		ItemStack itemstack = playerIn.getItemInHand(handIn);
-		ActionResult<ItemStack> FAIL = new ActionResult<>(ActionResultType.FAIL, itemstack);
+		InteractionResultHolder<ItemStack> FAIL = new InteractionResultHolder<>(InteractionResult.FAIL, itemstack);
 
 		if (itemstack.getOrCreateTag()
 			.contains("Polishing")) {
 			playerIn.startUsingItem(handIn);
-			return new ActionResult<>(ActionResultType.PASS, itemstack);
+			return new InteractionResultHolder<>(InteractionResult.PASS, itemstack);
 		}
 
-		Hand otherHand = handIn == Hand.MAIN_HAND ? Hand.OFF_HAND : Hand.MAIN_HAND;
+		InteractionHand otherHand =
+			handIn == InteractionHand.MAIN_HAND ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
 		ItemStack itemInOtherHand = playerIn.getItemInHand(otherHand);
 		if (SandPaperPolishingRecipe.canPolish(worldIn, itemInOtherHand)) {
 			ItemStack item = itemInOtherHand.copy();
@@ -65,16 +70,16 @@ public class SandPaperItem extends Item {
 			itemstack.getOrCreateTag()
 				.put("Polishing", toPolish.serializeNBT());
 			playerIn.setItemInHand(otherHand, item);
-			return new ActionResult<>(ActionResultType.SUCCESS, itemstack);
+			return new InteractionResultHolder<>(InteractionResult.SUCCESS, itemstack);
 		}
 
-		RayTraceResult raytraceresult = getPlayerPOVHitResult(worldIn, playerIn, RayTraceContext.FluidMode.NONE);
-		if (!(raytraceresult instanceof BlockRayTraceResult))
+		HitResult raytraceresult = getPlayerPOVHitResult(worldIn, playerIn, ClipContext.Fluid.NONE);
+		if (!(raytraceresult instanceof BlockHitResult))
 			return FAIL;
-		BlockRayTraceResult ray = (BlockRayTraceResult) raytraceresult;
-		Vector3d hitVec = ray.getLocation();
+		BlockHitResult ray = (BlockHitResult) raytraceresult;
+		Vec3 hitVec = ray.getLocation();
 
-		AxisAlignedBB bb = new AxisAlignedBB(hitVec, hitVec).inflate(1f);
+		AABB bb = new AABB(hitVec, hitVec).inflate(1f);
 		ItemEntity pickUp = null;
 		for (ItemEntity itemEntity : worldIn.getEntitiesOfClass(ItemEntity.class, bb)) {
 			if (!itemEntity.isAlive())
@@ -102,30 +107,20 @@ public class SandPaperItem extends Item {
 			itemstack.getOrCreateTag()
 				.put("Polishing", toPolish.serializeNBT());
 			if (item.isEmpty())
-				pickUp.remove();
+				pickUp.discard();
 			else
 				pickUp.setItem(item);
 		}
 
-		return new ActionResult<>(ActionResultType.SUCCESS, itemstack);
+		return new InteractionResultHolder<>(InteractionResult.SUCCESS, itemstack);
 	}
 
 	@Override
-	public boolean canApplyAtEnchantingTable(ItemStack stack, Enchantment enchantment) {
-		return super.canApplyAtEnchantingTable(stack, enchantment);
-	}
-
-	@Override
-	public int getItemEnchantability(ItemStack stack) {
-		return 1;
-	}
-
-	@Override
-	public ItemStack finishUsingItem(ItemStack stack, World worldIn, LivingEntity entityLiving) {
-		if (!(entityLiving instanceof PlayerEntity))
+	public ItemStack finishUsingItem(ItemStack stack, Level worldIn, LivingEntity entityLiving) {
+		if (!(entityLiving instanceof Player))
 			return stack;
-		PlayerEntity player = (PlayerEntity) entityLiving;
-		CompoundNBT tag = stack.getOrCreateTag();
+		Player player = (Player) entityLiving;
+		CompoundTag tag = stack.getOrCreateTag();
 		if (tag.contains("Polishing")) {
 			ItemStack toPolish = ItemStack.of(tag.getCompound("Polishing"));
 			ItemStack polished =
@@ -143,7 +138,8 @@ public class SandPaperItem extends Item {
 				if (player instanceof FakePlayer) {
 					player.drop(polished, false, false);
 				} else {
-					player.inventory.placeItemBackInInventory(worldIn, polished);
+					player.getInventory()
+						.placeItemBackInInventory(polished);
 				}
 			}
 			tag.remove("Polishing");
@@ -153,25 +149,94 @@ public class SandPaperItem extends Item {
 		return stack;
 	}
 
-	public static void spawnParticles(Vector3d location, ItemStack polishedStack, World world) {
+	public static void spawnParticles(Vec3 location, ItemStack polishedStack, Level world) {
 		for (int i = 0; i < 20; i++) {
-			Vector3d motion = VecHelper.offsetRandomly(Vector3d.ZERO, world.random, 1 / 8f);
-			world.addParticle(new ItemParticleData(ParticleTypes.ITEM, polishedStack), location.x, location.y,
+			Vec3 motion = VecHelper.offsetRandomly(Vec3.ZERO, world.random, 1 / 8f);
+			world.addParticle(new ItemParticleOption(ParticleTypes.ITEM, polishedStack), location.x, location.y,
 				location.z, motion.x, motion.y, motion.z);
 		}
 	}
 
 	@Override
-	public void releaseUsing(ItemStack stack, World worldIn, LivingEntity entityLiving, int timeLeft) {
-		if (!(entityLiving instanceof PlayerEntity))
+	public void releaseUsing(ItemStack stack, Level worldIn, LivingEntity entityLiving, int timeLeft) {
+		if (!(entityLiving instanceof Player))
 			return;
-		PlayerEntity player = (PlayerEntity) entityLiving;
-		CompoundNBT tag = stack.getOrCreateTag();
+		Player player = (Player) entityLiving;
+		CompoundTag tag = stack.getOrCreateTag();
 		if (tag.contains("Polishing")) {
 			ItemStack toPolish = ItemStack.of(tag.getCompound("Polishing"));
-			player.inventory.placeItemBackInInventory(worldIn, toPolish);
+			player.getInventory()
+				.placeItemBackInInventory(toPolish);
 			tag.remove("Polishing");
 		}
+	}
+
+	@Override
+	public InteractionResult useOn(UseOnContext context) {
+		Player player = context.getPlayer();
+		ItemStack stack = context.getItemInHand();
+		Level level = context.getLevel();
+		BlockPos pos = context.getClickedPos();
+		BlockState state = level.getBlockState(pos);
+
+		BlockState newState = state.getToolModifiedState(context, ToolActions.AXE_SCRAPE, false);
+		if (newState != null) {
+			AllSoundEvents.SANDING_LONG.play(level, player, pos, 1, 1 + (level.random.nextFloat() * 0.5f - 1f) / 5f);
+			level.levelEvent(player, 3005, pos, 0); // Spawn particles
+		} else {
+			newState = state.getToolModifiedState(context, ToolActions.AXE_WAX_OFF, false);
+			if (newState != null) {
+				AllSoundEvents.SANDING_LONG.play(level, player, pos, 1,
+					1 + (level.random.nextFloat() * 0.5f - 1f) / 5f);
+				level.levelEvent(player, 3004, pos, 0); // Spawn particles
+			}
+		}
+
+		if (newState != null) {
+			level.setBlockAndUpdate(pos, newState);
+			if (player != null)
+				stack.hurtAndBreak(1, player, p -> p.broadcastBreakEvent(p.getUsedItemHand()));
+			return InteractionResult.sidedSuccess(level.isClientSide);
+		}
+
+		return InteractionResult.PASS;
+	}
+
+	@Override
+	public boolean canPerformAction(ItemStack stack, ToolAction toolAction) {
+		return toolAction == ToolActions.AXE_SCRAPE || toolAction == ToolActions.AXE_WAX_OFF;
+	}
+
+	@Override
+	public Boolean shouldTriggerUseEffects(ItemStack stack, LivingEntity entity) {
+		// Trigger every tick so that we have more fine grain control over the animation
+		return true;
+	}
+
+	@Override
+	public boolean triggerUseEffects(ItemStack stack, LivingEntity entity, int count, Random random) {
+		CompoundTag tag = stack.getOrCreateTag();
+		if (tag.contains("Polishing")) {
+			ItemStack polishing = ItemStack.of(tag.getCompound("Polishing"));
+			((LivingEntityAccessor) entity).create$callSpawnItemParticles(polishing, 1);
+		}
+
+		// After 6 ticks play the sound every 7th
+		if ((entity.getTicksUsingItem() - 6) % 7 == 0)
+			entity.playSound(entity.getEatingSound(stack), 0.9F + 0.2F * random.nextFloat(),
+				random.nextFloat() * 0.2F + 0.9F);
+
+		return true;
+	}
+
+	@Override
+	public SoundEvent getEatingSound() {
+		return AllSoundEvents.SANDING_SHORT.getMainEvent();
+	}
+
+	@Override
+	public UseAnim getUseAnimation(ItemStack stack) {
+		return UseAnim.EAT;
 	}
 
 	@Override
@@ -181,7 +246,13 @@ public class SandPaperItem extends Item {
 
 	@Override
 	public int getEnchantmentValue() {
-		return 5;
+		return 1;
+	}
+
+	@Override
+	@OnlyIn(Dist.CLIENT)
+	public void initializeClient(Consumer<IItemRenderProperties> consumer) {
+		consumer.accept(SimpleCustomRenderer.create(this, new SandPaperItemRenderer()));
 	}
 
 }

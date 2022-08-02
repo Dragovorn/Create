@@ -9,17 +9,17 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.UUID;
 
-import org.apache.commons.lang3.tuple.Pair;
-
 import com.simibubi.create.Create;
 import com.simibubi.create.content.logistics.IRedstoneLinkable;
 import com.simibubi.create.content.logistics.RedstoneLinkNetworkHandler.Frequency;
+import com.simibubi.create.foundation.advancement.AllAdvancements;
+import com.simibubi.create.foundation.tileEntity.behaviour.linked.LinkBehaviour;
 import com.simibubi.create.foundation.utility.Couple;
 import com.simibubi.create.foundation.utility.IntAttached;
 import com.simibubi.create.foundation.utility.WorldAttached;
 
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.IWorld;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.LevelAccessor;
 
 public class LinkedControllerServerHandler {
 
@@ -27,7 +27,7 @@ public class LinkedControllerServerHandler {
 		new WorldAttached<>($ -> new HashMap<>());
 	static final int TIMEOUT = 30;
 
-	public static void tick(IWorld world) {
+	public static void tick(LevelAccessor world) {
 		Map<UUID, Collection<ManualFrequencyEntry>> map = receivedInputs.get(world);
 		for (Iterator<Entry<UUID, Collection<ManualFrequencyEntry>>> iterator = map.entrySet()
 			.iterator(); iterator.hasNext();) {
@@ -49,7 +49,7 @@ public class LinkedControllerServerHandler {
 		}
 	}
 
-	public static void receivePressed(IWorld world, BlockPos pos, UUID uniqueID, List<Couple<Frequency>> collect,
+	public static void receivePressed(LevelAccessor world, BlockPos pos, UUID uniqueID, List<Couple<Frequency>> collect,
 		boolean pressed) {
 		Map<UUID, Collection<ManualFrequencyEntry>> map = receivedInputs.get(world);
 		Collection<ManualFrequencyEntry> list = map.computeIfAbsent(uniqueID, $ -> new ArrayList<>());
@@ -73,6 +73,10 @@ public class LinkedControllerServerHandler {
 			ManualFrequencyEntry entry = new ManualFrequencyEntry(pos, activated);
 			Create.REDSTONE_LINK_NETWORK_HANDLER.addToNetwork(world, entry);
 			list.add(entry);
+			
+			for (IRedstoneLinkable linkable : Create.REDSTONE_LINK_NETWORK_HANDLER.getNetworkOf(world, entry)) 
+				if (linkable instanceof LinkBehaviour lb && lb.isListening())
+					AllAdvancements.LINKED_CONTROLLER.awardTo(world.getPlayerByUUID(uniqueID));
 		}
 	}
 
@@ -114,8 +118,8 @@ public class LinkedControllerServerHandler {
 		}
 
 		@Override
-		public Pair<Frequency, Frequency> getNetworkKey() {
-			return Pair.of(getSecond().getFirst(), getSecond().getSecond());
+		public Couple<Frequency> getNetworkKey() {
+			return getSecond();
 		}
 
 	}

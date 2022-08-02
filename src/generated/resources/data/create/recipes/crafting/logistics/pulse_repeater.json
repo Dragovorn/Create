@@ -1,12 +1,15 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    "RRT",
+    "RCT",
     "SSS"
   ],
   "key": {
     "T": {
       "item": "minecraft:redstone_torch"
+    },
+    "C": {
+      "tag": "forge:plates/brass"
     },
     "R": {
       "tag": "forge:dusts/redstone"

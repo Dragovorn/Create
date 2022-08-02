@@ -2,79 +2,79 @@ package com.simibubi.create.content.contraptions.components.structureMovement;
 
 import javax.annotation.Nullable;
 
-import com.jozufozu.flywheel.backend.material.MaterialManager;
+import com.jozufozu.flywheel.api.MaterialManager;
+import com.jozufozu.flywheel.core.virtual.VirtualRenderWorld;
 import com.simibubi.create.content.contraptions.components.structureMovement.render.ActorInstance;
 import com.simibubi.create.content.contraptions.components.structureMovement.render.ContraptionMatrices;
 import com.simibubi.create.foundation.config.AllConfigs;
-import com.simibubi.create.foundation.utility.worldWrappers.PlacementSimulationWorld;
 
-import net.minecraft.client.renderer.IRenderTypeBuffer;
-import net.minecraft.entity.item.ItemEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.vector.Vector3d;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.items.ItemHandlerHelper;
 
-public abstract class MovementBehaviour {
+public interface MovementBehaviour {
 
-	public boolean isActive(MovementContext context) {
+	default boolean isActive(MovementContext context) {
 		return true;
 	}
 
-	public void tick(MovementContext context) {}
+	default void tick(MovementContext context) {}
 
-	public void startMoving(MovementContext context) {}
+	default void startMoving(MovementContext context) {}
 
-	public void visitNewPosition(MovementContext context, BlockPos pos) {}
+	default void visitNewPosition(MovementContext context, BlockPos pos) {}
 
-	public Vector3d getActiveAreaOffset(MovementContext context) {
-		return Vector3d.ZERO;
+	default Vec3 getActiveAreaOffset(MovementContext context) {
+		return Vec3.ZERO;
 	}
 
-	public void dropItem(MovementContext context, ItemStack stack) {
+	default void dropItem(MovementContext context, ItemStack stack) {
 		ItemStack remainder;
 		if (AllConfigs.SERVER.kinetics.moveItemsToStorage.get())
-			remainder = ItemHandlerHelper.insertItem(context.contraption.inventory, stack, false);
+			remainder = ItemHandlerHelper.insertItem(context.contraption.getSharedInventory(), stack, false);
 		else
 			remainder = stack;
 		if (remainder.isEmpty())
 			return;
 
-		Vector3d vec = context.position;
+		Vec3 vec = context.position;
 		ItemEntity itemEntity = new ItemEntity(context.world, vec.x, vec.y, vec.z, remainder);
 		itemEntity.setDeltaMovement(context.motion.add(0, 0.5f, 0)
 			.scale(context.world.random.nextFloat() * .3f));
 		context.world.addFreshEntity(itemEntity);
 	}
 
-	public void stopMoving(MovementContext context) {
+	default void onSpeedChanged(MovementContext context, Vec3 oldMotion, Vec3 motion) {}
 
+	default void stopMoving(MovementContext context) {}
+	
+	default void cancelStall(MovementContext context) {
+		context.stall = false;
 	}
 
-	public void writeExtraData(MovementContext context) {
+	default void writeExtraData(MovementContext context) {}
 
-	}
-
-	public boolean renderAsNormalTileEntity() {
+	default boolean renderAsNormalTileEntity() {
 		return false;
 	}
 
-	public boolean hasSpecialInstancedRendering() {
+	default boolean hasSpecialInstancedRendering() {
 		return false;
 	}
 
 	@OnlyIn(Dist.CLIENT)
-	public void renderInContraption(MovementContext context, PlacementSimulationWorld renderWorld,
-		ContraptionMatrices matrices, IRenderTypeBuffer buffer) {}
+	default void renderInContraption(MovementContext context, VirtualRenderWorld renderWorld,
+		ContraptionMatrices matrices, MultiBufferSource buffer) {}
 
 	@OnlyIn(Dist.CLIENT)
 	@Nullable
-	public ActorInstance createInstance(MaterialManager<?> materialManager, PlacementSimulationWorld simulationWorld, MovementContext context) {
+	default ActorInstance createInstance(MaterialManager materialManager, VirtualRenderWorld simulationWorld,
+		MovementContext context) {
 		return null;
-	}
-
-	public void onSpeedChanged(MovementContext context, Vector3d oldMotion, Vector3d motion) {
 	}
 }

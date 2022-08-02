@@ -5,10 +5,11 @@ import com.simibubi.create.AllSoundEvents;
 import com.simibubi.create.content.contraptions.base.GeneratingKineticTileEntity;
 import com.simibubi.create.foundation.utility.AnimationTickHolder;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.tileentity.TileEntityType;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 
@@ -19,8 +20,8 @@ public class HandCrankTileEntity extends GeneratingKineticTileEntity {
 	public float independentAngle;
 	public float chasingVelocity;
 
-	public HandCrankTileEntity(TileEntityType<? extends HandCrankTileEntity> type) {
-		super(type);
+	public HandCrankTileEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+		super(type, pos, state);
 	}
 
 	public void turn(boolean back) {
@@ -46,15 +47,15 @@ public class HandCrankTileEntity extends GeneratingKineticTileEntity {
 	}
 
 	@Override
-	public void write(CompoundNBT compound, boolean clientPacket) {
+	public void write(CompoundTag compound, boolean clientPacket) {
 		compound.putInt("InUse", inUse);
 		super.write(compound, clientPacket);
 	}
 
 	@Override
-	protected void fromTag(BlockState state, CompoundNBT compound, boolean clientPacket) {
+	protected void read(CompoundTag compound, boolean clientPacket) {
 		inUse = compound.getInt("InUse");
-		super.fromTag(state, compound, clientPacket);
+		super.read(compound, clientPacket);
 	}
 
 	@Override
@@ -76,11 +77,6 @@ public class HandCrankTileEntity extends GeneratingKineticTileEntity {
 	@Override
 	protected Block getStressConfigKey() {
 		return AllBlocks.HAND_CRANK.get();
-	}
-
-	@Override
-	public boolean shouldRenderNormally() {
-		return true;
 	}
 
 	@Override

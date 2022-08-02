@@ -15,6 +15,7 @@ import com.simibubi.create.AllSoundEvents;
 import com.simibubi.create.content.contraptions.base.KineticTileEntity;
 import com.simibubi.create.content.contraptions.components.crafter.ConnectedInputHandler.ConnectedInput;
 import com.simibubi.create.content.contraptions.components.crafter.RecipeGridHandler.GroupedItems;
+import com.simibubi.create.foundation.advancement.AllAdvancements;
 import com.simibubi.create.foundation.item.SmartInventory;
 import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 import com.simibubi.create.foundation.tileEntity.behaviour.belt.DirectBeltInputBehaviour;
@@ -24,20 +25,20 @@ import com.simibubi.create.foundation.utility.BlockFace;
 import com.simibubi.create.foundation.utility.Pointing;
 import com.simibubi.create.foundation.utility.VecHelper;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.entity.item.ItemEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.particles.ItemParticleData;
-import net.minecraft.particles.ParticleTypes;
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.Direction;
-import net.minecraft.util.SoundCategory;
-import net.minecraft.util.SoundEvents;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.vector.Vector3d;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.particles.ItemParticleOption;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.items.IItemHandler;
@@ -73,8 +74,7 @@ public class MechanicalCrafterTileEntity extends KineticTileEntity {
 			ItemStack insertItem = super.insertItem(slot, stack, simulate);
 			if (insertItem.getCount() != stack.getCount() && !simulate)
 				te.getLevel()
-					.playSound(null, te.getBlockPos(), SoundEvents.ITEM_FRAME_ADD_ITEM, SoundCategory.BLOCKS, .25f,
-						.5f);
+					.playSound(null, te.getBlockPos(), SoundEvents.ITEM_FRAME_ADD_ITEM, SoundSource.BLOCKS, .25f, .5f);
 			return insertItem;
 		}
 
@@ -83,7 +83,8 @@ public class MechanicalCrafterTileEntity extends KineticTileEntity {
 	protected Inventory inventory;
 	protected GroupedItems groupedItems = new GroupedItems();
 	protected ConnectedInput input = new ConnectedInput();
-	protected LazyOptional<IItemHandler> invSupplier = LazyOptional.of(() -> input.getItemHandler(level, worldPosition));
+	protected LazyOptional<IItemHandler> invSupplier =
+		LazyOptional.of(() -> input.getItemHandler(level, worldPosition));
 	protected boolean reRender;
 	protected Phase phase;
 	protected int countDown;
@@ -96,8 +97,8 @@ public class MechanicalCrafterTileEntity extends KineticTileEntity {
 
 	private ItemStack scriptedResult = ItemStack.EMPTY;
 
-	public MechanicalCrafterTileEntity(TileEntityType<? extends MechanicalCrafterTileEntity> type) {
-		super(type);
+	public MechanicalCrafterTileEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+		super(type, pos, state);
 		setLazyTickRate(20);
 		phase = Phase.IDLE;
 		groupedItemsBeforeCraft = new GroupedItems();
@@ -116,6 +117,17 @@ public class MechanicalCrafterTileEntity extends KineticTileEntity {
 			.require(AllItems.WRENCH.get());
 		behaviours.add(inserting);
 		behaviours.add(connectivity);
+		registerAwardables(behaviours, AllAdvancements.CRAFTER, AllAdvancements.CRAFTER_LAZY);
+	}
+
+	@Override
+	public void onSpeedChanged(float previousSpeed) {
+		super.onSpeedChanged(previousSpeed);
+		if (!Mth.equal(getSpeed(), 0)) {
+			award(AllAdvancements.CRAFTER);
+			if (Math.abs(getSpeed()) < 5)
+				award(AllAdvancements.CRAFTER_LAZY);
+		}
 	}
 
 	public void blockChanged() {
@@ -124,7 +136,7 @@ public class MechanicalCrafterTileEntity extends KineticTileEntity {
 		attachBehaviourLate(inserting);
 	}
 
-	public BlockFace getTargetFace(World world, BlockPos pos, BlockState state) {
+	public BlockFace getTargetFace(Level world, BlockPos pos, BlockState state) {
 		return new BlockFace(pos, MechanicalCrafterBlock.getTargetDirection(state));
 	}
 
@@ -133,25 +145,25 @@ public class MechanicalCrafterTileEntity extends KineticTileEntity {
 	}
 
 	@Override
-	public void writeSafe(CompoundNBT compound, boolean clientPacket) {
-		super.writeSafe(compound, clientPacket);
+	public void writeSafe(CompoundTag compound) {
+		super.writeSafe(compound);
 		if (input == null)
 			return;
-		
-		CompoundNBT inputNBT = new CompoundNBT();
+
+		CompoundTag inputNBT = new CompoundTag();
 		input.write(inputNBT);
 		compound.put("ConnectedInput", inputNBT);
 	}
-	
+
 	@Override
-	public void write(CompoundNBT compound, boolean clientPacket) {
+	public void write(CompoundTag compound, boolean clientPacket) {
 		compound.put("Inventory", inventory.serializeNBT());
 
-		CompoundNBT inputNBT = new CompoundNBT();
+		CompoundTag inputNBT = new CompoundTag();
 		input.write(inputNBT);
 		compound.put("ConnectedInput", inputNBT);
 
-		CompoundNBT groupedItemsNBT = new CompoundNBT();
+		CompoundTag groupedItemsNBT = new CompoundTag();
 		groupedItems.write(groupedItemsNBT);
 		compound.put("GroupedItems", groupedItemsNBT);
 
@@ -168,7 +180,7 @@ public class MechanicalCrafterTileEntity extends KineticTileEntity {
 	}
 
 	@Override
-	protected void fromTag(BlockState state, CompoundNBT compound, boolean clientPacket) {
+	protected void read(CompoundTag compound, boolean clientPacket) {
 		Phase phaseBefore = phase;
 		GroupedItems before = this.groupedItems;
 
@@ -183,7 +195,7 @@ public class MechanicalCrafterTileEntity extends KineticTileEntity {
 				this.phase = phase;
 		countDown = compound.getInt("CountDown");
 		covered = compound.getBoolean("Cover");
-		super.fromTag(state, compound, clientPacket);
+		super.read(compound, clientPacket);
 		if (!clientPacket)
 			return;
 		if (compound.contains("Redraw"))
@@ -192,11 +204,11 @@ public class MechanicalCrafterTileEntity extends KineticTileEntity {
 			groupedItemsBeforeCraft = before;
 		if (phaseBefore == Phase.EXPORTING && phase == Phase.WAITING) {
 			Direction facing = getBlockState().getValue(MechanicalCrafterBlock.HORIZONTAL_FACING);
-			Vector3d vec = Vector3d.atLowerCornerOf(facing.getNormal())
+			Vec3 vec = Vec3.atLowerCornerOf(facing.getNormal())
 				.scale(.75)
 				.add(VecHelper.getCenterOf(worldPosition));
 			Direction targetDirection = MechanicalCrafterBlock.getTargetDirection(getBlockState());
-			vec = vec.add(Vector3d.atLowerCornerOf(targetDirection.getNormal())
+			vec = vec.add(Vec3.atLowerCornerOf(targetDirection.getNormal())
 				.scale(1));
 			level.addParticle(ParticleTypes.CRIT, vec.x, vec.y, vec.z, 0, 0, 0);
 		}
@@ -211,7 +223,7 @@ public class MechanicalCrafterTileEntity extends KineticTileEntity {
 	public int getCountDownSpeed() {
 		if (getSpeed() == 0)
 			return 0;
-		return MathHelper.clamp((int) Math.abs(getSpeed()), 4, 250);
+		return Mth.clamp((int) Math.abs(getSpeed()), 4, 250);
 	}
 
 	@Override
@@ -297,7 +309,7 @@ public class MechanicalCrafterTileEntity extends KineticTileEntity {
 				groupedItems.mergeOnto(targetingCrafter.groupedItems, pointing);
 				groupedItems = new GroupedItems();
 
-				float pitch = targetingCrafter.groupedItems.grid.size() * 1/16f + .5f;
+				float pitch = targetingCrafter.groupedItems.grid.size() * 1 / 16f + .5f;
 				AllSoundEvents.CRAFTER_CLICK.playOnServer(level, worldPosition, 1, pitch);
 
 				phase = Phase.WAITING;
@@ -314,10 +326,10 @@ public class MechanicalCrafterTileEntity extends KineticTileEntity {
 			if (onClient) {
 				Direction facing = getBlockState().getValue(MechanicalCrafterBlock.HORIZONTAL_FACING);
 				float progress = countDown / 2000f;
-				Vector3d facingVec = Vector3d.atLowerCornerOf(facing.getNormal());
-				Vector3d vec = facingVec.scale(.65)
+				Vec3 facingVec = Vec3.atLowerCornerOf(facing.getNormal());
+				Vec3 vec = facingVec.scale(.65)
 					.add(VecHelper.getCenterOf(worldPosition));
-				Vector3d offset = VecHelper.offsetRandomly(Vector3d.ZERO, level.random, .125f)
+				Vec3 offset = VecHelper.offsetRandomly(Vec3.ZERO, level.random, .125f)
 					.multiply(VecHelper.axisAlingedPlaneOf(facingVec))
 					.normalize()
 					.scale(progress * .5f)
@@ -331,13 +343,13 @@ public class MechanicalCrafterTileEntity extends KineticTileEntity {
 						groupedItemsBeforeCraft = new GroupedItems();
 
 						for (int i = 0; i < 10; i++) {
-							Vector3d randVec = VecHelper.offsetRandomly(Vector3d.ZERO, level.random, .125f)
+							Vec3 randVec = VecHelper.offsetRandomly(Vec3.ZERO, level.random, .125f)
 								.multiply(VecHelper.axisAlingedPlaneOf(facingVec))
 								.normalize()
 								.scale(.25f);
-							Vector3d offset2 = randVec.add(vec);
+							Vec3 offset2 = randVec.add(vec);
 							randVec = randVec.scale(.35f);
-							level.addParticle(new ItemParticleData(ParticleTypes.ITEM, stack), offset2.x, offset2.y,
+							level.addParticle(new ItemParticleOption(ParticleTypes.ITEM, stack), offset2.x, offset2.y,
 								offset2.z, randVec.x, randVec.y, randVec.z);
 						}
 					}
@@ -422,10 +434,10 @@ public class MechanicalCrafterTileEntity extends KineticTileEntity {
 	public void eject() {
 		BlockState blockState = getBlockState();
 		boolean present = AllBlocks.MECHANICAL_CRAFTER.has(blockState);
-		Vector3d vec = present ? Vector3d.atLowerCornerOf(blockState.getValue(HORIZONTAL_FACING)
+		Vec3 vec = present ? Vec3.atLowerCornerOf(blockState.getValue(HORIZONTAL_FACING)
 			.getNormal())
-			.scale(.75f) : Vector3d.ZERO;
-		Vector3d ejectPos = VecHelper.getCenterOf(worldPosition)
+			.scale(.75f) : Vec3.ZERO;
+		Vec3 ejectPos = VecHelper.getCenterOf(worldPosition)
 			.add(vec);
 		groupedItems.grid.forEach((pair, stack) -> dropItem(ejectPos, stack));
 		if (!inventory.getItem(0)
@@ -437,7 +449,7 @@ public class MechanicalCrafterTileEntity extends KineticTileEntity {
 		sendData();
 	}
 
-	public void dropItem(Vector3d ejectPos, ItemStack stack) {
+	public void dropItem(Vec3 ejectPos, ItemStack stack) {
 		ItemEntity itemEntity = new ItemEntity(level, ejectPos.x, ejectPos.y, ejectPos.z, stack);
 		itemEntity.setDefaultPickUpDelay();
 		level.addFreshEntity(itemEntity);
@@ -521,11 +533,6 @@ public class MechanicalCrafterTileEntity extends KineticTileEntity {
 
 	public Inventory getInventory() {
 		return inventory;
-	}
-
-	@Override
-	public boolean shouldRenderNormally() {
-		return true;
 	}
 
 	public void setScriptedResult(ItemStack scriptedResult) {

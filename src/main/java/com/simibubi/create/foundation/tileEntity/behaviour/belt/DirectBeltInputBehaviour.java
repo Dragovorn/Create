@@ -13,12 +13,12 @@ import com.simibubi.create.foundation.tileEntity.SmartTileEntity;
 import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 import com.simibubi.create.foundation.tileEntity.behaviour.BehaviourType;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.item.ItemStack;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandler;
@@ -30,7 +30,7 @@ import net.minecraftforge.items.ItemHandlerHelper;
  */
 public class DirectBeltInputBehaviour extends TileEntityBehaviour {
 
-	public static BehaviourType<DirectBeltInputBehaviour> TYPE = new BehaviourType<>();
+	public static final BehaviourType<DirectBeltInputBehaviour> TYPE = new BehaviourType<>();
 
 	private InsertionCallback tryInsert;
 	private AvailabilityPredicate canInsert;
@@ -70,6 +70,7 @@ public class DirectBeltInputBehaviour extends TileEntityBehaviour {
 		return ItemHandlerHelper.insertItemStacked(lazy.orElse(null), inserted.stack.copy(), simulate);
 	}
 
+	// TODO: verify that this side is consistent across all calls
 	public boolean canInsertFromSide(Direction side) {
 		return canInsert.test(side);
 	}
@@ -101,7 +102,7 @@ public class DirectBeltInputBehaviour extends TileEntityBehaviour {
 	public ItemStack tryExportingToBeltFunnel(ItemStack stack, @Nullable Direction side, boolean simulate) {
 		BlockPos funnelPos = tileEntity.getBlockPos()
 			.above();
-		World world = getWorld();
+		Level world = getWorld();
 		BlockState funnelState = world.getBlockState(funnelPos);
 		if (!(funnelState.getBlock() instanceof BeltFunnelBlock))
 			return null;
@@ -109,7 +110,7 @@ public class DirectBeltInputBehaviour extends TileEntityBehaviour {
 			return null;
 		if (side != null && FunnelBlock.getFunnelFacing(funnelState) != side)
 			return null;
-		TileEntity te = world.getBlockEntity(funnelPos);
+		BlockEntity te = world.getBlockEntity(funnelPos);
 		if (!(te instanceof FunnelTileEntity))
 			return null;
 		if (funnelState.getValue(BeltFunnelBlock.POWERED))

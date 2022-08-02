@@ -1147,8 +1147,13 @@
 	"create.tooltip.speedRequirement": "Vitesse requise : %1$s",
 	"create.tooltip.speedRequirement.none": "Aucune",
 	"create.tooltip.speedRequirement.medium": "Modérée",
+<<<<<<< HEAD
 	"create.tooltip.speedRequirement.high": "Rapide",
 	"create.tooltip.stressImpact": "Impact du stress : %1$s",
+=======
+	"create.tooltip.speedRequirement.fast": "Rapide",
+	"create.tooltip.stressImpact": "Impact du stress: %1$s",
+>>>>>>> mc1.18/dev
 	"create.tooltip.stressImpact.low": "Faible",
 	"create.tooltip.stressImpact.medium": "Modéré",
 	"create.tooltip.stressImpact.high": "Elevé",

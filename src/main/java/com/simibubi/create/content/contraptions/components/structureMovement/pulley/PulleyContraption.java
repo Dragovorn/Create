@@ -1,13 +1,15 @@
 package com.simibubi.create.content.contraptions.components.structureMovement.pulley;
 
 import com.simibubi.create.content.contraptions.components.structureMovement.AssemblyException;
-import com.simibubi.create.content.contraptions.components.structureMovement.ContraptionLighter;
 import com.simibubi.create.content.contraptions.components.structureMovement.ContraptionType;
 import com.simibubi.create.content.contraptions.components.structureMovement.TranslatingContraption;
+import com.simibubi.create.content.contraptions.components.structureMovement.render.ContraptionLighter;
 
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.level.Level;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 
 public class PulleyContraption extends TranslatingContraption {
 
@@ -25,7 +27,7 @@ public class PulleyContraption extends TranslatingContraption {
 	}
 
 	@Override
-	public boolean assemble(World world, BlockPos pos) throws AssemblyException {
+	public boolean assemble(Level world, BlockPos pos) throws AssemblyException {
 		if (!searchMovedStructure(world, pos, null))
 			return false;
 		startMoving(world);
@@ -43,19 +45,20 @@ public class PulleyContraption extends TranslatingContraption {
 	}
 
 	@Override
-	public CompoundNBT writeNBT(boolean spawnPacket) {
-		CompoundNBT tag = super.writeNBT(spawnPacket);
+	public CompoundTag writeNBT(boolean spawnPacket) {
+		CompoundTag tag = super.writeNBT(spawnPacket);
 		tag.putInt("InitialOffset", initialOffset);
 		return tag;
 	}
 
 	@Override
-	public void readNBT(World world, CompoundNBT nbt, boolean spawnData) {
+	public void readNBT(Level world, CompoundTag nbt, boolean spawnData) {
 		initialOffset = nbt.getInt("InitialOffset");
 		super.readNBT(world, nbt, spawnData);
 	}
 
 	@Override
+	@OnlyIn(Dist.CLIENT)
 	public ContraptionLighter<?> makeLighter() {
 		return new PulleyLighter(this);
 	}

@@ -3,30 +3,30 @@ package com.simibubi.create.foundation.command;
 import com.mojang.brigadier.builder.ArgumentBuilder;
 import com.simibubi.create.content.contraptions.components.structureMovement.glue.SuperGlueEntity;
 
-import net.minecraft.command.CommandSource;
-import net.minecraft.command.Commands;
-import net.minecraft.command.arguments.BlockPosArgument;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.server.ServerWorld;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 
 public class GlueCommand {
-	public static ArgumentBuilder<CommandSource, ?> register() {
+	public static ArgumentBuilder<CommandSourceStack, ?> register() {
 		return Commands.literal("glue")
-				.requires(cs -> cs.hasPermission(2))
-				.then(Commands.argument("pos", BlockPosArgument.blockPos())
-						//.then(Commands.argument("direction", EnumArgument.enumArgument(Direction.class))
-								.executes(ctx -> {
-									BlockPos pos = BlockPosArgument.getOrLoadBlockPos(ctx, "pos");
+			.requires(cs -> cs.hasPermission(2))
+			.then(Commands.argument("from", BlockPosArgument.blockPos())
+				.then(Commands.argument("to", BlockPosArgument.blockPos())
+					.executes(ctx -> {
+						BlockPos from = BlockPosArgument.getLoadedBlockPos(ctx, "from");
+						BlockPos to = BlockPosArgument.getLoadedBlockPos(ctx, "to");
 
-									ServerWorld world = ctx.getSource().getLevel();
-									SuperGlueEntity entity = new SuperGlueEntity(world, pos, Direction.UP);
+						ServerLevel world = ctx.getSource()
+							.getLevel();
 
-									entity.playPlaceSound();
-									world.addFreshEntity(entity);
-
-									return 1;
-								}));
+						SuperGlueEntity entity = new SuperGlueEntity(world, SuperGlueEntity.span(from, to));
+						entity.playPlaceSound();
+						world.addFreshEntity(entity);
+						return 1;
+					})));
 
 	}
 }

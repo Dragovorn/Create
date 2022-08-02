@@ -1,40 +1,39 @@
 package com.simibubi.create.content.logistics.item.filter;
 
 import static com.simibubi.create.foundation.gui.AllGuiTextures.PLAYER_INVENTORY;
-import static net.minecraft.util.text.TextFormatting.GRAY;
+import static net.minecraft.ChatFormatting.GRAY;
 
 import java.util.Collections;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
-import com.mojang.blaze3d.matrix.MatrixStack;
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.simibubi.create.content.logistics.item.filter.FilterScreenPacket.Option;
-import com.simibubi.create.foundation.gui.AbstractSimiContainerScreen;
 import com.simibubi.create.foundation.gui.AllGuiTextures;
 import com.simibubi.create.foundation.gui.AllIcons;
-import com.simibubi.create.foundation.gui.GuiGameElement;
-import com.simibubi.create.foundation.gui.widgets.IconButton;
-import com.simibubi.create.foundation.gui.widgets.Indicator;
-import com.simibubi.create.foundation.gui.widgets.Indicator.State;
+import com.simibubi.create.foundation.gui.container.AbstractSimiContainerScreen;
+import com.simibubi.create.foundation.gui.element.GuiGameElement;
+import com.simibubi.create.foundation.gui.widget.IconButton;
+import com.simibubi.create.foundation.gui.widget.Indicator;
+import com.simibubi.create.foundation.gui.widget.Indicator.State;
 import com.simibubi.create.foundation.item.ItemDescription.Palette;
 import com.simibubi.create.foundation.item.TooltipHelper;
 import com.simibubi.create.foundation.networking.AllPackets;
 
-import net.minecraft.client.gui.widget.Widget;
-import net.minecraft.client.renderer.Rectangle2d;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.util.text.IFormattableTextComponent;
-import net.minecraft.util.text.ITextComponent;
+import net.minecraft.client.renderer.Rect2i;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.world.entity.player.Inventory;
 
 public abstract class AbstractFilterScreen<F extends AbstractFilterContainer> extends AbstractSimiContainerScreen<F> {
 
 	protected AllGuiTextures background;
-    private List<Rectangle2d> extraAreas = Collections.emptyList();
+    private List<Rect2i> extraAreas = Collections.emptyList();
 
 	private IconButton resetButton;
 	private IconButton confirmButton;
 
-	protected AbstractFilterScreen(F container, PlayerInventory inv, ITextComponent title, AllGuiTextures background) {
+	protected AbstractFilterScreen(F container, Inventory inv, Component title, AllGuiTextures background) {
 		super(container, inv, title);
 		this.background = background;
 	}
@@ -43,24 +42,31 @@ public abstract class AbstractFilterScreen<F extends AbstractFilterContainer> ex
 	protected void init() {
 		setWindowSize(Math.max(background.width, PLAYER_INVENTORY.width), background.height + 4 + PLAYER_INVENTORY.height);
 		super.init();
-		widgets.clear();
 
 		int x = leftPos;
 		int y = topPos;
 
 		resetButton = new IconButton(x + background.width - 62, y + background.height - 24, AllIcons.I_TRASH);
+		resetButton.withCallback(() -> {
+			menu.clearContents();
+			contentsCleared();
+			menu.sendClearPacket();
+		});
 		confirmButton = new IconButton(x + background.width - 33, y + background.height - 24, AllIcons.I_CONFIRM);
+		confirmButton.withCallback(() -> {
+			minecraft.player.closeContainer();
+		});
 
-		widgets.add(resetButton);
-		widgets.add(confirmButton);
+		addRenderableWidget(resetButton);
+		addRenderableWidget(confirmButton);
 
 		extraAreas = ImmutableList.of(
-			new Rectangle2d(x + background.width, y + background.height - 40, 80, 48)
+			new Rect2i(x + background.width, y + background.height - 40, 80, 48)
 		);
 	}
 
 	@Override
-	protected void renderWindow(MatrixStack ms, int mouseX, int mouseY, float partialTicks) {
+	protected void renderBg(PoseStack ms, float partialTicks, int mouseX, int mouseY) {
 		int invX = getLeftOfCentered(PLAYER_INVENTORY.width);
 		int invY = topPos + background.height + 4;
 		renderPlayerInventory(ms, invX, invY);
@@ -68,7 +74,7 @@ public abstract class AbstractFilterScreen<F extends AbstractFilterContainer> ex
 		int x = leftPos;
 		int y = topPos;
 
-		background.draw(ms, this, x, y);
+		background.render(ms, x, y, this);
 		drawCenteredString(ms, font, title, x + (background.width - 8) / 2, y + 3, 0xFFFFFF);
 
 		GuiGameElement.of(menu.contentHolder)
@@ -78,28 +84,16 @@ public abstract class AbstractFilterScreen<F extends AbstractFilterContainer> ex
 	}
 
 	@Override
-	public void tick() {
-		handleTooltips();
-		super.tick();
-		handleIndicators();
-
+	protected void containerTick() {
 		if (!menu.player.getMainHandItem()
 				.equals(menu.contentHolder, false))
-			minecraft.player.closeContainer();
+			menu.player.closeContainer();
+
+		super.containerTick();
+
+		handleTooltips();
+		handleIndicators();
 	}
-
-	public void handleIndicators() {
-		List<IconButton> tooltipButtons = getTooltipButtons();
-		for (IconButton button : tooltipButtons)
-			button.active = isButtonEnabled(button);
-		for (Widget w : widgets)
-			if (w instanceof Indicator)
-				((Indicator) w).state = isIndicatorOn((Indicator) w) ? State.ON : State.OFF;
-	}
-
-	protected abstract boolean isButtonEnabled(IconButton button);
-
-	protected abstract boolean isIndicatorOn(Indicator indicator);
 
 	protected void handleTooltips() {
 		List<IconButton> tooltipButtons = getTooltipButtons();
@@ -115,45 +109,40 @@ public abstract class AbstractFilterScreen<F extends AbstractFilterContainer> ex
 		}
 
 		if (hasShiftDown()) {
-			List<IFormattableTextComponent> tooltipDescriptions = getTooltipDescriptions();
+			List<MutableComponent> tooltipDescriptions = getTooltipDescriptions();
 			for (int i = 0; i < tooltipButtons.size(); i++)
 				fillToolTip(tooltipButtons.get(i), tooltipDescriptions.get(i));
 		}
 	}
 
+	public void handleIndicators() {
+		for (IconButton button : getTooltipButtons())
+			button.active = isButtonEnabled(button);
+		for (Indicator indicator : getIndicators())
+			indicator.state = isIndicatorOn(indicator) ? State.ON : State.OFF;
+	}
+
+	protected abstract boolean isButtonEnabled(IconButton button);
+
+	protected abstract boolean isIndicatorOn(Indicator indicator);
+
 	protected List<IconButton> getTooltipButtons() {
 		return Collections.emptyList();
 	}
 
-	protected List<IFormattableTextComponent> getTooltipDescriptions() {
+	protected List<MutableComponent> getTooltipDescriptions() {
 		return Collections.emptyList();
 	}
 
-	private void fillToolTip(IconButton button, ITextComponent tooltip) {
-		if (!button.isHovered())
-			return;
-		List<ITextComponent> tip = button.getToolTip();
-		tip.addAll(TooltipHelper.cutTextComponent(tooltip, GRAY, GRAY));
+	protected List<Indicator> getIndicators() {
+		return Collections.emptyList();
 	}
 
-	@Override
-	public boolean mouseClicked(double x, double y, int button) {
-		boolean mouseClicked = super.mouseClicked(x, y, button);
-
-		if (button == 0) {
-			if (confirmButton.isHovered()) {
-				minecraft.player.closeContainer();
-				return true;
-			}
-			if (resetButton.isHovered()) {
-				menu.clearContents();
-				contentsCleared();
-				menu.sendClearPacket();
-				return true;
-			}
-		}
-
-		return mouseClicked;
+	private void fillToolTip(IconButton button, Component tooltip) {
+		if (!button.isHoveredOrFocused())
+			return;
+		List<Component> tip = button.getToolTip();
+		tip.addAll(TooltipHelper.cutTextComponent(tooltip, GRAY, GRAY));
 	}
 
 	protected void contentsCleared() {}
@@ -163,7 +152,7 @@ public abstract class AbstractFilterScreen<F extends AbstractFilterContainer> ex
 	}
 
 	@Override
-	public List<Rectangle2d> getExtraAreas() {
+	public List<Rect2i> getExtraAreas() {
 		return extraAreas;
 	}
 

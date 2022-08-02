@@ -1,21 +1,22 @@
 package com.simibubi.create.content.contraptions.base;
 
-import com.simibubi.create.foundation.utility.DirectionHelper;
+import com.simibubi.create.content.contraptions.components.structureMovement.ITransformableBlock;
+import com.simibubi.create.content.contraptions.components.structureMovement.StructureTransform;
 import com.simibubi.create.foundation.utility.Iterate;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.item.BlockItemUseContext;
-import net.minecraft.state.BooleanProperty;
-import net.minecraft.state.StateContainer.Builder;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Direction.Axis;
-import net.minecraft.util.Rotation;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.IWorldReader;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.Axis;
+import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition.Builder;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
 
-public abstract class DirectionalAxisKineticBlock extends DirectionalKineticBlock {
+public abstract class DirectionalAxisKineticBlock extends DirectionalKineticBlock implements ITransformableBlock {
 
 	public static final BooleanProperty AXIS_ALONG_FIRST_COORDINATE = BooleanProperty.create("axis_along_first");
 
@@ -29,7 +30,7 @@ public abstract class DirectionalAxisKineticBlock extends DirectionalKineticBloc
 		super.createBlockStateDefinition(builder);
 	}
 
-	protected Direction getFacingForPlacement(BlockItemUseContext context) {
+	protected Direction getFacingForPlacement(BlockPlaceContext context) {
 		Direction facing = context.getNearestLookingDirection()
 			.getOpposite();
 		if (context.getPlayer() != null && context.getPlayer()
@@ -38,22 +39,22 @@ public abstract class DirectionalAxisKineticBlock extends DirectionalKineticBloc
 		return facing;
 	}
 
-	protected boolean getAxisAlignmentForPlacement(BlockItemUseContext context) {
+	protected boolean getAxisAlignmentForPlacement(BlockPlaceContext context) {
 		return context.getHorizontalDirection()
 			.getAxis() == Axis.X;
 	}
 
 	@Override
-	public BlockState getStateForPlacement(BlockItemUseContext context) {
+	public BlockState getStateForPlacement(BlockPlaceContext context) {
 		Direction facing = getFacingForPlacement(context);
 		BlockPos pos = context.getClickedPos();
-		World world = context.getLevel();
+		Level world = context.getLevel();
 		boolean alongFirst = false;
 		Axis faceAxis = facing.getAxis();
 
 		if (faceAxis.isHorizontal()) {
 			alongFirst = faceAxis == Axis.Z;
-			Direction positivePerpendicular = DirectionHelper.getPositivePerpendicular(faceAxis);
+			Direction positivePerpendicular = faceAxis == Axis.X ? Direction.SOUTH : Direction.EAST;
 
 			boolean shaftAbove = prefersConnectionTo(world, pos, Direction.UP, true);
 			boolean shaftBelow = prefersConnectionTo(world, pos, Direction.DOWN, true);
@@ -88,7 +89,7 @@ public abstract class DirectionalAxisKineticBlock extends DirectionalKineticBloc
 			.setValue(AXIS_ALONG_FIRST_COORDINATE, alongFirst);
 	}
 
-	protected boolean prefersConnectionTo(IWorldReader reader, BlockPos pos, Direction facing, boolean shaftAxis) {
+	protected boolean prefersConnectionTo(LevelReader reader, BlockPos pos, Direction facing, boolean shaftAxis) {
 		if (!shaftAxis)
 			return false;
 		BlockPos neighbourPos = pos.relative(facing);
@@ -122,7 +123,24 @@ public abstract class DirectionalAxisKineticBlock extends DirectionalKineticBloc
 	}
 
 	@Override
-	public boolean hasShaftTowards(IWorldReader world, BlockPos pos, BlockState state, Direction face) {
+	public BlockState transform(BlockState state, StructureTransform transform) {
+		if (transform.mirror != null) {
+			state = mirror(state, transform.mirror);
+		}
+
+		if (transform.rotationAxis == Direction.Axis.Y) {
+			return rotate(state, transform.rotation);
+		}
+
+		Direction newFacing = transform.rotateFacing(state.getValue(FACING));
+		if (transform.rotationAxis == newFacing.getAxis() && transform.rotation.ordinal() % 2 == 1) {
+			state = state.cycle(AXIS_ALONG_FIRST_COORDINATE);
+		}
+		return state.setValue(FACING, newFacing);
+	}
+
+	@Override
+	public boolean hasShaftTowards(LevelReader world, BlockPos pos, BlockState state, Direction face) {
 		return face.getAxis() == getRotationAxis(state);
 	}
 

@@ -1,6 +1,6 @@
 package com.simibubi.create.content.contraptions;
 
-import static net.minecraft.state.properties.BlockStateProperties.AXIS;
+import static net.minecraft.world.level.block.state.properties.BlockStateProperties.AXIS;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -19,13 +19,14 @@ import com.simibubi.create.content.contraptions.relays.gearbox.GearboxTileEntity
 import com.simibubi.create.foundation.config.AllConfigs;
 import com.simibubi.create.foundation.utility.Iterate;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Direction.Axis;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.Axis;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+
 
 public class RotationPropagator {
 
@@ -35,7 +36,7 @@ public class RotationPropagator {
 	 * Determines the change in rotation between two attached kinetic entities. For
 	 * instance, an axis connection returns 1 while a 1-to-1 gear connection
 	 * reverses the rotation and therefore returns -1.
-	 * 
+	 *
 	 * @param from
 	 * @param to
 	 * @return
@@ -54,7 +55,7 @@ public class RotationPropagator {
 		final BlockPos diff = to.getBlockPos()
 			.subtract(from.getBlockPos());
 		final Direction direction = Direction.getNearest(diff.getX(), diff.getY(), diff.getZ());
-		final World world = from.getLevel();
+		final Level world = from.getLevel();
 
 		boolean alignedAxes = true;
 		for (Axis axis : Axis.values())
@@ -200,11 +201,11 @@ public class RotationPropagator {
 
 	/**
 	 * Insert the added position to the kinetic network.
-	 * 
+	 *
 	 * @param worldIn
 	 * @param pos
 	 */
-	public static void handleAdded(World worldIn, BlockPos pos, KineticTileEntity addedTE) {
+	public static void handleAdded(Level worldIn, BlockPos pos, KineticTileEntity addedTE) {
 		if (worldIn.isClientSide)
 			return;
 		if (!worldIn.isLoaded(pos))
@@ -214,12 +215,12 @@ public class RotationPropagator {
 
 	/**
 	 * Search for sourceless networks attached to the given entity and update them.
-	 * 
+	 *
 	 * @param currentTE
 	 */
 	private static void propagateNewSource(KineticTileEntity currentTE) {
 		BlockPos pos = currentTE.getBlockPos();
-		World world = currentTE.getLevel();
+		Level world = currentTE.getLevel();
 
 		for (KineticTileEntity neighbourTE : getConnectedNeighbours(currentTE)) {
 			float speedOfCurrent = currentTE.getTheoreticalSpeed();
@@ -229,11 +230,14 @@ public class RotationPropagator {
 
 			if (newSpeed == 0 && oppositeSpeed == 0)
 				continue;
-			
+
 			boolean incompatible =
 				Math.signum(newSpeed) != Math.signum(speedOfNeighbour) && (newSpeed != 0 && speedOfNeighbour != 0);
 
-			boolean tooFast = Math.abs(newSpeed) > AllConfigs.SERVER.kinetics.maxRotationSpeed.get();
+			boolean tooFast = Math.abs(newSpeed) > AllConfigs.SERVER.kinetics.maxRotationSpeed.get()
+					|| Math.abs(oppositeSpeed) > AllConfigs.SERVER.kinetics.maxRotationSpeed.get();
+			// Check for both the new speed and the opposite speed, just in case
+
 			boolean speedChangedTooOften = currentTE.getFlickerScore() > MAX_FLICKER_SCORE;
 			if (tooFast || speedChangedTooOften) {
 				world.destroyBlock(pos, true);
@@ -299,12 +303,12 @@ public class RotationPropagator {
 
 	/**
 	 * Remove the given entity from the network.
-	 * 
+	 *
 	 * @param worldIn
 	 * @param pos
 	 * @param removedTE
 	 */
-	public static void handleRemoved(World worldIn, BlockPos pos, KineticTileEntity removedTE) {
+	public static void handleRemoved(Level worldIn, BlockPos pos, KineticTileEntity removedTE) {
 		if (worldIn.isClientSide)
 			return;
 		if (removedTE == null)
@@ -316,7 +320,7 @@ public class RotationPropagator {
 			BlockState neighbourState = worldIn.getBlockState(neighbourPos);
 			if (!(neighbourState.getBlock() instanceof IRotate))
 				continue;
-			TileEntity tileEntity = worldIn.getBlockEntity(neighbourPos);
+			BlockEntity tileEntity = worldIn.getBlockEntity(neighbourPos);
 			if (!(tileEntity instanceof KineticTileEntity))
 				continue;
 
@@ -332,11 +336,11 @@ public class RotationPropagator {
 	/**
 	 * Clear the entire subnetwork depending on the given entity and find a new
 	 * source
-	 * 
+	 *
 	 * @param updateTE
 	 */
 	private static void propagateMissingSource(KineticTileEntity updateTE) {
-		final World world = updateTE.getLevel();
+		final Level world = updateTE.getLevel();
 
 		List<KineticTileEntity> potentialNewSources = new LinkedList<>();
 		List<BlockPos> frontier = new LinkedList<>();
@@ -345,7 +349,7 @@ public class RotationPropagator {
 
 		while (!frontier.isEmpty()) {
 			final BlockPos pos = frontier.remove(0);
-			TileEntity tileEntity = world.getBlockEntity(pos);
+			BlockEntity tileEntity = world.getBlockEntity(pos);
 			if (!(tileEntity instanceof KineticTileEntity))
 				continue;
 			final KineticTileEntity currentTE = (KineticTileEntity) tileEntity;
@@ -385,9 +389,9 @@ public class RotationPropagator {
 			.getBlockState(neighbourPos);
 		if (!(neighbourState.getBlock() instanceof IRotate))
 			return null;
-		if (!neighbourState.hasTileEntity())
+		if (!neighbourState.hasBlockEntity())
 			return null;
-		TileEntity neighbourTE = currentTE.getLevel()
+		BlockEntity neighbourTE = currentTE.getLevel()
 			.getBlockEntity(neighbourPos);
 		if (!(neighbourTE instanceof KineticTileEntity))
 			return null;

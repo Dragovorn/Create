@@ -1,16 +1,18 @@
 package com.simibubi.create.foundation.ponder.content;
 
+import com.simibubi.create.AllItems;
 import com.simibubi.create.foundation.ponder.ElementLink;
+import com.simibubi.create.foundation.ponder.PonderPalette;
 import com.simibubi.create.foundation.ponder.SceneBuilder;
 import com.simibubi.create.foundation.ponder.SceneBuildingUtil;
 import com.simibubi.create.foundation.ponder.Selection;
-import com.simibubi.create.foundation.ponder.elements.InputWindowElement;
-import com.simibubi.create.foundation.ponder.elements.WorldSectionElement;
+import com.simibubi.create.foundation.ponder.element.InputWindowElement;
+import com.simibubi.create.foundation.ponder.element.WorldSectionElement;
 import com.simibubi.create.foundation.utility.Pointing;
 
-import net.minecraft.block.Blocks;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.block.Blocks;
 
 public class PulleyScenes {
 
@@ -75,8 +77,15 @@ public class PulleyScenes {
 		ElementLink<WorldSectionElement> chassis =
 			scene.world.showIndependentSection(util.select.fromTo(2, 1, 1, 0, 2, 1), Direction.SOUTH);
 		scene.world.moveSection(chassis, util.vector.of(1, 0, 1), 0);
+		scene.world.replaceBlocks(util.select.fromTo(0, 2, 1, 2, 1, 1), Blocks.OAK_PLANKS.defaultBlockState(), false);
+
 		scene.idle(5);
 		scene.world.showSectionAndMerge(util.select.position(2, 1, 0), Direction.SOUTH, chassis);
+		scene.overlay.showOutline(PonderPalette.GREEN, "glue", util.select.position(3, 1, 1)
+			.add(util.select.fromTo(1, 1, 2, 3, 1, 2))
+			.add(util.select.position(1, 2, 2)), 40);
+		scene.overlay.showControls(new InputWindowElement(util.vector.centerOf(util.grid.at(2, 2, 0)), Pointing.RIGHT)
+			.withItem(AllItems.SUPER_GLUE.asStack()), 40);
 		scene.idle(15);
 		scene.effects.superGlue(util.grid.at(3, 1, 1), Direction.SOUTH, true);
 		scene.overlay.showText(80)
@@ -176,6 +185,7 @@ public class PulleyScenes {
 			.pointAt(util.vector.blockSurface(flowerPos, Direction.WEST))
 			.placeNearTarget()
 			.text("It can be configured never to revert to solid blocks, or only at the location it started at");
+		scene.idle(90);
 	}
 
 	public static void attachment(SceneBuilder scene, SceneBuildingUtil util) {
@@ -228,6 +238,7 @@ public class PulleyScenes {
 			.pointAt(util.vector.topOf(pulleyPos.west(2)))
 			.placeNearTarget()
 			.text("Mind that pulleys are only movable while stopped");
+		scene.idle(50);
 	}
 
 }

@@ -7,38 +7,39 @@ import com.simibubi.create.content.contraptions.components.deployer.DeployerTile
 import com.simibubi.create.content.contraptions.components.millstone.MillstoneTileEntity;
 import com.simibubi.create.content.contraptions.components.mixer.MechanicalMixerTileEntity;
 import com.simibubi.create.content.contraptions.components.press.MechanicalPressTileEntity;
-import com.simibubi.create.content.contraptions.components.press.MechanicalPressTileEntity.Mode;
+import com.simibubi.create.content.contraptions.components.press.PressingBehaviour.Mode;
 import com.simibubi.create.content.contraptions.processing.BasinBlock;
 import com.simibubi.create.content.contraptions.processing.BasinTileEntity;
 import com.simibubi.create.content.contraptions.processing.burner.BlazeBurnerBlock;
 import com.simibubi.create.content.contraptions.processing.burner.BlazeBurnerBlock.HeatLevel;
 import com.simibubi.create.content.contraptions.processing.burner.LitBlazeBurnerBlock;
 import com.simibubi.create.foundation.ponder.ElementLink;
+import com.simibubi.create.foundation.ponder.PonderPalette;
 import com.simibubi.create.foundation.ponder.SceneBuilder;
 import com.simibubi.create.foundation.ponder.SceneBuildingUtil;
 import com.simibubi.create.foundation.ponder.Selection;
-import com.simibubi.create.foundation.ponder.elements.BeltItemElement;
-import com.simibubi.create.foundation.ponder.elements.EntityElement;
-import com.simibubi.create.foundation.ponder.elements.InputWindowElement;
-import com.simibubi.create.foundation.ponder.elements.WorldSectionElement;
-import com.simibubi.create.foundation.ponder.instructions.EmitParticlesInstruction.Emitter;
+import com.simibubi.create.foundation.ponder.element.BeltItemElement;
+import com.simibubi.create.foundation.ponder.element.EntityElement;
+import com.simibubi.create.foundation.ponder.element.InputWindowElement;
+import com.simibubi.create.foundation.ponder.element.WorldSectionElement;
+import com.simibubi.create.foundation.ponder.instruction.EmitParticlesInstruction.Emitter;
 import com.simibubi.create.foundation.utility.IntAttached;
 import com.simibubi.create.foundation.utility.Iterate;
 import com.simibubi.create.foundation.utility.NBTHelper;
 import com.simibubi.create.foundation.utility.Pointing;
 
-import net.minecraft.block.Blocks;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.item.ItemEntity;
-import net.minecraft.entity.monster.BlazeEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.particles.ItemParticleData;
-import net.minecraft.particles.ParticleTypes;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.vector.Vector3d;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.particles.ItemParticleOption;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.monster.Blaze;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.Vec3;
 
 public class ProcessingScenes {
 
@@ -64,7 +65,7 @@ public class ProcessingScenes {
 		scene.idle(10);
 		scene.world.showSection(util.select.position(millstone), Direction.DOWN);
 		scene.idle(10);
-		Vector3d millstoneTop = util.vector.topOf(millstone);
+		Vec3 millstoneTop = util.vector.topOf(millstone);
 		scene.overlay.showText(60)
 			.attachKeyFrame()
 			.text("Millstones process items by grinding them")
@@ -87,12 +88,12 @@ public class ProcessingScenes {
 		scene.idle(70);
 
 		ItemStack itemStack = new ItemStack(Items.WHEAT);
-		Vector3d entitySpawn = util.vector.topOf(millstone.above(3));
+		Vec3 entitySpawn = util.vector.topOf(millstone.above(3));
 
 		ElementLink<EntityElement> entity1 =
 			scene.world.createItemEntity(entitySpawn, util.vector.of(0, 0.2, 0), itemStack);
 		scene.idle(18);
-		scene.world.modifyEntity(entity1, Entity::remove);
+		scene.world.modifyEntity(entity1, Entity::discard);
 		scene.world.modifyTileEntity(millstone, MillstoneTileEntity.class,
 			ms -> ms.inputInv.setStackInSlot(0, itemStack));
 		scene.idle(10);
@@ -173,7 +174,7 @@ public class ProcessingScenes {
 		scene.world.showSection(eWheel, Direction.SOUTH);
 		scene.idle(10);
 
-		Vector3d centerTop = util.vector.topOf(center);
+		Vec3 centerTop = util.vector.topOf(center);
 		scene.overlay.showText(60)
 			.attachKeyFrame()
 			.text("A pair of Crushing Wheels can grind items very effectively")
@@ -202,15 +203,15 @@ public class ProcessingScenes {
 		scene.idle(30);
 
 		ItemStack input = new ItemStack(Items.GOLD_ORE);
-		ItemStack output = AllItems.CRUSHED_GOLD.asStack();
-		Vector3d entitySpawn = util.vector.topOf(center.above(2));
+		ItemStack output = new ItemStack(Items.RAW_GOLD);
+		Vec3 entitySpawn = util.vector.topOf(center.above(2));
 
 		ElementLink<EntityElement> entity1 =
 			scene.world.createItemEntity(entitySpawn, util.vector.of(0, 0.2, 0), input);
 		scene.idle(18);
-		scene.world.modifyEntity(entity1, Entity::remove);
+		scene.world.modifyEntity(entity1, Entity::discard);
 		Emitter blockSpace =
-			Emitter.withinBlockSpace(new ItemParticleData(ParticleTypes.ITEM, input), util.vector.of(0, 0, 0));
+			Emitter.withinBlockSpace(new ItemParticleOption(ParticleTypes.ITEM, input), util.vector.of(0, 0, 0));
 		scene.effects.emitParticles(util.vector.centerOf(center)
 			.add(0, -0.2, 0), blockSpace, 3, 40);
 		scene.idle(10);
@@ -235,7 +236,7 @@ public class ProcessingScenes {
 		scene.idle(5);
 		scene.world.showSection(beltCog, Direction.UP);
 		scene.idle(5);
-		scene.world.modifyEntities(ItemEntity.class, Entity::remove);
+		scene.world.modifyEntities(ItemEntity.class, Entity::discard);
 		scene.world.showSection(bottomBelt, Direction.SOUTH);
 		scene.idle(5);
 
@@ -294,7 +295,7 @@ public class ProcessingScenes {
 		scene.effects.indicateSuccess(pressPos);
 		scene.idle(10);
 
-		Vector3d pressSide = util.vector.blockSurface(pressPos, Direction.WEST);
+		Vec3 pressSide = util.vector.blockSurface(pressPos, Direction.WEST);
 		scene.overlay.showText(60)
 			.pointAt(pressSide)
 			.placeNearTarget()
@@ -306,17 +307,18 @@ public class ProcessingScenes {
 			.placeNearTarget()
 			.text("The Input items can be dropped or placed on a Depot under the Press");
 		scene.idle(50);
-		ItemStack copper = AllItems.COPPER_INGOT.asStack();
+		ItemStack copper = new ItemStack(Items.COPPER_INGOT);
 		scene.world.createItemOnBeltLike(depotPos, Direction.NORTH, copper);
-		Vector3d depotCenter = util.vector.centerOf(depotPos.south());
+		Vec3 depotCenter = util.vector.centerOf(depotPos.south());
 		scene.overlay.showControls(new InputWindowElement(depotCenter, Pointing.UP).withItem(copper), 30);
 		scene.idle(10);
 
 		Class<MechanicalPressTileEntity> type = MechanicalPressTileEntity.class;
-		scene.world.modifyTileEntity(pressPos, type, pte -> pte.start(Mode.BELT));
+		scene.world.modifyTileEntity(pressPos, type, pte -> pte.getPressingBehaviour()
+			.start(Mode.BELT));
 		scene.idle(30);
-		scene.world.modifyTileEntity(pressPos, type,
-			pte -> pte.makePressingParticleEffect(depotCenter.add(0, 8 / 16f, 0), copper));
+		scene.world.modifyTileEntity(pressPos, type, pte -> pte.getPressingBehaviour()
+			.makePressingParticleEffect(depotCenter.add(0, 8 / 16f, 0), copper));
 		scene.world.removeItemsFromBelt(depotPos);
 		ItemStack sheet = AllItems.COPPER_SHEET.asStack();
 		scene.world.createItemOnBeltLike(depotPos, Direction.UP, sheet);
@@ -343,7 +345,8 @@ public class ProcessingScenes {
 		ElementLink<BeltItemElement> ingot2 = scene.world.createItemOnBelt(beltPos, Direction.SOUTH, copper);
 		scene.idle(15);
 		scene.world.stallBeltItem(ingot, true);
-		scene.world.modifyTileEntity(pressPos, type, pte -> pte.start(Mode.BELT));
+		scene.world.modifyTileEntity(pressPos, type, pte -> pte.getPressingBehaviour()
+			.start(Mode.BELT));
 
 		scene.overlay.showText(50)
 			.pointAt(pressSide)
@@ -352,8 +355,8 @@ public class ProcessingScenes {
 			.text("The Press will hold and process them automatically");
 
 		scene.idle(30);
-		scene.world.modifyTileEntity(pressPos, type,
-			pte -> pte.makePressingParticleEffect(depotCenter.add(0, 8 / 16f, 0), copper));
+		scene.world.modifyTileEntity(pressPos, type, pte -> pte.getPressingBehaviour()
+			.makePressingParticleEffect(depotCenter.add(0, 8 / 16f, 0), copper));
 		scene.world.removeItemsFromBelt(pressPos.below(2));
 		ingot = scene.world.createItemOnBelt(pressPos.below(2), Direction.UP, sheet);
 		scene.world.stallBeltItem(ingot, true);
@@ -361,10 +364,11 @@ public class ProcessingScenes {
 		scene.world.stallBeltItem(ingot, false);
 		scene.idle(15);
 		scene.world.stallBeltItem(ingot2, true);
-		scene.world.modifyTileEntity(pressPos, type, pte -> pte.start(Mode.BELT));
+		scene.world.modifyTileEntity(pressPos, type, pte -> pte.getPressingBehaviour()
+			.start(Mode.BELT));
 		scene.idle(30);
-		scene.world.modifyTileEntity(pressPos, type,
-			pte -> pte.makePressingParticleEffect(depotCenter.add(0, 8 / 16f, 0), copper));
+		scene.world.modifyTileEntity(pressPos, type, pte -> pte.getPressingBehaviour()
+			.makePressingParticleEffect(depotCenter.add(0, 8 / 16f, 0), copper));
 		scene.world.removeItemsFromBelt(pressPos.below(2));
 		ingot2 = scene.world.createItemOnBelt(pressPos.below(2), Direction.UP, sheet);
 		scene.world.stallBeltItem(ingot2, true);
@@ -393,7 +397,7 @@ public class ProcessingScenes {
 
 		BlockPos basin = util.grid.at(1, 2, 2);
 		BlockPos pressPos = util.grid.at(1, 4, 2);
-		Vector3d basinSide = util.vector.blockSurface(basin, Direction.WEST);
+		Vec3 basinSide = util.vector.blockSurface(basin, Direction.WEST);
 
 		ItemStack blue = new ItemStack(Items.BLUE_DYE);
 		ItemStack red = new ItemStack(Items.RED_DYE);
@@ -445,14 +449,14 @@ public class ProcessingScenes {
 		scene.rotateCameraY(30);
 
 		scene.idle(60);
-		Vector3d filterPos = util.vector.of(1, 2.75f, 2.5f);
+		Vec3 filterPos = util.vector.of(1, 2.75f, 2.5f);
 		scene.overlay.showFilterSlotInput(filterPos, 100);
-		scene.overlay.showText(120)
+		scene.overlay.showText(100)
 			.pointAt(filterPos)
 			.placeNearTarget()
 			.attachKeyFrame()
 			.text("The filter slot can be used in case two recipes are conflicting.");
-		scene.idle(60);
+		scene.idle(80);
 	}
 
 	public static void compacting(SceneBuilder scene, SceneBuildingUtil util) {
@@ -475,10 +479,10 @@ public class ProcessingScenes {
 
 		BlockPos basin = util.grid.at(1, 2, 2);
 		BlockPos pressPos = util.grid.at(1, 4, 2);
-		Vector3d basinSide = util.vector.blockSurface(basin, Direction.WEST);
+		Vec3 basinSide = util.vector.blockSurface(basin, Direction.WEST);
 
-		ItemStack copper = AllItems.COPPER_INGOT.asStack();
-		ItemStack copperBlock = AllBlocks.COPPER_BLOCK.asStack();
+		ItemStack copper = new ItemStack(Items.COPPER_INGOT);
+		ItemStack copperBlock = new ItemStack(Items.COPPER_BLOCK);
 
 		scene.overlay.showText(60)
 			.pointAt(basinSide)
@@ -491,10 +495,11 @@ public class ProcessingScenes {
 			30);
 		scene.idle(30);
 		Class<MechanicalPressTileEntity> type = MechanicalPressTileEntity.class;
-		scene.world.modifyTileEntity(pressPos, type, pte -> pte.start(Mode.BASIN));
+		scene.world.modifyTileEntity(pressPos, type, pte -> pte.getPressingBehaviour()
+			.start(Mode.BASIN));
 		scene.idle(30);
-		scene.world.modifyTileEntity(pressPos, type,
-			pte -> pte.makeCompactingParticleEffect(util.vector.centerOf(basin), copper));
+		scene.world.modifyTileEntity(pressPos, type, pte -> pte.getPressingBehaviour()
+			.makeCompactingParticleEffect(util.vector.centerOf(basin), copper));
 		scene.world.modifyTileNBT(util.select.position(basin), BasinTileEntity.class, nbt -> {
 			nbt.put("VisualizedItems",
 				NBTHelper.writeCompoundList(ImmutableList.of(IntAttached.with(1, copperBlock)), ia -> ia.getValue()
@@ -516,10 +521,11 @@ public class ProcessingScenes {
 
 		scene.overlay.showControls(new InputWindowElement(util.vector.topOf(basin), Pointing.DOWN).withItem(log), 30);
 		scene.idle(30);
-		scene.world.modifyTileEntity(pressPos, type, pte -> pte.start(Mode.BASIN));
+		scene.world.modifyTileEntity(pressPos, type, pte -> pte.getPressingBehaviour()
+			.start(Mode.BASIN));
 		scene.idle(30);
-		scene.world.modifyTileEntity(pressPos, type,
-			pte -> pte.makeCompactingParticleEffect(util.vector.centerOf(basin), log));
+		scene.world.modifyTileEntity(pressPos, type, pte -> pte.getPressingBehaviour()
+			.makeCompactingParticleEffect(util.vector.centerOf(basin), log));
 		scene.world.modifyTileNBT(util.select.position(basin), BasinTileEntity.class, nbt -> {
 			nbt.put("VisualizedItems",
 				NBTHelper.writeCompoundList(ImmutableList.of(IntAttached.with(1, bark)), ia -> ia.getValue()
@@ -544,14 +550,14 @@ public class ProcessingScenes {
 		scene.rotateCameraY(30);
 
 		scene.idle(60);
-		Vector3d filterPos = util.vector.of(1, 2.75f, 2.5f);
+		Vec3 filterPos = util.vector.of(1, 2.75f, 2.5f);
 		scene.overlay.showFilterSlotInput(filterPos, 100);
-		scene.overlay.showText(120)
+		scene.overlay.showText(100)
 			.pointAt(filterPos)
 			.placeNearTarget()
 			.attachKeyFrame()
 			.text("The filter slot can be used in case two recipes are conflicting.");
-		scene.idle(60);
+		scene.idle(80);
 	}
 
 	public static void emptyBlazeBurner(SceneBuilder scene, SceneBuildingUtil util) {
@@ -562,10 +568,10 @@ public class ProcessingScenes {
 		BlockPos center = util.grid.at(2, 0, 2);
 
 		scene.world.createEntity(w -> {
-			BlazeEntity blazeEntity = EntityType.BLAZE.create(w);
-			Vector3d v = util.vector.topOf(center);
+			Blaze blazeEntity = EntityType.BLAZE.create(w);
+			Vec3 v = util.vector.topOf(center);
 			blazeEntity.setPosRaw(v.x, v.y, v.z);
-			blazeEntity.yRotO = blazeEntity.yRot = 180;
+			blazeEntity.setYRot(blazeEntity.yRotO = 180);
 			return blazeEntity;
 		});
 
@@ -581,7 +587,7 @@ public class ProcessingScenes {
 			.placeNearTarget();
 		scene.idle(50);
 
-		scene.world.modifyEntities(BlazeEntity.class, Entity::remove);
+		scene.world.modifyEntities(Blaze.class, Entity::discard);
 		scene.idle(20);
 
 		scene.world.showSection(util.select.position(2, 1, 2), Direction.DOWN);
@@ -631,8 +637,8 @@ public class ProcessingScenes {
 				.withItem(new ItemStack(Items.SOUL_SAND)),
 			40);
 		scene.idle(7);
-		scene.world.modifyBlock(util.grid.at(3, 1, 2), s -> s.setValue(LitBlazeBurnerBlock.FLAME_TYPE, LitBlazeBurnerBlock.FlameType.SOUL),
-			false);
+		scene.world.modifyBlock(util.grid.at(3, 1, 2),
+			s -> s.setValue(LitBlazeBurnerBlock.FLAME_TYPE, LitBlazeBurnerBlock.FlameType.SOUL), false);
 		scene.overlay.showText(60)
 			.text("The flame can be transformed using a soul-infused item")
 			.pointAt(util.vector.blockSurface(center.east()
@@ -734,7 +740,7 @@ public class ProcessingScenes {
 		scene.world.modifyBlock(basinPos, s -> s.setValue(BasinBlock.FACING, Direction.DOWN), false);
 		scene.world.showSection(util.select.position(basinPos), Direction.DOWN);
 		scene.idle(10);
-		Vector3d basinSide = util.vector.blockSurface(basinPos, Direction.WEST);
+		Vec3 basinSide = util.vector.blockSurface(basinPos, Direction.WEST);
 		scene.overlay.showText(80)
 			.attachKeyFrame()
 			.text("A Basin can hold Items and Fluids for Processing")
@@ -820,10 +826,11 @@ public class ProcessingScenes {
 		scene.idle(10);
 
 		Class<MechanicalPressTileEntity> type = MechanicalPressTileEntity.class;
-		scene.world.modifyTileEntity(pressPos, type, pte -> pte.start(Mode.BASIN));
+		scene.world.modifyTileEntity(pressPos, type, pte -> pte.getPressingBehaviour()
+			.start(Mode.BASIN));
 		scene.idle(30);
-		scene.world.modifyTileEntity(pressPos, type,
-			pte -> pte.makeCompactingParticleEffect(util.vector.centerOf(basinPos), stack));
+		scene.world.modifyTileEntity(pressPos, type, pte -> pte.getPressingBehaviour()
+			.makeCompactingParticleEffect(util.vector.centerOf(basinPos), stack));
 		scene.world.modifyTileNBT(util.select.position(basinPos), BasinTileEntity.class, nbt -> {
 			nbt.put("VisualizedItems",
 				NBTHelper.writeCompoundList(ImmutableList.of(IntAttached.with(1, new ItemStack(Blocks.BRICKS))),
@@ -858,22 +865,24 @@ public class ProcessingScenes {
 		scene.overlay.showControls(new InputWindowElement(util.vector.topOf(basinPos), Pointing.RIGHT).withItem(nugget),
 			30);
 		scene.idle(30);
-		scene.world.modifyTileEntity(pressPos, type, pte -> pte.start(Mode.BASIN));
+		scene.world.modifyTileEntity(pressPos, type, pte -> pte.getPressingBehaviour()
+			.start(Mode.BASIN));
 		scene.idle(30);
-		scene.world.modifyTileEntity(pressPos, type,
-			pte -> pte.makeCompactingParticleEffect(util.vector.centerOf(basinPos), nugget));
+		scene.world.modifyTileEntity(pressPos, type, pte -> pte.getPressingBehaviour()
+			.makeCompactingParticleEffect(util.vector.centerOf(basinPos), nugget));
 
-		ItemStack ingot = AllItems.COPPER_INGOT.asStack();
+		ItemStack ingot = new ItemStack(Items.COPPER_INGOT);
 		scene.idle(30);
 		scene.overlay.showControls(new InputWindowElement(util.vector.topOf(basinPos), Pointing.RIGHT).withItem(ingot),
 			30);
 		scene.idle(30);
-		scene.world.modifyTileEntity(pressPos, type, pte -> pte.start(Mode.BASIN));
+		scene.world.modifyTileEntity(pressPos, type, pte -> pte.getPressingBehaviour()
+			.start(Mode.BASIN));
 		scene.idle(30);
-		scene.world.modifyTileEntity(pressPos, type,
-			pte -> pte.makeCompactingParticleEffect(util.vector.centerOf(basinPos), ingot));
+		scene.world.modifyTileEntity(pressPos, type, pte -> pte.getPressingBehaviour()
+			.makeCompactingParticleEffect(util.vector.centerOf(basinPos), ingot));
 
-		ItemStack block = AllBlocks.COPPER_BLOCK.asStack();
+		ItemStack block = new ItemStack(Items.COPPER_BLOCK);
 		scene.idle(30);
 		scene.overlay.showControls(new InputWindowElement(util.vector.topOf(basinPos), Pointing.RIGHT).withItem(block),
 			30);
@@ -896,7 +905,7 @@ public class ProcessingScenes {
 			.placeNearTarget();
 		scene.idle(80);
 
-		Vector3d filter = util.vector.of(2.5, 2.85, 2.5);
+		Vec3 filter = util.vector.of(2.5, 2.85, 2.5);
 		scene.overlay.showFilterSlotInput(filter, 80);
 		scene.overlay.showText(70)
 			.text("A Filter might be necessary to avoid pulling out un-processed items")

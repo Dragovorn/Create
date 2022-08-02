@@ -7,37 +7,64 @@ import com.simibubi.create.AllFluids;
 import com.simibubi.create.content.contraptions.fluids.VirtualFluid;
 import com.simibubi.create.foundation.utility.NBTHelper;
 
-import net.minecraft.fluid.Fluid;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.nbt.ListNBT;
-import net.minecraft.potion.EffectInstance;
-import net.minecraft.potion.Potion;
-import net.minecraft.potion.PotionUtils;
-import net.minecraft.potion.Potions;
-import net.minecraft.util.IItemProvider;
-import net.minecraft.util.ResourceLocation;
-import net.minecraft.util.text.ITextComponent;
-import net.minecraft.util.text.TranslationTextComponent;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.TranslatableComponent;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.item.alchemy.Potion;
+import net.minecraft.world.item.alchemy.PotionUtils;
+import net.minecraft.world.item.alchemy.Potions;
+import net.minecraft.world.level.ItemLike;
+import net.minecraft.world.level.material.Fluid;
 import net.minecraftforge.fluids.FluidAttributes;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.registries.ForgeRegistries;
 
 public class PotionFluid extends VirtualFluid {
 
-	public enum BottleType {
-		REGULAR, SPLASH, LINGERING;
-	}
-
 	public PotionFluid(Properties properties) {
 		super(properties);
 	}
 
-	public static FluidStack withEffects(int amount, Potion potion, List<EffectInstance> customEffects) {
+	public static FluidStack of(int amount, Potion potion) {
 		FluidStack fluidStack = new FluidStack(AllFluids.POTION.get()
 			.getSource(), amount);
 		addPotionToFluidStack(fluidStack, potion);
+		return fluidStack;
+	}
+
+	public static FluidStack withEffects(int amount, Potion potion, List<MobEffectInstance> customEffects) {
+		FluidStack fluidStack = of(amount, potion);
 		appendEffects(fluidStack, customEffects);
 		return fluidStack;
+	}
+
+	public static FluidStack addPotionToFluidStack(FluidStack fs, Potion potion) {
+		ResourceLocation resourcelocation = ForgeRegistries.POTIONS.getKey(potion);
+		if (potion == Potions.EMPTY) {
+			fs.removeChildTag("Potion");
+			return fs;
+		}
+		fs.getOrCreateTag()
+			.putString("Potion", resourcelocation.toString());
+		return fs;
+	}
+
+	public static FluidStack appendEffects(FluidStack fs, Collection<MobEffectInstance> customEffects) {
+		if (customEffects.isEmpty())
+			return fs;
+		CompoundTag compoundnbt = fs.getOrCreateTag();
+		ListTag listnbt = compoundnbt.getList("CustomPotionEffects", 9);
+		for (MobEffectInstance effectinstance : customEffects)
+			listnbt.add(effectinstance.save(new CompoundTag()));
+		compoundnbt.put("CustomPotionEffects", listnbt);
+		return fs;
+	}
+
+	public enum BottleType {
+		REGULAR, SPLASH, LINGERING;
 	}
 
 	public static class PotionFluidAttributes extends FluidAttributes {
@@ -48,48 +75,26 @@ public class PotionFluid extends VirtualFluid {
 
 		@Override
 		public int getColor(FluidStack stack) {
-			CompoundNBT tag = stack.getOrCreateTag();
+			CompoundTag tag = stack.getOrCreateTag();
 			int color = PotionUtils.getColor(PotionUtils.getAllEffects(tag)) | 0xff000000;
 			return color;
 		}
 
 		@Override
-		public ITextComponent getDisplayName(FluidStack stack) {
-			return new TranslationTextComponent(getTranslationKey(stack));
+		public Component getDisplayName(FluidStack stack) {
+			return new TranslatableComponent(getTranslationKey(stack));
 		}
-		
+
 		@Override
 		public String getTranslationKey(FluidStack stack) {
-			CompoundNBT tag = stack.getOrCreateTag();
-			IItemProvider itemFromBottleType =
+			CompoundTag tag = stack.getOrCreateTag();
+			ItemLike itemFromBottleType =
 				PotionFluidHandler.itemFromBottleType(NBTHelper.readEnum(tag, "Bottle", BottleType.class));
 			return PotionUtils.getPotion(tag)
 				.getName(itemFromBottleType.asItem()
 					.getDescriptionId() + ".effect.");
 		}
 
-	}
-
-	public static FluidStack addPotionToFluidStack(FluidStack fs, Potion potion) {
-		ResourceLocation resourcelocation = ForgeRegistries.POTION_TYPES.getKey(potion);
-		if (potion == Potions.EMPTY) {
-			fs.removeChildTag("Potion");
-			return fs;
-		}
-		fs.getOrCreateTag()
-			.putString("Potion", resourcelocation.toString());
-		return fs;
-	}
-
-	public static FluidStack appendEffects(FluidStack fs, Collection<EffectInstance> customEffects) {
-		if (customEffects.isEmpty())
-			return fs;
-		CompoundNBT compoundnbt = fs.getOrCreateTag();
-		ListNBT listnbt = compoundnbt.getList("CustomPotionEffects", 9);
-		for (EffectInstance effectinstance : customEffects)
-			listnbt.add(effectinstance.save(new CompoundNBT()));
-		compoundnbt.put("CustomPotionEffects", listnbt);
-		return fs;
 	}
 
 }

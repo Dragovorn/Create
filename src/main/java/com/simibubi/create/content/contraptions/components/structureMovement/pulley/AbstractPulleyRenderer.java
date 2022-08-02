@@ -2,35 +2,35 @@ package com.simibubi.create.content.contraptions.components.structureMovement.pu
 
 import com.jozufozu.flywheel.backend.Backend;
 import com.jozufozu.flywheel.core.PartialModel;
-import com.mojang.blaze3d.matrix.MatrixStack;
-import com.mojang.blaze3d.vertex.IVertexBuilder;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.simibubi.create.content.contraptions.base.IRotate;
 import com.simibubi.create.content.contraptions.base.KineticTileEntity;
 import com.simibubi.create.content.contraptions.base.KineticTileEntityRenderer;
-import com.simibubi.create.foundation.render.PartialBufferer;
+import com.simibubi.create.foundation.render.CachedBufferer;
 import com.simibubi.create.foundation.render.SuperByteBuffer;
 import com.simibubi.create.foundation.utility.AngleHelper;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.client.renderer.IRenderTypeBuffer;
+import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.WorldRenderer;
-import net.minecraft.client.renderer.tileentity.TileEntityRendererDispatcher;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Direction.Axis;
-import net.minecraft.util.Direction.AxisDirection;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.IWorld;
-import net.minecraft.world.World;
+import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.Axis;
+import net.minecraft.core.Direction.AxisDirection;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelAccessor;
+import net.minecraft.world.level.block.state.BlockState;
 
 public abstract class AbstractPulleyRenderer extends KineticTileEntityRenderer {
 
 	private PartialModel halfRope;
 	private PartialModel halfMagnet;
 
-	public AbstractPulleyRenderer(TileEntityRendererDispatcher dispatcher, PartialModel halfRope,
+	public AbstractPulleyRenderer(BlockEntityRendererProvider.Context context, PartialModel halfRope,
 		PartialModel halfMagnet) {
-		super(dispatcher);
+		super(context);
 		this.halfRope = halfRope;
 		this.halfMagnet = halfMagnet;
 	}
@@ -41,30 +41,31 @@ public abstract class AbstractPulleyRenderer extends KineticTileEntityRenderer {
 	}
 
 	@Override
-	protected void renderSafe(KineticTileEntity te, float partialTicks, MatrixStack ms, IRenderTypeBuffer buffer,
+	protected void renderSafe(KineticTileEntity te, float partialTicks, PoseStack ms, MultiBufferSource buffer,
 		int light, int overlay) {
 
-		if (Backend.getInstance().canUseInstancing(te.getLevel())) return;
+		if (Backend.canUseInstancing(te.getLevel()))
+			return;
 
 		super.renderSafe(te, partialTicks, ms, buffer, light, overlay);
 		float offset = getOffset(te, partialTicks);
 		boolean running = isRunning(te);
 
 		Axis rotationAxis = ((IRotate) te.getBlockState()
-				.getBlock()).getRotationAxis(te.getBlockState());
+			.getBlock()).getRotationAxis(te.getBlockState());
 		kineticRotationTransform(getRotatedCoil(te), te, rotationAxis, AngleHelper.rad(offset * 180), light)
-				.renderInto(ms, buffer.getBuffer(RenderType.solid()));
+			.renderInto(ms, buffer.getBuffer(RenderType.solid()));
 
-		World world = te.getLevel();
+		Level world = te.getLevel();
 		BlockState blockState = te.getBlockState();
 		BlockPos pos = te.getBlockPos();
 
-		SuperByteBuffer halfMagnet = PartialBufferer.get(this.halfMagnet, blockState);
-		SuperByteBuffer halfRope = PartialBufferer.get(this.halfRope, blockState);
+		SuperByteBuffer halfMagnet = CachedBufferer.partial(this.halfMagnet, blockState);
+		SuperByteBuffer halfRope = CachedBufferer.partial(this.halfRope, blockState);
 		SuperByteBuffer magnet = renderMagnet(te);
 		SuperByteBuffer rope = renderRope(te);
 
-		IVertexBuilder vb = buffer.getBuffer(RenderType.solid());
+		VertexConsumer vb = buffer.getBuffer(RenderType.solid());
 		if (running || offset == 0)
 			renderAt(world, offset > .25f ? magnet : halfMagnet, offset, pos, ms, vb);
 
@@ -79,10 +80,10 @@ public abstract class AbstractPulleyRenderer extends KineticTileEntityRenderer {
 			renderAt(world, rope, offset - i - 1, pos, ms, vb);
 	}
 
-	private void renderAt(IWorld world, SuperByteBuffer partial, float offset, BlockPos pulleyPos, MatrixStack ms,
-		IVertexBuilder buffer) {
+	private void renderAt(LevelAccessor world, SuperByteBuffer partial, float offset, BlockPos pulleyPos, PoseStack ms,
+		VertexConsumer buffer) {
 		BlockPos actualPos = pulleyPos.below((int) offset);
-		int light = WorldRenderer.getLightColor(world, world.getBlockState(actualPos), actualPos);
+		int light = LevelRenderer.getLightColor(world, world.getBlockState(actualPos), actualPos);
 		partial.translate(0, -offset, 0)
 			.light(light)
 			.renderInto(ms, buffer);
@@ -107,7 +108,13 @@ public abstract class AbstractPulleyRenderer extends KineticTileEntityRenderer {
 
 	protected SuperByteBuffer getRotatedCoil(KineticTileEntity te) {
 		BlockState blockState = te.getBlockState();
-		return PartialBufferer.getFacing(getCoil(), blockState, Direction.get(AxisDirection.POSITIVE, getShaftAxis(te)));
+		return CachedBufferer.partialFacing(getCoil(), blockState,
+			Direction.get(AxisDirection.POSITIVE, getShaftAxis(te)));
+	}
+
+	@Override
+	public int getViewDistance() {
+		return 256;
 	}
 
 }

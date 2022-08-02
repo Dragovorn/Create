@@ -6,9 +6,9 @@ import com.simibubi.create.foundation.tileEntity.SmartTileEntity;
 import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 import com.simibubi.create.foundation.tileEntity.behaviour.BehaviourType;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.IBlockReader;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * Behaviour for TileEntities which can process items on belts or depots beneath
@@ -17,7 +17,7 @@ import net.minecraft.world.IBlockReader;
  */
 public class BeltProcessingBehaviour extends TileEntityBehaviour {
 
-	public static BehaviourType<BeltProcessingBehaviour> TYPE = new BehaviourType<>();
+	public static final BehaviourType<BeltProcessingBehaviour> TYPE = new BehaviourType<>();
 
 	public static enum ProcessingResult {
 		PASS, HOLD, REMOVE;
@@ -42,7 +42,7 @@ public class BeltProcessingBehaviour extends TileEntityBehaviour {
 		return this;
 	}
 
-	public static boolean isBlocked(IBlockReader world, BlockPos processingSpace) {
+	public static boolean isBlocked(BlockGetter world, BlockPos processingSpace) {
 		BlockState blockState = world.getBlockState(processingSpace.above());
 		if (AbstractFunnelBlock.isFunnel(blockState))
 			return false;

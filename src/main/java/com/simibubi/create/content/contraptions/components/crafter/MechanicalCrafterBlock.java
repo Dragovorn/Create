@@ -16,32 +16,33 @@ import com.simibubi.create.foundation.utility.Iterate;
 import com.simibubi.create.foundation.utility.Pointing;
 import com.simibubi.create.foundation.utility.VecHelper;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.BlockItemUseContext;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.ItemUseContext;
-import net.minecraft.state.EnumProperty;
-import net.minecraft.state.StateContainer.Builder;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.ActionResultType;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Direction.Axis;
-import net.minecraft.util.Direction.AxisDirection;
-import net.minecraft.util.Hand;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.BlockRayTraceResult;
-import net.minecraft.util.math.vector.Vector3d;
-import net.minecraft.world.IBlockReader;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.Axis;
+import net.minecraft.core.Direction.AxisDirection;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition.Builder;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.ItemHandlerHelper;
 import net.minecraftforge.items.ItemStackHandler;
 
-public class MechanicalCrafterBlock extends HorizontalKineticBlock implements ITE<MechanicalCrafterTileEntity>, ICogWheel {
+public class MechanicalCrafterBlock extends HorizontalKineticBlock
+	implements ITE<MechanicalCrafterTileEntity>, ICogWheel {
 
 	public static final EnumProperty<Pointing> POINTING = EnumProperty.create("pointing", Pointing.class);
 
@@ -56,18 +57,13 @@ public class MechanicalCrafterBlock extends HorizontalKineticBlock implements IT
 	}
 
 	@Override
-	public TileEntity createTileEntity(BlockState state, IBlockReader world) {
-		return AllTileEntities.MECHANICAL_CRAFTER.create();
-	}
-
-	@Override
 	public Axis getRotationAxis(BlockState state) {
 		return state.getValue(HORIZONTAL_FACING)
 			.getAxis();
 	}
 
 	@Override
-	public BlockState getStateForPlacement(BlockItemUseContext context) {
+	public BlockState getStateForPlacement(BlockPlaceContext context) {
 		Direction face = context.getClickedFace();
 		BlockPos placedOnPos = context.getClickedPos()
 			.relative(face.getOpposite());
@@ -90,7 +86,7 @@ public class MechanicalCrafterBlock extends HorizontalKineticBlock implements IT
 	}
 
 	@Override
-	public void onRemove(BlockState state, World worldIn, BlockPos pos, BlockState newState, boolean isMoving) {
+	public void onRemove(BlockState state, Level worldIn, BlockPos pos, BlockState newState, boolean isMoving) {
 		if (state.getBlock() == newState.getBlock()) {
 			if (getTargetDirection(state) != getTargetDirection(newState)) {
 				MechanicalCrafterTileEntity crafter = CrafterHelper.getCrafter(worldIn, pos);
@@ -99,7 +95,7 @@ public class MechanicalCrafterBlock extends HorizontalKineticBlock implements IT
 			}
 		}
 
-		if (state.hasTileEntity() && state.getBlock() != newState.getBlock()) {
+		if (state.hasBlockEntity() && state.getBlock() != newState.getBlock()) {
 			MechanicalCrafterTileEntity crafter = CrafterHelper.getCrafter(worldIn, pos);
 			if (crafter != null) {
 				if (crafter.covered)
@@ -145,95 +141,100 @@ public class MechanicalCrafterBlock extends HorizontalKineticBlock implements IT
 	}
 
 	@Override
-	public ActionResultType onWrenched(BlockState state, ItemUseContext context) {
+	public InteractionResult onWrenched(BlockState state, UseOnContext context) {
 		if (context.getClickedFace() == state.getValue(HORIZONTAL_FACING)) {
 			if (!context.getLevel().isClientSide)
-				KineticTileEntity.switchToBlockState(context.getLevel(), context.getClickedPos(), state.cycle(POINTING));
-			return ActionResultType.SUCCESS;
+				KineticTileEntity.switchToBlockState(context.getLevel(), context.getClickedPos(),
+					state.cycle(POINTING));
+			return InteractionResult.SUCCESS;
 		}
 
-		return ActionResultType.PASS;
+		return InteractionResult.PASS;
 	}
 
 	@Override
-	public ActionResultType use(BlockState state, World worldIn, BlockPos pos, PlayerEntity player, Hand handIn,
-		BlockRayTraceResult hit) {
-		ItemStack heldItem = player.getItemInHand(handIn);
-		boolean isHand = heldItem.isEmpty() && handIn == Hand.MAIN_HAND;
+	public InteractionResult use(BlockState state, Level worldIn, BlockPos pos, Player player, InteractionHand handIn,
+		BlockHitResult hit) {
+		BlockEntity te = worldIn.getBlockEntity(pos);
+		if (!(te instanceof MechanicalCrafterTileEntity crafter))
+			return InteractionResult.PASS;
 
-		TileEntity te = worldIn.getBlockEntity(pos);
-		if (!(te instanceof MechanicalCrafterTileEntity))
-			return ActionResultType.PASS;
-		MechanicalCrafterTileEntity crafter = (MechanicalCrafterTileEntity) te;
-		boolean wrenched = AllItems.WRENCH.isIn(heldItem);
+		ItemStack heldItem = player.getItemInHand(handIn);
 
 		if (AllBlocks.MECHANICAL_ARM.isIn(heldItem))
-			return ActionResultType.PASS;
-		
+			return InteractionResult.PASS;
+
+		boolean isHand = heldItem.isEmpty() && handIn == InteractionHand.MAIN_HAND;
+		boolean wrenched = AllItems.WRENCH.isIn(heldItem);
+
 		if (hit.getDirection() == state.getValue(HORIZONTAL_FACING)) {
 
 			if (crafter.phase != Phase.IDLE && !wrenched) {
 				crafter.ejectWholeGrid();
-				return ActionResultType.SUCCESS;
+				return InteractionResult.SUCCESS;
 			}
 
 			if (crafter.phase == Phase.IDLE && !isHand && !wrenched) {
 				if (worldIn.isClientSide)
-					return ActionResultType.SUCCESS;
+					return InteractionResult.SUCCESS;
 
 				if (AllItems.CRAFTER_SLOT_COVER.isIn(heldItem)) {
 					if (crafter.covered)
-						return ActionResultType.PASS;
+						return InteractionResult.PASS;
 					if (!crafter.inventory.isEmpty())
-						return ActionResultType.PASS;
+						return InteractionResult.PASS;
 					crafter.covered = true;
 					crafter.setChanged();
 					crafter.sendData();
 					if (!player.isCreative())
 						heldItem.shrink(1);
-					return ActionResultType.SUCCESS;
+					return InteractionResult.SUCCESS;
 				}
 
 				LazyOptional<IItemHandler> capability =
 					crafter.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY);
 				if (!capability.isPresent())
-					return ActionResultType.PASS;
+					return InteractionResult.PASS;
 				ItemStack remainder =
 					ItemHandlerHelper.insertItem(capability.orElse(new ItemStackHandler()), heldItem.copy(), false);
 				if (remainder.getCount() != heldItem.getCount())
 					player.setItemInHand(handIn, remainder);
-				return ActionResultType.SUCCESS;
+				return InteractionResult.SUCCESS;
 			}
 
-			ItemStack inSlot = crafter.getInventory().getItem(0);
+			ItemStack inSlot = crafter.getInventory()
+				.getItem(0);
 			if (inSlot.isEmpty()) {
 				if (crafter.covered && !wrenched) {
 					if (worldIn.isClientSide)
-						return ActionResultType.SUCCESS;
+						return InteractionResult.SUCCESS;
 					crafter.covered = false;
 					crafter.setChanged();
 					crafter.sendData();
 					if (!player.isCreative())
-						player.inventory.placeItemBackInInventory(worldIn, AllItems.CRAFTER_SLOT_COVER.asStack());
-					return ActionResultType.SUCCESS;
+						player.getInventory()
+							.placeItemBackInInventory(AllItems.CRAFTER_SLOT_COVER.asStack());
+					return InteractionResult.SUCCESS;
 				}
-				return ActionResultType.PASS;
+				return InteractionResult.PASS;
 			}
 			if (!isHand && !ItemHandlerHelper.canItemStacksStack(heldItem, inSlot))
-				return ActionResultType.PASS;
+				return InteractionResult.PASS;
 			if (worldIn.isClientSide)
-				return ActionResultType.SUCCESS;
-			player.inventory.placeItemBackInInventory(worldIn, inSlot);
-			crafter.getInventory().setStackInSlot(0, ItemStack.EMPTY);
-			return ActionResultType.SUCCESS;
+				return InteractionResult.SUCCESS;
+			player.getInventory()
+				.placeItemBackInInventory(inSlot);
+			crafter.getInventory()
+				.setStackInSlot(0, ItemStack.EMPTY);
+			return InteractionResult.SUCCESS;
 		}
 
-		return ActionResultType.PASS;
+		return InteractionResult.PASS;
 	}
 
 	@Override
-	public void neighborChanged(BlockState state, World worldIn, BlockPos pos, Block blockIn, BlockPos fromPos,
-			boolean isMoving) {
+	public void neighborChanged(BlockState state, Level worldIn, BlockPos pos, Block blockIn, BlockPos fromPos,
+		boolean isMoving) {
 		InvManipulationBehaviour behaviour = TileEntityBehaviour.get(worldIn, pos, InvManipulationBehaviour.TYPE);
 		if (behaviour != null)
 			behaviour.onNeighborChanged(fromPos);
@@ -254,13 +255,13 @@ public class MechanicalCrafterBlock extends HorizontalKineticBlock implements IT
 			return Direction.UP;
 		Direction facing = state.getValue(HORIZONTAL_FACING);
 		Pointing point = state.getValue(POINTING);
-		Vector3d targetVec = new Vector3d(0, 1, 0);
+		Vec3 targetVec = new Vec3(0, 1, 0);
 		targetVec = VecHelper.rotate(targetVec, -point.getXRotation(), Axis.Z);
 		targetVec = VecHelper.rotate(targetVec, AngleHelper.horizontalAngle(facing), Axis.Y);
 		return Direction.getNearest(targetVec.x, targetVec.y, targetVec.z);
 	}
 
-	public static boolean isValidTarget(World world, BlockPos targetPos, BlockState crafterState) {
+	public static boolean isValidTarget(Level world, BlockPos targetPos, BlockState crafterState) {
 		BlockState targetState = world.getBlockState(targetPos);
 		if (!world.isLoaded(targetPos))
 			return false;
@@ -279,6 +280,11 @@ public class MechanicalCrafterBlock extends HorizontalKineticBlock implements IT
 	@Override
 	public Class<MechanicalCrafterTileEntity> getTileEntityClass() {
 		return MechanicalCrafterTileEntity.class;
+	}
+
+	@Override
+	public BlockEntityType<? extends MechanicalCrafterTileEntity> getTileEntityType() {
+		return AllTileEntities.MECHANICAL_CRAFTER.get();
 	}
 
 }

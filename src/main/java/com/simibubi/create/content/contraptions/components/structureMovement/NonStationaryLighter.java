@@ -1,27 +1,35 @@
 package com.simibubi.create.content.contraptions.components.structureMovement;
 
-import com.jozufozu.flywheel.light.GridAlignedBB;
-import com.simibubi.create.content.contraptions.components.structureMovement.render.RenderedContraption;
+import com.jozufozu.flywheel.light.TickingLightListener;
+import com.jozufozu.flywheel.util.box.GridAlignedBB;
+import com.jozufozu.flywheel.util.box.ImmutableBox;
+import com.simibubi.create.content.contraptions.components.structureMovement.render.ContraptionLighter;
+import com.simibubi.create.foundation.config.AllConfigs;
 
-public class NonStationaryLighter<C extends Contraption> extends ContraptionLighter<C> {
+public class NonStationaryLighter<C extends Contraption> extends ContraptionLighter<C> implements TickingLightListener {
     public NonStationaryLighter(C contraption) {
         super(contraption);
     }
 
-    @Override
-    public void tick(RenderedContraption owner) {
-        super.tick(owner);
-        GridAlignedBB contraptionBounds = getContraptionBounds();
+	@Override
+	public boolean tickLightListener() {
+		if (getVolume().volume() > AllConfigs.CLIENT.maxContraptionLightVolume.get())
+			return false;
 
-        if (!contraptionBounds.sameAs(bounds)) {
-            lightVolume.move(contraption.entity.level, contraptionBoundsToVolume(contraptionBounds));
-            bounds = contraptionBounds;
+		ImmutableBox contraptionBounds = getContraptionBounds();
 
-            startListening();
-        }
-    }
+		if (bounds.sameAs(contraptionBounds, 2)) {
+			return false;
+		}
+		bounds.assign(contraptionBounds);
+		growBoundsForEdgeData(bounds);
 
-    @Override
+		lightVolume.move(bounds);
+
+		return true;
+	}
+
+	@Override
     public GridAlignedBB getContraptionBounds() {
         GridAlignedBB bb = GridAlignedBB.from(contraption.bounds);
 

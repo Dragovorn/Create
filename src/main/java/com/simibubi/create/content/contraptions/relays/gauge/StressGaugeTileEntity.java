@@ -3,21 +3,34 @@ package com.simibubi.create.content.contraptions.relays.gauge;
 import java.util.List;
 
 import com.simibubi.create.content.contraptions.base.IRotate.StressImpact;
-import com.simibubi.create.content.contraptions.goggles.IHaveGoggleInformation;
+import com.simibubi.create.foundation.advancement.AllAdvancements;
 import com.simibubi.create.foundation.item.ItemDescription;
+import com.simibubi.create.foundation.networking.AllPackets;
+import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 import com.simibubi.create.foundation.utility.Color;
 import com.simibubi.create.foundation.utility.Lang;
+import com.simibubi.create.foundation.utility.LangBuilder;
 
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.text.IFormattableTextComponent;
-import net.minecraft.util.text.ITextComponent;
-import net.minecraft.util.text.StringTextComponent;
-import net.minecraft.util.text.TextFormatting;
+import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
 
 public class StressGaugeTileEntity extends GaugeTileEntity {
 
-	public StressGaugeTileEntity(TileEntityType<? extends StressGaugeTileEntity> type) {
-		super(type);
+	static BlockPos lastSent;
+
+	public StressGaugeTileEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+		super(type, pos, state);
+	}
+
+	@Override
+	public void addBehaviours(List<TileEntityBehaviour> behaviours) {
+		super.addBehaviours(behaviours);
+		registerAwardables(behaviours, AllAdvancements.STRESSOMETER, AllAdvancements.STRESSOMETER_MAXED);
 	}
 
 	@Override
@@ -59,7 +72,7 @@ public class StressGaugeTileEntity extends GaugeTileEntity {
 	}
 
 	@Override
-	public boolean addToGoggleTooltip(List<ITextComponent> tooltip, boolean isPlayerSneaking) {
+	public boolean addToGoggleTooltip(List<Component> tooltip, boolean isPlayerSneaking) {
 		if (!StressImpact.isEnabled())
 			return false;
 
@@ -68,35 +81,50 @@ public class StressGaugeTileEntity extends GaugeTileEntity {
 		double capacity = getNetworkCapacity();
 		double stressFraction = getNetworkStress() / (capacity == 0 ? 1 : capacity);
 
-		tooltip.add(componentSpacing.plainCopy().append(Lang.translate("gui.stressometer.title").withStyle(TextFormatting.GRAY)));
+		Lang.translate("gui.stressometer.title")
+			.style(ChatFormatting.GRAY)
+			.forGoggles(tooltip);
 
 		if (getTheoreticalSpeed() == 0)
-			tooltip.add(new StringTextComponent(spacing + ItemDescription.makeProgressBar(3, -1)).append(Lang.translate("gui.stressometer.no_rotation")).withStyle(TextFormatting.DARK_GRAY));
-		//	tooltip.add(new StringTextComponent(TextFormatting.DARK_GRAY + ItemDescription.makeProgressBar(3, -1)
-		//			+ Lang.translate("gui.stressometer.no_rotation")));
+			Lang.text(ItemDescription.makeProgressBar(3, 0))
+				.translate("gui.stressometer.no_rotation")
+				.style(ChatFormatting.DARK_GRAY)
+				.forGoggles(tooltip);
 		else {
-			tooltip.add(componentSpacing.plainCopy().append(StressImpact.getFormattedStressText(stressFraction)));
-
-			tooltip.add(componentSpacing.plainCopy().append(Lang.translate("gui.stressometer.capacity").withStyle(TextFormatting.GRAY)));
+			StressImpact.getFormattedStressText(stressFraction)
+				.forGoggles(tooltip);
+			Lang.translate("gui.stressometer.capacity")
+				.style(ChatFormatting.GRAY)
+				.forGoggles(tooltip);
 
 			double remainingCapacity = capacity - getNetworkStress();
 
-			ITextComponent su = Lang.translate("generic.unit.stress");
-			IFormattableTextComponent stressTooltip = componentSpacing.plainCopy()
-					.append(new StringTextComponent(" " + IHaveGoggleInformation.format(remainingCapacity))
-							.append(su.plainCopy())
-							.withStyle(StressImpact.of(stressFraction).getRelativeColor()));
-			if (remainingCapacity != capacity) {
-				stressTooltip
-						.append(new StringTextComponent(" / ").withStyle(TextFormatting.GRAY))
-						.append(new StringTextComponent(IHaveGoggleInformation.format(capacity))
-								.append(su.plainCopy())
-								.withStyle(TextFormatting.DARK_GRAY));
-			}
-			tooltip.add(stressTooltip);
+			LangBuilder su = Lang.translate("generic.unit.stress");
+			LangBuilder stressTip = Lang.number(remainingCapacity)
+				.add(su)
+				.style(StressImpact.of(stressFraction)
+					.getRelativeColor());
+
+			if (remainingCapacity != capacity)
+				stressTip.text(ChatFormatting.GRAY, " / ")
+					.add(Lang.number(capacity)
+						.add(su)
+						.style(ChatFormatting.DARK_GRAY));
+
+			stressTip.forGoggles(tooltip, 1);
 		}
 
+		if (!worldPosition.equals(lastSent))
+			AllPackets.channel.sendToServer(new GaugeObservedPacket(lastSent = worldPosition));
+
 		return true;
+	}
+
+	@Override
+	protected void read(CompoundTag compound, boolean clientPacket) {
+		super.read(compound, clientPacket);
+		if (clientPacket && worldPosition != null && worldPosition.equals(lastSent))
+			lastSent = null;
 	}
 
 	public float getNetworkStress() {
@@ -105,6 +133,12 @@ public class StressGaugeTileEntity extends GaugeTileEntity {
 
 	public float getNetworkCapacity() {
 		return capacity;
+	}
+
+	public void onObserved() {
+		award(AllAdvancements.STRESSOMETER);
+		if (Mth.equal(dialTarget, 1))
+			award(AllAdvancements.STRESSOMETER_MAXED);
 	}
 
 }

@@ -4,18 +4,18 @@ import java.util.function.Supplier;
 
 import com.simibubi.create.events.CommonEvents;
 
-import net.minecraft.network.PacketBuffer;
-import net.minecraftforge.fml.network.NetworkDirection;
-import net.minecraftforge.fml.network.NetworkEvent.Context;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraftforge.network.NetworkDirection;
+import net.minecraftforge.network.NetworkEvent.Context;
 
 public class LeftClickPacket extends SimplePacketBase {
 
 	public LeftClickPacket() {}
 
-	LeftClickPacket(PacketBuffer buffer) {}
+	LeftClickPacket(FriendlyByteBuf buffer) {}
 
 	@Override
-	public void write(PacketBuffer buffer) {}
+	public void write(FriendlyByteBuf buffer) {}
 
 	@Override
 	public void handle(Supplier<Context> context) {

@@ -14,25 +14,27 @@ import com.simibubi.create.foundation.tileEntity.behaviour.belt.TransportedItemS
 import com.simibubi.create.foundation.utility.Color;
 import com.simibubi.create.foundation.utility.VecHelper;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.entity.item.ItemEntity;
-import net.minecraft.item.BlockItem;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.particles.ParticleTypes;
-import net.minecraft.tileentity.BeaconTileEntity;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.RayTraceContext;
-import net.minecraft.util.math.RayTraceContext.BlockMode;
-import net.minecraft.util.math.RayTraceContext.FluidMode;
-import net.minecraft.util.math.vector.Vector3d;
-import net.minecraft.world.World;
-import net.minecraft.world.gen.Heightmap;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.NonNullList;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.ClipContext.Block;
+import net.minecraft.world.level.ClipContext.Fluid;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.BeaconBlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.phys.Vec3;
 
 public class ChromaticCompoundItem extends Item {
 
@@ -40,51 +42,48 @@ public class ChromaticCompoundItem extends Item {
 		super(properties);
 	}
 
-	@Override
-	public boolean shouldOverrideMultiplayerNbt() {
-		return true;
-	}
-
-	@Override
-	public double getDurabilityForDisplay(ItemStack stack) {
-		int light = stack.getOrCreateTag()
+	public int getLight(ItemStack stack) {
+		return stack.getOrCreateTag()
 			.getInt("CollectingLight");
-		return 1 - light / (float) AllConfigs.SERVER.recipes.lightSourceCountForRefinedRadiance.get();
 	}
 
 	@Override
-	public boolean showDurabilityBar(ItemStack stack) {
-		int light = stack.getOrCreateTag()
-			.getInt("CollectingLight");
-		return light > 0;
+	public void fillItemCategory(CreativeModeTab pCategory, NonNullList<ItemStack> pItems) {}
+
+	@Override
+	public boolean isBarVisible(ItemStack stack) {
+		return getLight(stack) > 0;
 	}
 
 	@Override
-	public int getRGBDurabilityForDisplay(ItemStack stack) {
-		return Color.mixColors(0x413c69, 0xFFFFFF, (float) (1 - getDurabilityForDisplay(stack)));
+	public int getBarWidth(ItemStack stack) {
+		return Math.round(13.0F * getLight(stack) / AllConfigs.SERVER.recipes.lightSourceCountForRefinedRadiance.get());
+	}
+
+	@Override
+	public int getBarColor(ItemStack stack) {
+		return Color.mixColors(0x413c69, 0xFFFFFF,
+			getLight(stack) / (float) AllConfigs.SERVER.recipes.lightSourceCountForRefinedRadiance.get());
 	}
 
 	@Override
 	public int getItemStackLimit(ItemStack stack) {
-		return showDurabilityBar(stack) ? 1 : 16;
+		return isBarVisible(stack) ? 1 : 16;
 	}
 
 	@Override
 	public boolean onEntityItemUpdate(ItemStack stack, ItemEntity entity) {
-		double y = entity.getY();
-		double yMotion = entity.getDeltaMovement().y;
-		World world = entity.level;
-		CompoundNBT data = entity.getPersistentData();
-		CompoundNBT itemData = entity.getItem()
+		Level world = entity.level;
+		CompoundTag itemData = entity.getItem()
 			.getOrCreateTag();
-
-		Vector3d positionVec = entity.position();
+		Vec3 positionVec = entity.position();
 		CRecipes config = AllConfigs.SERVER.recipes;
+
 		if (world.isClientSide) {
 			int light = itemData.getInt("CollectingLight");
-			if (random.nextInt(config.lightSourceCountForRefinedRadiance.get() + 20) < light) {
-				Vector3d start = VecHelper.offsetRandomly(positionVec, random, 3);
-				Vector3d motion = positionVec.subtract(start)
+			if (world.random.nextInt(config.lightSourceCountForRefinedRadiance.get() + 20) < light) {
+				Vec3 start = VecHelper.offsetRandomly(positionVec, world.random, 3);
+				Vec3 motion = positionVec.subtract(start)
 					.normalize()
 					.scale(.2f);
 				world.addParticle(ParticleTypes.END_ROD, start.x, start.y, start.z, motion.x, motion.y, motion.z);
@@ -92,8 +91,13 @@ public class ChromaticCompoundItem extends Item {
 			return false;
 		}
 
+		double y = entity.getY();
+		double yMotion = entity.getDeltaMovement().y;
+		int minHeight = world.getMinBuildHeight();
+		CompoundTag data = entity.getPersistentData();
+
 		// Convert to Shadow steel if in void
-		if (y < 0 && y - yMotion < -10 && config.enableShadowSteelRecipe.get()) {
+		if (y < minHeight && y - yMotion < -10 + minHeight && config.enableShadowSteelRecipe.get()) {
 			ItemStack newStack = AllItems.SHADOW_STEEL.asStack();
 			newStack.setCount(stack.getCount());
 			data.putBoolean("JustCreated", true);
@@ -116,18 +120,18 @@ public class ChromaticCompoundItem extends Item {
 			stack.split(1);
 			entity.setItem(stack);
 			if (stack.isEmpty())
-				entity.remove();
+				entity.discard();
 			return false;
 		}
 
 		// Is inside beacon beam?
 		boolean isOverBeacon = false;
-		int entityX = MathHelper.floor(entity.getX());
-		int entityZ = MathHelper.floor(entity.getZ());
-		int localWorldHeight = world.getHeight(Heightmap.Type.WORLD_SURFACE, entityX, entityZ);
+		int entityX = Mth.floor(entity.getX());
+		int entityZ = Mth.floor(entity.getZ());
+		int localWorldHeight = world.getHeight(Heightmap.Types.WORLD_SURFACE, entityX, entityZ);
 
-		BlockPos.Mutable testPos =
-			new BlockPos.Mutable(entityX, Math.min(MathHelper.floor(entity.getY()), localWorldHeight), entityZ);
+		BlockPos.MutableBlockPos testPos =
+			new BlockPos.MutableBlockPos(entityX, Math.min(Mth.floor(entity.getY()), localWorldHeight), entityZ);
 
 		while (testPos.getY() > 0) {
 			testPos.move(Direction.DOWN);
@@ -135,14 +139,14 @@ public class ChromaticCompoundItem extends Item {
 			if (state.getLightBlock(world, testPos) >= 15 && state.getBlock() != Blocks.BEDROCK)
 				break;
 			if (state.getBlock() == Blocks.BEACON) {
-				TileEntity te = world.getBlockEntity(testPos);
+				BlockEntity te = world.getBlockEntity(testPos);
 
-				if (!(te instanceof BeaconTileEntity))
+				if (!(te instanceof BeaconBlockEntity))
 					break;
 
-				BeaconTileEntity bte = (BeaconTileEntity) te;
+				BeaconBlockEntity bte = (BeaconBlockEntity) te;
 
-				if (bte.getLevels() != 0 && !bte.beamSections.isEmpty())
+				if (!bte.beamSections.isEmpty())
 					isOverBeacon = true;
 
 				break;
@@ -208,17 +212,17 @@ public class ChromaticCompoundItem extends Item {
 		return false;
 	}
 
-	public boolean checkLight(ItemStack stack, ItemEntity entity, World world, CompoundNBT itemData,
-		Vector3d positionVec, BlockPos randomOffset, BlockState state) {
-		if (state.getLightValue(world, randomOffset) == 0)
+	public boolean checkLight(ItemStack stack, ItemEntity entity, Level world, CompoundTag itemData, Vec3 positionVec,
+		BlockPos randomOffset, BlockState state) {
+		if (state.getLightEmission(world, randomOffset) == 0)
 			return false;
 		if (state.getDestroySpeed(world, randomOffset) == -1)
 			return false;
 		if (state.getBlock() == Blocks.BEACON)
 			return false;
 
-		RayTraceContext context = new RayTraceContext(positionVec.add(new Vector3d(0, 0.5, 0)),
-			VecHelper.getCenterOf(randomOffset), BlockMode.COLLIDER, FluidMode.NONE, entity);
+		ClipContext context = new ClipContext(positionVec.add(new Vec3(0, 0.5, 0)), VecHelper.getCenterOf(randomOffset),
+			Block.COLLIDER, Fluid.NONE, entity);
 		if (!randomOffset.equals(world.clip(context)
 			.getBlockPos()))
 			return false;
@@ -232,7 +236,7 @@ public class ChromaticCompoundItem extends Item {
 		world.addFreshEntity(newEntity);
 		entity.lifespan = 6000;
 		if (stack.isEmpty())
-			entity.remove();
+			entity.discard();
 		return true;
 	}
 

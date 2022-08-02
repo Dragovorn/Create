@@ -3,17 +3,18 @@ package com.simibubi.create.content.contraptions.components.deployer;
 import static com.simibubi.create.content.contraptions.base.DirectionalAxisKineticBlock.AXIS_ALONG_FIRST_COORDINATE;
 import static com.simibubi.create.content.contraptions.base.DirectionalKineticBlock.FACING;
 
-import com.jozufozu.flywheel.backend.material.InstanceMaterial;
-import com.jozufozu.flywheel.backend.material.MaterialManager;
+import com.jozufozu.flywheel.api.Material;
+import com.jozufozu.flywheel.api.MaterialManager;
 import com.jozufozu.flywheel.core.Materials;
 import com.jozufozu.flywheel.core.PartialModel;
-import com.jozufozu.flywheel.core.materials.ModelData;
-import com.jozufozu.flywheel.util.transform.MatrixTransformStack;
-import com.mojang.blaze3d.matrix.MatrixStack;
+import com.jozufozu.flywheel.core.materials.model.ModelData;
+import com.jozufozu.flywheel.core.virtual.VirtualRenderWorld;
+import com.jozufozu.flywheel.util.transform.TransformStack;
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.simibubi.create.AllBlockPartials;
 import com.simibubi.create.content.contraptions.base.IRotate;
 import com.simibubi.create.content.contraptions.base.KineticTileInstance;
-import com.simibubi.create.content.contraptions.base.RotatingData;
+import com.simibubi.create.content.contraptions.base.flwdata.RotatingData;
 import com.simibubi.create.content.contraptions.components.structureMovement.MovementContext;
 import com.simibubi.create.content.contraptions.components.structureMovement.render.ActorInstance;
 import com.simibubi.create.foundation.render.AllMaterialSpecs;
@@ -21,31 +22,31 @@ import com.simibubi.create.foundation.utility.AngleHelper;
 import com.simibubi.create.foundation.utility.AnimationTickHolder;
 import com.simibubi.create.foundation.utility.NBTHelper;
 import com.simibubi.create.foundation.utility.VecHelper;
-import com.simibubi.create.foundation.utility.worldWrappers.PlacementSimulationWorld;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.vector.Vector3d;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.util.Mth;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 
 public class DeployerActorInstance extends ActorInstance {
 
-    Direction facing;
+	private final PoseStack stack = new PoseStack();
+	Direction facing;
     boolean stationaryTimer;
 
     float yRot;
+    float xRot;
     float zRot;
-    float zRotPole;
 
     ModelData pole;
     ModelData hand;
     RotatingData shaft;
 
-    public DeployerActorInstance(MaterialManager<?> materialManager, PlacementSimulationWorld simulationWorld, MovementContext context) {
+	public DeployerActorInstance(MaterialManager materialManager, VirtualRenderWorld simulationWorld, MovementContext context) {
         super(materialManager, simulationWorld, context);
 
-		InstanceMaterial<ModelData> mat = materialManager.defaultSolid()
+		Material<ModelData> mat = materialManager.defaultSolid()
 				.material(Materials.TRANSFORMED);
 
         BlockState state = context.state;
@@ -57,8 +58,8 @@ public class DeployerActorInstance extends ActorInstance {
 
         boolean rotatePole = state.getValue(AXIS_ALONG_FIRST_COORDINATE) ^ facing.getAxis() == Direction.Axis.Z;
         yRot = AngleHelper.horizontalAngle(facing);
-        zRot = facing == Direction.UP ? 270 : facing == Direction.DOWN ? 90 : 0;
-        zRotPole = rotatePole ? 90 : 0;
+        xRot = facing == Direction.UP ? 270 : facing == Direction.DOWN ? 90 : 0;
+        zRot = rotatePole ? 90 : 0;
 
         pole = mat.getModel(AllBlockPartials.DEPLOYER_POLE, state).createInstance();
         hand = mat.getModel(handPose, state).createInstance();
@@ -83,40 +84,40 @@ public class DeployerActorInstance extends ActorInstance {
     public void beginFrame() {
         double factor;
         if (context.contraption.stalled || context.position == null || context.data.contains("StationaryTimer")) {
-            factor = MathHelper.sin(AnimationTickHolder.getRenderTime() * .5f) * .25f + .25f;
+            factor = Mth.sin(AnimationTickHolder.getRenderTime() * .5f) * .25f + .25f;
         } else {
-            Vector3d center = VecHelper.getCenterOf(new BlockPos(context.position));
+        	Vec3 center = VecHelper.getCenterOf(new BlockPos(context.position));
             double distance = context.position.distanceTo(center);
             double nextDistance = context.position.add(context.motion)
                                                   .distanceTo(center);
-            factor = .5f - MathHelper.clamp(MathHelper.lerp(AnimationTickHolder.getPartialTicks(), distance, nextDistance), 0, 1);
+            factor = .5f - Mth.clamp(Mth.lerp(AnimationTickHolder.getPartialTicks(), distance, nextDistance), 0, 1);
         }
 
-        Vector3d offset = Vector3d.atLowerCornerOf(facing.getNormal()).scale(factor);
+        Vec3 offset = Vec3.atLowerCornerOf(facing.getNormal()).scale(factor);
 
-        MatrixStack ms = new MatrixStack();
-        MatrixTransformStack msr = MatrixTransformStack.of(ms);
+        TransformStack tstack = TransformStack.cast(stack);
+        stack.setIdentity();
+        tstack.translate(context.localPos)
+				.translate(offset);
 
-        msr.translate(context.localPos)
-           .translate(offset);
-
-        transformModel(msr, pole, hand, yRot, zRot, zRotPole);
+        transformModel(stack, pole, hand, yRot, xRot, zRot);
     }
 
-    static void transformModel(MatrixTransformStack msr, ModelData pole, ModelData hand, float yRot, float zRot, float zRotPole) {
+    static void transformModel(PoseStack stack, ModelData pole, ModelData hand, float yRot, float xRot, float zRot) {
+        TransformStack tstack = TransformStack.cast(stack);
 
-        msr.centre();
-        msr.rotate(Direction.SOUTH, (float) ((zRot) / 180 * Math.PI));
-        msr.rotate(Direction.UP, (float) ((yRot) / 180 * Math.PI));
+        tstack.centre();
+        tstack.rotate(Direction.UP, (float) ((yRot) / 180 * Math.PI));
+        tstack.rotate(Direction.EAST, (float) ((xRot) / 180 * Math.PI));
 
-        msr.push();
-        msr.rotate(Direction.SOUTH, (float) ((zRotPole) / 180 * Math.PI));
-        msr.unCentre();
-        pole.setTransform(msr.unwrap());
-        msr.pop();
+        stack.pushPose();
+        tstack.rotate(Direction.SOUTH, (float) ((zRot) / 180 * Math.PI));
+        tstack.unCentre();
+        pole.setTransform(stack);
+        stack.popPose();
 
-        msr.unCentre();
+        tstack.unCentre();
 
-        hand.setTransform(msr.unwrap());
+        hand.setTransform(stack);
     }
 }

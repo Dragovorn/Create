@@ -2,13 +2,12 @@ package com.simibubi.create.content.contraptions.relays.gauge;
 
 import java.util.ArrayList;
 
-import com.jozufozu.flywheel.backend.instancing.IDynamicInstance;
-import com.jozufozu.flywheel.backend.instancing.Instancer;
-import com.jozufozu.flywheel.backend.material.MaterialManager;
-import com.jozufozu.flywheel.core.materials.ModelData;
-import com.jozufozu.flywheel.util.transform.MatrixTransformStack;
+import com.jozufozu.flywheel.api.Instancer;
+import com.jozufozu.flywheel.api.MaterialManager;
+import com.jozufozu.flywheel.api.instance.DynamicInstance;
+import com.jozufozu.flywheel.core.materials.model.ModelData;
 import com.jozufozu.flywheel.util.transform.TransformStack;
-import com.mojang.blaze3d.matrix.MatrixStack;
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.simibubi.create.AllBlockPartials;
 import com.simibubi.create.content.contraptions.base.KineticTileEntity;
 import com.simibubi.create.content.contraptions.relays.encased.ShaftInstance;
@@ -16,16 +15,16 @@ import com.simibubi.create.foundation.utility.AnimationTickHolder;
 import com.simibubi.create.foundation.utility.Couple;
 import com.simibubi.create.foundation.utility.Iterate;
 
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.MathHelper;
+import net.minecraft.core.Direction;
+import net.minecraft.util.Mth;
 
-public abstract class GaugeInstance extends ShaftInstance implements IDynamicInstance {
+public abstract class GaugeInstance extends ShaftInstance implements DynamicInstance {
 
     protected final ArrayList<DialFace> faces;
 
-    protected MatrixStack ms;
+    protected PoseStack ms;
 
-    protected GaugeInstance(MaterialManager<?> dispatcher, KineticTileEntity tile) {
+    protected GaugeInstance(MaterialManager dispatcher, KineticTileEntity tile) {
         super(dispatcher, tile);
 
         faces = new ArrayList<>(2);
@@ -36,11 +35,11 @@ public abstract class GaugeInstance extends ShaftInstance implements IDynamicIns
         Instancer<ModelData> dialModel = getTransformMaterial().getModel(AllBlockPartials.GAUGE_DIAL, blockState);
         Instancer<ModelData> headModel = getHeadModel();
 
-        ms = new MatrixStack();
-        MatrixTransformStack msr = MatrixTransformStack.of(ms);
+        ms = new PoseStack();
+        TransformStack msr = TransformStack.cast(ms);
         msr.translate(getInstancePosition());
 
-        float progress = MathHelper.lerp(AnimationTickHolder.getPartialTicks(), gaugeTile.prevDialState, gaugeTile.dialState);
+        float progress = Mth.lerp(AnimationTickHolder.getPartialTicks(), gaugeTile.prevDialState, gaugeTile.dialState);
 
         for (Direction facing : Iterate.directions) {
             if (!gaugeBlock.shouldRenderHeadOnFace(world, pos, blockState, facing))
@@ -60,14 +59,14 @@ public abstract class GaugeInstance extends ShaftInstance implements IDynamicIns
 
     @Override
     public void beginFrame() {
-        GaugeTileEntity gaugeTile = (GaugeTileEntity) tile;
+        GaugeTileEntity gaugeTile = (GaugeTileEntity) blockEntity;
 
-        if (MathHelper.equal(gaugeTile.prevDialState, gaugeTile.dialState))
+        if (Mth.equal(gaugeTile.prevDialState, gaugeTile.dialState))
             return;
 
-        float progress = MathHelper.lerp(AnimationTickHolder.getPartialTicks(), gaugeTile.prevDialState, gaugeTile.dialState);
+        float progress = Mth.lerp(AnimationTickHolder.getPartialTicks(), gaugeTile.prevDialState, gaugeTile.dialState);
 
-        MatrixTransformStack msr = MatrixTransformStack.of(ms);
+        TransformStack msr = TransformStack.cast(ms);
 
         for (DialFace faceEntry : faces) {
             faceEntry.updateTransform(msr, progress);
@@ -100,10 +99,10 @@ public abstract class GaugeInstance extends ShaftInstance implements IDynamicIns
             this.face = face;
         }
 
-        private void setupTransform(MatrixTransformStack msr, float progress) {
+        private void setupTransform(TransformStack msr, float progress) {
             float dialPivot = 5.75f / 16;
 
-            ms.pushPose();
+            msr.pushPose();
             rotateToFace(msr);
 
             getSecond().setTransform(ms);
@@ -114,13 +113,13 @@ public abstract class GaugeInstance extends ShaftInstance implements IDynamicIns
 
             getFirst().setTransform(ms);
 
-            ms.popPose();
+            msr.popPose();
         }
 
-        private void updateTransform(MatrixTransformStack msr, float progress) {
+        private void updateTransform(TransformStack msr, float progress) {
             float dialPivot = 5.75f / 16;
 
-            ms.pushPose();
+            msr.pushPose();
 
             rotateToFace(msr)
                     .translate(0, dialPivot, dialPivot)
@@ -129,7 +128,7 @@ public abstract class GaugeInstance extends ShaftInstance implements IDynamicIns
 
             getFirst().setTransform(ms);
 
-            ms.popPose();
+            msr.popPose();
         }
 
         protected TransformStack rotateToFace(TransformStack msr) {
@@ -145,7 +144,7 @@ public abstract class GaugeInstance extends ShaftInstance implements IDynamicIns
     }
 
     public static class Speed extends GaugeInstance {
-        public Speed(MaterialManager<?> dispatcher, KineticTileEntity tile) {
+        public Speed(MaterialManager dispatcher, KineticTileEntity tile) {
             super(dispatcher, tile);
         }
 
@@ -156,7 +155,7 @@ public abstract class GaugeInstance extends ShaftInstance implements IDynamicIns
     }
 
     public static class Stress extends GaugeInstance {
-        public Stress(MaterialManager<?> dispatcher, KineticTileEntity tile) {
+        public Stress(MaterialManager dispatcher, KineticTileEntity tile) {
             super(dispatcher, tile);
         }
 

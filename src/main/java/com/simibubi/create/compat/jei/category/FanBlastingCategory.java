@@ -1,34 +1,33 @@
 package com.simibubi.create.compat.jei.category;
 
-import com.mojang.blaze3d.matrix.MatrixStack;
-import com.simibubi.create.AllItems;
-import com.simibubi.create.foundation.gui.GuiGameElement;
+import org.jetbrains.annotations.NotNull;
 
-import net.minecraft.fluid.Fluids;
-import net.minecraft.item.Items;
-import net.minecraft.item.crafting.AbstractCookingRecipe;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.simibubi.create.compat.jei.category.animations.AnimatedKinetics;
+import com.simibubi.create.foundation.gui.AllGuiTextures;
+import com.simibubi.create.foundation.gui.element.GuiGameElement;
+
+import net.minecraft.world.item.crafting.AbstractCookingRecipe;
+import net.minecraft.world.level.material.Fluids;
 
 public class FanBlastingCategory extends ProcessingViaFanCategory<AbstractCookingRecipe> {
 
-	public FanBlastingCategory() {
-		super(doubleItemIcon(AllItems.PROPELLER.get(), Items.LAVA_BUCKET));
+	public FanBlastingCategory(Info<AbstractCookingRecipe> info) {
+		super(info);
 	}
 
 	@Override
-	public Class<? extends AbstractCookingRecipe> getRecipeClass() {
-		return AbstractCookingRecipe.class;
+	protected AllGuiTextures getBlockShadow() {
+		return AllGuiTextures.JEI_LIGHT;
 	}
 
 	@Override
-	public void renderAttachedBlock(MatrixStack matrixStack) {
-		matrixStack.pushPose();
-
+	protected void renderAttachedBlock(@NotNull PoseStack matrixStack) {
 		GuiGameElement.of(Fluids.LAVA)
-			.scale(24)
+			.scale(SCALE)
 			.atLocal(0, 0, 2)
+			.lighting(AnimatedKinetics.DEFAULT_LIGHTING)
 			.render(matrixStack);
-
-		matrixStack.popPose();
 	}
 
 }

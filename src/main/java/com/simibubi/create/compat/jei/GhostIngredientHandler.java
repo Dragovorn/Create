@@ -6,21 +6,21 @@ import java.util.List;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import com.simibubi.create.content.logistics.item.filter.AttributeFilterScreen;
-import com.simibubi.create.foundation.gui.AbstractSimiContainerScreen;
-import com.simibubi.create.foundation.gui.GhostItemContainer;
-import com.simibubi.create.foundation.gui.GhostItemSubmitPacket;
+import com.simibubi.create.foundation.gui.container.AbstractSimiContainerScreen;
+import com.simibubi.create.foundation.gui.container.GhostItemContainer;
+import com.simibubi.create.foundation.gui.container.GhostItemSubmitPacket;
 import com.simibubi.create.foundation.networking.AllPackets;
 
-import mcp.MethodsReturnNonnullByDefault;
 import mezz.jei.api.gui.handlers.IGhostIngredientHandler;
-import net.minecraft.client.renderer.Rectangle2d;
-import net.minecraft.inventory.container.Slot;
-import net.minecraft.item.ItemStack;
+import net.minecraft.MethodsReturnNonnullByDefault;
+import net.minecraft.client.renderer.Rect2i;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.ItemStack;
 
 @MethodsReturnNonnullByDefault
 @ParametersAreNonnullByDefault
 public class GhostIngredientHandler<T extends GhostItemContainer<?>>
-		implements IGhostIngredientHandler<AbstractSimiContainerScreen<T>> {
+	implements IGhostIngredientHandler<AbstractSimiContainerScreen<T>> {
 
 	@Override
 	public <I> List<Target<I>> getTargets(AbstractSimiContainerScreen<T> gui, I ingredient, boolean doStart) {
@@ -29,9 +29,12 @@ public class GhostIngredientHandler<T extends GhostItemContainer<?>>
 
 		if (ingredient instanceof ItemStack) {
 			for (int i = 36; i < gui.getMenu().slots.size(); i++) {
-				targets.add(new GhostTarget<>(gui, i - 36, isAttributeFilter));
+				if (gui.getMenu().slots.get(i)
+					.isActive())
+					targets.add(new GhostTarget<>(gui, i - 36, isAttributeFilter));
 
-				// Only accept items in 1st slot. 2nd is used for functionality, don't wanna override that one
+				// Only accept items in 1st slot. 2nd is used for functionality, don't wanna
+				// override that one
 				if (isAttributeFilter)
 					break;
 			}
@@ -41,8 +44,7 @@ public class GhostIngredientHandler<T extends GhostItemContainer<?>>
 	}
 
 	@Override
-	public void onComplete() {
-	}
+	public void onComplete() {}
 
 	@Override
 	public boolean shouldHighlightTargets() {
@@ -52,7 +54,7 @@ public class GhostIngredientHandler<T extends GhostItemContainer<?>>
 
 	private static class GhostTarget<I, T extends GhostItemContainer<?>> implements Target<I> {
 
-		private final Rectangle2d area;
+		private final Rect2i area;
 		private final AbstractSimiContainerScreen<T> gui;
 		private final int slotIndex;
 		private final boolean isAttributeFilter;
@@ -62,11 +64,11 @@ public class GhostIngredientHandler<T extends GhostItemContainer<?>>
 			this.slotIndex = slotIndex;
 			this.isAttributeFilter = isAttributeFilter;
 			Slot slot = gui.getMenu().slots.get(slotIndex + 36);
-			this.area = new Rectangle2d(gui.getGuiLeft() + slot.x, gui.getGuiTop() + slot.y, 16, 16);
+			this.area = new Rect2i(gui.getGuiLeft() + slot.x, gui.getGuiTop() + slot.y, 16, 16);
 		}
 
 		@Override
-		public Rectangle2d getArea() {
+		public Rect2i getArea() {
 			return area;
 		}
 

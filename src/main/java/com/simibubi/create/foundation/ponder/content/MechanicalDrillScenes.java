@@ -4,19 +4,19 @@ import com.simibubi.create.foundation.ponder.ElementLink;
 import com.simibubi.create.foundation.ponder.SceneBuilder;
 import com.simibubi.create.foundation.ponder.SceneBuildingUtil;
 import com.simibubi.create.foundation.ponder.Selection;
-import com.simibubi.create.foundation.ponder.elements.EntityElement;
-import com.simibubi.create.foundation.ponder.elements.InputWindowElement;
-import com.simibubi.create.foundation.ponder.elements.WorldSectionElement;
+import com.simibubi.create.foundation.ponder.element.EntityElement;
+import com.simibubi.create.foundation.ponder.element.InputWindowElement;
+import com.simibubi.create.foundation.ponder.element.WorldSectionElement;
 import com.simibubi.create.foundation.utility.Pointing;
 
-import net.minecraft.block.Blocks;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.item.ItemEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.vector.Vector3d;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.Vec3;
 
 public class MechanicalDrillScenes {
 
@@ -56,7 +56,7 @@ public class MechanicalDrillScenes {
 		scene.idle(20);
 		scene.idle(15);
 		
-		scene.world.modifyEntity(plankEntity, Entity::remove);
+		scene.world.modifyEntity(plankEntity, Entity::discard);
 		scene.world.modifyKineticSpeed(util.select.everywhere(), f -> 4 * f);
 		scene.effects.rotationSpeedIndicator(breakingPos.east(3));
 		scene.idle(5);
@@ -78,6 +78,7 @@ public class MechanicalDrillScenes {
 
 		scene.world.createItemEntity(util.vector.centerOf(breakingPos), util.vector.of(0, .1f, 0),
 			new ItemStack(Items.OAK_PLANKS));
+		scene.idle(50);
 	}
 
 	public static void contraption(SceneBuilder scene, SceneBuildingUtil util) {
@@ -141,7 +142,7 @@ public class MechanicalDrillScenes {
 			}
 		}
 
-		Vector3d m = util.vector.of(-.1, 0, 0);
+		Vec3 m = util.vector.of(-.1, 0, 0);
 		ItemStack item = new ItemStack(Items.OAK_PLANKS);
 		scene.world.createItemEntity(util.vector.centerOf(p1), m, item);
 		scene.world.createItemEntity(util.vector.centerOf(p2), m, item);
@@ -162,7 +163,7 @@ public class MechanicalDrillScenes {
 		scene.idle(40);
 
 		scene.world.setBlocks(planks, Blocks.OAK_PLANKS.defaultBlockState(), false);
-		scene.world.modifyEntities(ItemEntity.class, Entity::remove);
+		scene.world.modifyEntities(ItemEntity.class, Entity::discard);
 		scene.world.glueBlockOnto(util.grid.at(4, 3, 2), Direction.DOWN, contraption);
 
 		scene.overlay.showText(60)

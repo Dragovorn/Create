@@ -20,18 +20,18 @@ import com.simibubi.create.foundation.config.AllConfigs;
 import com.simibubi.create.foundation.utility.Iterate;
 import com.simibubi.create.foundation.utility.Pointing;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.inventory.CraftingInventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.crafting.FireworkRocketRecipe;
-import net.minecraft.item.crafting.ICraftingRecipe;
-import net.minecraft.item.crafting.IRecipeType;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.nbt.ListNBT;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
-import net.minecraftforge.common.util.Constants.NBT;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.world.inventory.CraftingContainer;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.CraftingRecipe;
+import net.minecraft.world.item.crafting.FireworkRocketRecipe;
+import net.minecraft.world.item.crafting.RecipeType;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
 
 public class RecipeGridHandler {
 
@@ -105,7 +105,7 @@ public class RecipeGridHandler {
 
 	public static List<MechanicalCrafterTileEntity> getPrecedingCrafters(MechanicalCrafterTileEntity crafter) {
 		BlockPos pos = crafter.getBlockPos();
-		World world = crafter.getLevel();
+		Level world = crafter.getLevel();
 		List<MechanicalCrafterTileEntity> crafters = new ArrayList<>();
 		BlockState blockState = crafter.getBlockState();
 		if (!isCrafter(blockState))
@@ -141,13 +141,13 @@ public class RecipeGridHandler {
 		return AllBlocks.MECHANICAL_CRAFTER.has(state);
 	}
 
-	public static ItemStack tryToApplyRecipe(World world, GroupedItems items) {
+	public static ItemStack tryToApplyRecipe(Level world, GroupedItems items) {
 		items.calcStats();
-		CraftingInventory craftinginventory = new MechanicalCraftingInventory(items);
+		CraftingContainer craftinginventory = new MechanicalCraftingInventory(items);
 		ItemStack result = null;
 		if (AllConfigs.SERVER.recipes.allowRegularCraftingInCrafter.get())
 			result = world.getRecipeManager()
-				.getRecipeFor(IRecipeType.CRAFTING, craftinginventory, world)
+				.getRecipeFor(RecipeType.CRAFTING, craftinginventory, world)
 				.filter(r -> isRecipeAllowed(r, craftinginventory))
 				.map(r -> r.assemble(craftinginventory))
 				.orElse(null);
@@ -158,7 +158,7 @@ public class RecipeGridHandler {
 		return result;
 	}
 
-	public static boolean isRecipeAllowed(ICraftingRecipe recipe, CraftingInventory inventory) {
+	public static boolean isRecipeAllowed(CraftingRecipe recipe, CraftingContainer inventory) {
 		if (!AllConfigs.SERVER.recipes.allowBiggerFireworksInCrafter.get() && recipe instanceof FireworkRocketRecipe) {
 			int numItems = IntStream.range(0, inventory.getContainerSize())
 				.map(i -> inventory.getItem(i).isEmpty() ? 0 : 1)
@@ -166,7 +166,7 @@ public class RecipeGridHandler {
 			if (numItems > 9)
 				return false;
 		}
-		if (AllRecipeTypes.isManualRecipe(recipe))
+		if (AllRecipeTypes.shouldIgnoreInAutomation(recipe))
 			return false;
 		return true;
 	}
@@ -190,10 +190,10 @@ public class RecipeGridHandler {
 			other.statsReady = false;
 		}
 
-		public void write(CompoundNBT nbt) {
-			ListNBT gridNBT = new ListNBT();
+		public void write(CompoundTag nbt) {
+			ListTag gridNBT = new ListTag();
 			grid.forEach((pair, stack) -> {
-				CompoundNBT entry = new CompoundNBT();
+				CompoundTag entry = new CompoundTag();
 				entry.putInt("x", pair.getKey());
 				entry.putInt("y", pair.getValue());
 				entry.put("item", stack.serializeNBT());
@@ -202,11 +202,11 @@ public class RecipeGridHandler {
 			nbt.put("Grid", gridNBT);
 		}
 
-		public static GroupedItems read(CompoundNBT nbt) {
+		public static GroupedItems read(CompoundTag nbt) {
 			GroupedItems items = new GroupedItems();
-			ListNBT gridNBT = nbt.getList("Grid", NBT.TAG_COMPOUND);
+			ListTag gridNBT = nbt.getList("Grid", Tag.TAG_COMPOUND);
 			gridNBT.forEach(inbt -> {
-				CompoundNBT entry = (CompoundNBT) inbt;
+				CompoundTag entry = (CompoundTag) inbt;
 				int x = entry.getInt("x");
 				int y = entry.getInt("y");
 				ItemStack stack = ItemStack.of(entry.getCompound("item"));

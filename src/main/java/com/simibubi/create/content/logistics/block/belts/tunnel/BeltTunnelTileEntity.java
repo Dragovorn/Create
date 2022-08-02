@@ -9,47 +9,47 @@ import java.util.Set;
 
 import org.apache.commons.lang3.tuple.Pair;
 
-import com.jozufozu.flywheel.backend.instancing.IInstanceRendered;
 import com.jozufozu.flywheel.backend.instancing.InstancedRenderDispatcher;
 import com.simibubi.create.AllBlocks;
 import com.simibubi.create.content.logistics.block.belts.tunnel.BeltTunnelBlock.Shape;
 import com.simibubi.create.content.logistics.block.funnel.BeltFunnelBlock;
 import com.simibubi.create.content.logistics.packet.TunnelFlapPacket;
-import com.simibubi.create.foundation.gui.widgets.InterpolatedChasingValue;
 import com.simibubi.create.foundation.networking.AllPackets;
 import com.simibubi.create.foundation.tileEntity.SmartTileEntity;
 import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 import com.simibubi.create.foundation.utility.Iterate;
+import com.simibubi.create.foundation.utility.animation.LerpedFloat;
+import com.simibubi.create.foundation.utility.animation.LerpedFloat.Chaser;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.nbt.INBT;
-import net.minecraft.nbt.IntNBT;
-import net.minecraft.nbt.ListNBT;
-import net.minecraft.state.properties.BlockStateProperties;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Direction.Axis;
-import net.minecraft.util.Direction.AxisDirection;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.Axis;
+import net.minecraft.core.Direction.AxisDirection;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.IntTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.util.Constants.NBT;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandler;
 
-public class BeltTunnelTileEntity extends SmartTileEntity implements IInstanceRendered {
+public class BeltTunnelTileEntity extends SmartTileEntity {
 
-	public Map<Direction, InterpolatedChasingValue> flaps;
+	public Map<Direction, LerpedFloat> flaps;
 	public Set<Direction> sides;
 
 	protected LazyOptional<IItemHandler> cap = LazyOptional.empty();
 	protected List<Pair<Direction, Boolean>> flapsToSend;
 
-	public BeltTunnelTileEntity(TileEntityType<? extends BeltTunnelTileEntity> type) {
-		super(type);
+	public BeltTunnelTileEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+		super(type, pos, state);
 		flaps = new EnumMap<>(Direction.class);
 		sides = new HashSet<>();
 		flapsToSend = new LinkedList<>();
@@ -61,49 +61,62 @@ public class BeltTunnelTileEntity extends SmartTileEntity implements IInstanceRe
 		cap.invalidate();
 	}
 
-	@Override
-	public void write(CompoundNBT compound, boolean clientPacket) {
-		ListNBT flapsNBT = new ListNBT();
+	protected void writeFlapsAndSides(CompoundTag compound) {
+		ListTag flapsNBT = new ListTag();
 		for (Direction direction : flaps.keySet())
-			flapsNBT.add(IntNBT.valueOf(direction.get3DDataValue()));
+			flapsNBT.add(IntTag.valueOf(direction.get3DDataValue()));
 		compound.put("Flaps", flapsNBT);
 
-		ListNBT sidesNBT = new ListNBT();
+		ListTag sidesNBT = new ListTag();
 		for (Direction direction : sides)
-			sidesNBT.add(IntNBT.valueOf(direction.get3DDataValue()));
+			sidesNBT.add(IntTag.valueOf(direction.get3DDataValue()));
 		compound.put("Sides", sidesNBT);
+	}
 
+	@Override
+	public void writeSafe(CompoundTag tag) {
+		writeFlapsAndSides(tag);
+		super.writeSafe(tag);
+	}
+
+	@Override
+	public void write(CompoundTag compound, boolean clientPacket) {
+		writeFlapsAndSides(compound);
 		super.write(compound, clientPacket);
 	}
 
 	@Override
-	protected void fromTag(BlockState state, CompoundNBT compound, boolean clientPacket) {
+	protected void read(CompoundTag compound, boolean clientPacket) {
 		Set<Direction> newFlaps = new HashSet<>(6);
-		ListNBT flapsNBT = compound.getList("Flaps", NBT.TAG_INT);
-		for (INBT inbt : flapsNBT)
-			if (inbt instanceof IntNBT)
-				newFlaps.add(Direction.from3DDataValue(((IntNBT) inbt).getAsInt()));
+		ListTag flapsNBT = compound.getList("Flaps", Tag.TAG_INT);
+		for (Tag inbt : flapsNBT)
+			if (inbt instanceof IntTag)
+				newFlaps.add(Direction.from3DDataValue(((IntTag) inbt).getAsInt()));
 
 		sides.clear();
-		ListNBT sidesNBT = compound.getList("Sides", NBT.TAG_INT);
-		for (INBT inbt : sidesNBT)
-			if (inbt instanceof IntNBT)
-				sides.add(Direction.from3DDataValue(((IntNBT) inbt).getAsInt()));
+		ListTag sidesNBT = compound.getList("Sides", Tag.TAG_INT);
+		for (Tag inbt : sidesNBT)
+			if (inbt instanceof IntTag)
+				sides.add(Direction.from3DDataValue(((IntTag) inbt).getAsInt()));
 
 		for (Direction d : Iterate.directions)
 			if (!newFlaps.contains(d))
 				flaps.remove(d);
 			else if (!flaps.containsKey(d))
-				flaps.put(d, new InterpolatedChasingValue().start(.25f)
-					.target(0)
-					.withSpeed(.05f));
+				flaps.put(d, createChasingFlap());
 
 		// Backwards compat
 		if (!compound.contains("Sides") && compound.contains("Flaps"))
 			sides.addAll(flaps.keySet());
-		super.fromTag(state, compound, clientPacket);
+		super.read(compound, clientPacket);
 		if (clientPacket)
 			DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> InstancedRenderDispatcher.enqueueUpdate(this));
+	}
+
+	private LerpedFloat createChasingFlap() {
+		return LerpedFloat.linear()
+			.startWithValue(.25f)
+			.chase(0, .05f, Chaser.EXP);
 	}
 
 	public void updateTunnelConnections() {
@@ -134,9 +147,7 @@ public class BeltTunnelTileEntity extends SmartTileEntity implements IInstanceRe
 					&& nextState.getValue(BeltFunnelBlock.HORIZONTAL_FACING) == direction.getOpposite())
 					continue;
 
-			flaps.put(direction, new InterpolatedChasingValue().start(.25f)
-															   .target(0)
-															   .withSpeed(.05f));
+			flaps.put(direction, createChasingFlap());
 		}
 		sendData();
 	}
@@ -145,7 +156,7 @@ public class BeltTunnelTileEntity extends SmartTileEntity implements IInstanceRe
 		if (level.isClientSide) {
 			if (flaps.containsKey(side))
 				flaps.get(side)
-					.set(inward ^ side.getAxis() == Axis.Z ? -1 : 1);
+					.setValue(inward ^ side.getAxis() == Axis.Z ? -1 : 1);
 			return;
 		}
 
@@ -166,18 +177,13 @@ public class BeltTunnelTileEntity extends SmartTileEntity implements IInstanceRe
 				sendFlaps();
 			return;
 		}
-		flaps.forEach((d, value) -> value.tick());
+		flaps.forEach((d, value) -> value.tickChaser());
 	}
 
 	private void sendFlaps() {
 		AllPackets.channel.send(packetTarget(), new TunnelFlapPacket(this, flapsToSend));
 
 		flapsToSend.clear();
-	}
-
-	@Override
-	public boolean shouldRenderNormally() {
-		return true;
 	}
 
 	@Override
@@ -190,7 +196,7 @@ public class BeltTunnelTileEntity extends SmartTileEntity implements IInstanceRe
 
 		if (!this.cap.isPresent()) {
 			if (AllBlocks.BELT.has(level.getBlockState(worldPosition.below()))) {
-				TileEntity teBelow = level.getBlockEntity(worldPosition.below());
+				BlockEntity teBelow = level.getBlockEntity(worldPosition.below());
 				if (teBelow != null) {
 					T capBelow = teBelow.getCapability(capability, Direction.UP)
 						.orElse(null);

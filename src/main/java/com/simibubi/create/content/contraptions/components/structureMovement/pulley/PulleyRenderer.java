@@ -3,19 +3,19 @@ package com.simibubi.create.content.contraptions.components.structureMovement.pu
 import com.jozufozu.flywheel.core.PartialModel;
 import com.simibubi.create.AllBlockPartials;
 import com.simibubi.create.AllBlocks;
-import com.simibubi.create.CreateClient;
 import com.simibubi.create.content.contraptions.base.KineticTileEntity;
 import com.simibubi.create.content.contraptions.components.structureMovement.AbstractContraptionEntity;
+import com.simibubi.create.foundation.render.CachedBufferer;
 import com.simibubi.create.foundation.render.SuperByteBuffer;
 
-import net.minecraft.client.renderer.tileentity.TileEntityRendererDispatcher;
-import net.minecraft.util.Direction.Axis;
-import net.minecraft.util.math.MathHelper;
+import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
+import net.minecraft.core.Direction.Axis;
+import net.minecraft.util.Mth;
 
 public class PulleyRenderer extends AbstractPulleyRenderer {
 
-	public PulleyRenderer(TileEntityRendererDispatcher dispatcher) {
-		super(dispatcher, AllBlockPartials.ROPE_HALF, AllBlockPartials.ROPE_HALF_MAGNET);
+	public PulleyRenderer(BlockEntityRendererProvider.Context context) {
+		super(context, AllBlockPartials.ROPE_HALF, AllBlockPartials.ROPE_HALF_MAGNET);
 	}
 
 	@Override
@@ -31,12 +31,12 @@ public class PulleyRenderer extends AbstractPulleyRenderer {
 
 	@Override
 	protected SuperByteBuffer renderRope(KineticTileEntity te) {
-		return CreateClient.BUFFER_CACHE.renderBlock(AllBlocks.ROPE.getDefaultState());
+		return CachedBufferer.block(AllBlocks.ROPE.getDefaultState());
 	}
 
 	@Override
 	protected SuperByteBuffer renderMagnet(KineticTileEntity te) {
-		return CreateClient.BUFFER_CACHE.renderBlock(AllBlocks.PULLEY_MAGNET.getDefaultState());
+		return CachedBufferer.block(AllBlocks.PULLEY_MAGNET.getDefaultState());
 	}
 
 	@Override
@@ -57,10 +57,16 @@ public class PulleyRenderer extends AbstractPulleyRenderer {
 		if (tile.movedContraption != null) {
 			AbstractContraptionEntity e = tile.movedContraption;
 			PulleyContraption c = (PulleyContraption) tile.movedContraption.getContraption();
-			double entityPos = MathHelper.lerp(partialTicks, e.yOld, e.getY());
+			double entityPos = Mth.lerp(partialTicks, e.yOld, e.getY());
 			offset = (float) -(entityPos - c.anchor.getY() - c.initialOffset);
 		}
 
 		return offset;
 	}
+	
+	@Override
+	public int getViewDistance() {
+		return 128;
+	}
+	
 }

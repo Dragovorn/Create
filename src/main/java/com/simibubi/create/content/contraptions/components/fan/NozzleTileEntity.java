@@ -9,22 +9,22 @@ import com.simibubi.create.foundation.tileEntity.SmartTileEntity;
 import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 import com.simibubi.create.foundation.utility.VecHelper;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.item.ItemEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.particles.ParticleTypes;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.RayTraceContext;
-import net.minecraft.util.math.RayTraceContext.BlockMode;
-import net.minecraft.util.math.RayTraceContext.FluidMode;
-import net.minecraft.util.math.vector.Vector3d;
-import net.minecraft.world.Explosion.Mode;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.ClipContext.Block;
+import net.minecraft.world.level.ClipContext.Fluid;
+import net.minecraft.world.level.Explosion.BlockInteraction;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 public class NozzleTileEntity extends SmartTileEntity {
 
@@ -33,8 +33,8 @@ public class NozzleTileEntity extends SmartTileEntity {
 	private boolean pushing;
 	private BlockPos fanPos;
 
-	public NozzleTileEntity(TileEntityType<? extends NozzleTileEntity> type) {
-		super(type);
+	public NozzleTileEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+		super(type, pos, state);
 		setLazyTickRate(5);
 	}
 
@@ -42,7 +42,7 @@ public class NozzleTileEntity extends SmartTileEntity {
 	public void addBehaviours(List<TileEntityBehaviour> behaviours) {}
 
 	@Override
-	protected void write(CompoundNBT compound, boolean clientPacket) {
+	protected void write(CompoundTag compound, boolean clientPacket) {
 		super.write(compound, clientPacket);
 		if (!clientPacket)
 			return;
@@ -51,8 +51,8 @@ public class NozzleTileEntity extends SmartTileEntity {
 	}
 
 	@Override
-	protected void fromTag(BlockState state, CompoundNBT compound, boolean clientPacket) {
-		super.fromTag(state, compound, clientPacket);
+	protected void read(CompoundTag compound, boolean clientPacket) {
+		super.read(compound, clientPacket);
 		if (!clientPacket)
 			return;
 		range = compound.getFloat("Range");
@@ -74,24 +74,24 @@ public class NozzleTileEntity extends SmartTileEntity {
 		if (this.range != range)
 			setRange(range);
 
-		Vector3d center = VecHelper.getCenterOf(worldPosition);
+		Vec3 center = VecHelper.getCenterOf(worldPosition);
 		if (level.isClientSide && range != 0) {
 			if (level.random.nextInt(
-				MathHelper.clamp((AllConfigs.SERVER.kinetics.fanPushDistance.get() - (int) range), 1, 10)) == 0) {
-				Vector3d start = VecHelper.offsetRandomly(center, level.random, pushing ? 1 : range / 2);
-				Vector3d motion = center.subtract(start)
+				Mth.clamp((AllConfigs.SERVER.kinetics.fanPushDistance.get() - (int) range), 1, 10)) == 0) {
+				Vec3 start = VecHelper.offsetRandomly(center, level.random, pushing ? 1 : range / 2);
+				Vec3 motion = center.subtract(start)
 					.normalize()
-					.scale(MathHelper.clamp(range * (pushing ? .025f : 1f), 0, .5f) * (pushing ? -1 : 1));
+					.scale(Mth.clamp(range * (pushing ? .025f : 1f), 0, .5f) * (pushing ? -1 : 1));
 				level.addParticle(ParticleTypes.POOF, start.x, start.y, start.z, motion.x, motion.y, motion.z);
 			}
 		}
 
 		for (Iterator<Entity> iterator = pushingEntities.iterator(); iterator.hasNext();) {
 			Entity entity = iterator.next();
-			Vector3d diff = entity.position()
+			Vec3 diff = entity.position()
 					.subtract(center);
 
-			if (!(entity instanceof PlayerEntity) && level.isClientSide)
+			if (!(entity instanceof Player) && level.isClientSide)
 				continue;
 
 			double distance = diff.length();
@@ -104,7 +104,7 @@ public class NozzleTileEntity extends SmartTileEntity {
 				continue;
 
 			float factor = (entity instanceof ItemEntity) ? 1 / 128f : 1 / 32f;
-			Vector3d pushVec = diff.normalize()
+			Vec3 pushVec = diff.normalize()
 					.scale((range - distance) * (pushing ? 1 : -1));
 			entity.setDeltaMovement(entity.getDeltaMovement()
 				.add(pushVec.scale(factor)));
@@ -122,13 +122,11 @@ public class NozzleTileEntity extends SmartTileEntity {
 	}
 
 	private float calcRange() {
-		TileEntity te = level.getBlockEntity(fanPos);
+		BlockEntity te = level.getBlockEntity(fanPos);
 		if (!(te instanceof IAirCurrentSource))
 			return 0;
 
 		IAirCurrentSource source = (IAirCurrentSource) te;
-		if (source instanceof EncasedFanTileEntity && ((EncasedFanTileEntity) source).isGenerator)
-			return 0;
 		if (source.getAirCurrent() == null)
 			return 0;
 		if (source.getSpeed() == 0)
@@ -144,11 +142,11 @@ public class NozzleTileEntity extends SmartTileEntity {
 		if (range == 0)
 			return;
 
-		Vector3d center = VecHelper.getCenterOf(worldPosition);
-		AxisAlignedBB bb = new AxisAlignedBB(center, center).inflate(range / 2f);
+		Vec3 center = VecHelper.getCenterOf(worldPosition);
+		AABB bb = new AABB(center, center).inflate(range / 2f);
 
 		for (Entity entity : level.getEntitiesOfClass(Entity.class, bb)) {
-			Vector3d diff = entity.position()
+			Vec3 diff = entity.position()
 					.subtract(center);
 
 			double distance = diff.length();
@@ -173,10 +171,10 @@ public class NozzleTileEntity extends SmartTileEntity {
 		}
 
 		if (!pushing && pushingEntities.size() > 256 && !level.isClientSide) {
-			level.explode(null, center.x, center.y, center.z, 2, Mode.NONE);
+			level.explode(null, center.x, center.y, center.z, 2, BlockInteraction.NONE);
 			for (Iterator<Entity> iterator = pushingEntities.iterator(); iterator.hasNext();) {
 				Entity entity = iterator.next();
-				entity.remove();
+				entity.discard();
 				iterator.remove();
 			}
 		}
@@ -184,8 +182,8 @@ public class NozzleTileEntity extends SmartTileEntity {
 	}
 
 	private boolean canSee(Entity entity) {
-		RayTraceContext context = new RayTraceContext(entity.position(), VecHelper.getCenterOf(worldPosition),
-			BlockMode.COLLIDER, FluidMode.NONE, entity);
+		ClipContext context = new ClipContext(entity.position(), VecHelper.getCenterOf(worldPosition),
+			Block.COLLIDER, Fluid.NONE, entity);
 		return worldPosition.equals(level.clip(context)
 			.getBlockPos());
 	}

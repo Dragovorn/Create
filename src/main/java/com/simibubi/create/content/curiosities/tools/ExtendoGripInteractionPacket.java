@@ -4,44 +4,44 @@ import java.util.function.Supplier;
 
 import com.simibubi.create.foundation.networking.SimplePacketBase;
 
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.ServerPlayerEntity;
-import net.minecraft.network.PacketBuffer;
-import net.minecraft.util.Hand;
-import net.minecraft.util.math.vector.Vector3d;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.ForgeMod;
-import net.minecraftforge.fml.network.NetworkEvent.Context;
+import net.minecraftforge.network.NetworkEvent.Context;
 
 public class ExtendoGripInteractionPacket extends SimplePacketBase {
 
-	private Hand interactionHand;
+	private InteractionHand interactionHand;
 	private int target;
-	private Vector3d specificPoint;
+	private Vec3 specificPoint;
 
 	public ExtendoGripInteractionPacket(Entity target) {
 		this(target, null);
 	}
 
-	public ExtendoGripInteractionPacket(Entity target, Hand hand) {
+	public ExtendoGripInteractionPacket(Entity target, InteractionHand hand) {
 		this(target, hand, null);
 	}
 
-	public ExtendoGripInteractionPacket(Entity target, Hand hand, Vector3d specificPoint) {
+	public ExtendoGripInteractionPacket(Entity target, InteractionHand hand, Vec3 specificPoint) {
 		interactionHand = hand;
 		this.specificPoint = specificPoint;
 		this.target = target.getId();
 	}
 
-	public ExtendoGripInteractionPacket(PacketBuffer buffer) {
+	public ExtendoGripInteractionPacket(FriendlyByteBuf buffer) {
 		target = buffer.readInt();
 		int handId = buffer.readInt();
-		interactionHand = handId == -1 ? null : Hand.values()[handId];
+		interactionHand = handId == -1 ? null : InteractionHand.values()[handId];
 		if (buffer.readBoolean())
-			specificPoint = new Vector3d(buffer.readDouble(), buffer.readDouble(), buffer.readDouble());
+			specificPoint = new Vec3(buffer.readDouble(), buffer.readDouble(), buffer.readDouble());
 	}
 
 	@Override
-	public void write(PacketBuffer buffer) {
+	public void write(FriendlyByteBuf buffer) {
 		buffer.writeInt(target);
 		buffer.writeInt(interactionHand == null ? -1 : interactionHand.ordinal());
 		buffer.writeBoolean(specificPoint != null);
@@ -54,29 +54,32 @@ public class ExtendoGripInteractionPacket extends SimplePacketBase {
 
 	@Override
 	public void handle(Supplier<Context> context) {
-		context.get().enqueueWork(() -> {
-			ServerPlayerEntity sender = context.get().getSender();
-			if (sender == null)
-				return;
-			Entity entityByID = sender.getLevel().getEntity(target);
-			if (entityByID != null && ExtendoGripItem.isHoldingExtendoGrip(sender)) {
-				double d = sender.getAttribute(ForgeMod.REACH_DISTANCE.get()).getValue();
-				if (!sender.canSee(entityByID))
-					d -= 3;
-				d *= d;
-				if (sender.distanceToSqr(entityByID) > d) {
-					// TODO log?
+		context.get()
+			.enqueueWork(() -> {
+				ServerPlayer sender = context.get()
+					.getSender();
+				if (sender == null)
 					return;
+				Entity entityByID = sender.getLevel()
+					.getEntity(target);
+				if (entityByID != null && ExtendoGripItem.isHoldingExtendoGrip(sender)) {
+					double d = sender.getAttribute(ForgeMod.REACH_DISTANCE.get())
+						.getValue();
+					if (!sender.hasLineOfSight(entityByID))
+						d -= 3;
+					d *= d;
+					if (sender.distanceToSqr(entityByID) > d)
+						return;
+					if (interactionHand == null)
+						sender.attack(entityByID);
+					else if (specificPoint == null)
+						sender.interactOn(entityByID, interactionHand);
+					else
+						entityByID.interactAt(sender, specificPoint, interactionHand);
 				}
-				if (interactionHand == null)
-					sender.attack(entityByID);
-				else if (specificPoint == null)
-					sender.interactOn(entityByID, interactionHand);
-				else
-					entityByID.interactAt(sender, specificPoint, interactionHand);
-			}
-		});
-		context.get().setPacketHandled(true);
+			});
+		context.get()
+			.setPacketHandled(true);
 	}
 
 }

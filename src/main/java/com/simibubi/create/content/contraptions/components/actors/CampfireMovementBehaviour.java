@@ -5,10 +5,10 @@ import java.util.Random;
 import com.simibubi.create.content.contraptions.components.structureMovement.MovementBehaviour;
 import com.simibubi.create.content.contraptions.components.structureMovement.MovementContext;
 
-import net.minecraft.block.CampfireBlock;
-import net.minecraft.particles.ParticleTypes;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.world.level.block.CampfireBlock;
 
-public class CampfireMovementBehaviour extends MovementBehaviour {
+public class CampfireMovementBehaviour implements MovementBehaviour {
 	@Override
 	public boolean renderAsNormalTileEntity() {
 		return true;

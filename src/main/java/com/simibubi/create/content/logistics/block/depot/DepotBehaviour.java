@@ -3,6 +3,7 @@ package com.simibubi.create.content.logistics.block.depot;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -23,24 +24,24 @@ import com.simibubi.create.foundation.tileEntity.behaviour.belt.TransportedItemS
 import com.simibubi.create.foundation.utility.NBTHelper;
 import com.simibubi.create.foundation.utility.VecHelper;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.inventory.InventoryHelper;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.nbt.ListNBT;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.vector.Vector3d;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.world.Containers;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.util.Constants.NBT;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.items.ItemHandlerHelper;
 import net.minecraftforge.items.ItemStackHandler;
 
 public class DepotBehaviour extends TileEntityBehaviour {
 
-	public static BehaviourType<DepotBehaviour> TYPE = new BehaviourType<>();
+	public static final BehaviourType<DepotBehaviour> TYPE = new BehaviourType<>();
 
 	TransportedItemStack heldItem;
 	List<TransportedItemStack> incoming;
@@ -51,6 +52,8 @@ public class DepotBehaviour extends TileEntityBehaviour {
 	Supplier<Integer> maxStackSize;
 	Supplier<Boolean> canAcceptItems;
 	Predicate<Direction> canFunnelsPullFrom;
+	Consumer<ItemStack> onHeldInserted;
+	Predicate<ItemStack> acceptedItems;
 	boolean allowMerge;
 
 	public DepotBehaviour(SmartTileEntity te) {
@@ -58,6 +61,9 @@ public class DepotBehaviour extends TileEntityBehaviour {
 		maxStackSize = () -> 64;
 		canAcceptItems = () -> true;
 		canFunnelsPullFrom = $ -> true;
+		acceptedItems = $ -> true;
+		onHeldInserted = $ -> {
+		};
 		incoming = new ArrayList<>();
 		itemHandler = new DepotItemHandler(this);
 		lazyItemHandler = LazyOptional.of(() -> itemHandler);
@@ -71,12 +77,22 @@ public class DepotBehaviour extends TileEntityBehaviour {
 	public void enableMerging() {
 		allowMerge = true;
 	}
+	
+	public DepotBehaviour withCallback(Consumer<ItemStack> changeListener) {
+		onHeldInserted = changeListener;
+		return this;
+	}
+	
+	public DepotBehaviour onlyAccepts(Predicate<ItemStack> filter) {
+		acceptedItems = filter;
+		return this;
+	}
 
 	@Override
 	public void tick() {
 		super.tick();
 
-		World world = tileEntity.getLevel();
+		Level world = tileEntity.getLevel();
 
 		for (Iterator<TransportedItemStack> iterator = incoming.iterator(); iterator.hasNext();) {
 			TransportedItemStack ts = iterator.next();
@@ -88,8 +104,8 @@ public class DepotBehaviour extends TileEntityBehaviour {
 				heldItem = ts;
 			} else {
 				if (!ItemHelper.canItemStackAmountsStack(heldItem.stack, ts.stack)) {
-					Vector3d vec = VecHelper.getCenterOf(tileEntity.getBlockPos());
-					InventoryHelper.dropItemStack(tileEntity.getLevel(), vec.x, vec.y + .5f, vec.z, ts.stack);
+					Vec3 vec = VecHelper.getCenterOf(tileEntity.getBlockPos());
+					Containers.dropItemStack(tileEntity.getLevel(), vec.x, vec.y + .5f, vec.z, ts.stack);
 				} else {
 					heldItem.stack.grow(ts.stack.getCount());
 				}
@@ -189,7 +205,7 @@ public class DepotBehaviour extends TileEntityBehaviour {
 	}
 
 	@Override
-	public void write(CompoundNBT compound, boolean clientPacket) {
+	public void write(CompoundTag compound, boolean clientPacket) {
 		if (heldItem != null)
 			compound.put("HeldItem", heldItem.serializeNBT());
 		compound.put("OutputBuffer", processingOutputBuffer.serializeNBT());
@@ -198,13 +214,13 @@ public class DepotBehaviour extends TileEntityBehaviour {
 	}
 
 	@Override
-	public void read(CompoundNBT compound, boolean clientPacket) {
+	public void read(CompoundTag compound, boolean clientPacket) {
 		heldItem = null;
 		if (compound.contains("HeldItem"))
 			heldItem = TransportedItemStack.read(compound.getCompound("HeldItem"));
 		processingOutputBuffer.deserializeNBT(compound.getCompound("OutputBuffer"));
 		if (canMergeItems()) {
-			ListNBT list = compound.getList("Incoming", NBT.TAG_COMPOUND);
+			ListTag list = compound.getList("Incoming", Tag.TAG_COMPOUND);
 			incoming = NBTHelper.readCompoundList(list, TransportedItemStack::read);
 		}
 	}
@@ -244,6 +260,8 @@ public class DepotBehaviour extends TileEntityBehaviour {
 
 	public ItemStack insert(TransportedItemStack heldItem, boolean simulate) {
 		if (!canAcceptItems.get())
+			return heldItem.stack;
+		if (!acceptedItems.test(heldItem.stack))
 			return heldItem.stack;
 
 		if (canMergeItems()) {
@@ -285,6 +303,7 @@ public class DepotBehaviour extends TileEntityBehaviour {
 					AllSoundEvents.DEPOT_PLOP.playOnServer(getWorld(), getPos());
 			}
 			this.heldItem = heldItem;
+			onHeldInserted.accept(heldItem.stack);
 		}
 		return ItemStack.EMPTY;
 	}
@@ -356,8 +375,8 @@ public class DepotBehaviour extends TileEntityBehaviour {
 				continue;
 			}
 			ItemStack remainder = ItemHandlerHelper.insertItemStacked(processingOutputBuffer, added.stack, false);
-			Vector3d vec = VecHelper.getCenterOf(tileEntity.getBlockPos());
-			InventoryHelper.dropItemStack(tileEntity.getLevel(), vec.x, vec.y + .5f, vec.z, remainder);
+			Vec3 vec = VecHelper.getCenterOf(tileEntity.getBlockPos());
+			Containers.dropItemStack(tileEntity.getLevel(), vec.x, vec.y + .5f, vec.z, remainder);
 		}
 
 		if (dirty)
@@ -376,14 +395,17 @@ public class DepotBehaviour extends TileEntityBehaviour {
 		return true;
 	}
 
-	private Vector3d getWorldPositionOf(TransportedItemStack transported) {
-		Vector3d offsetVec = new Vector3d(.5f, 14 / 16f, .5f);
-		return offsetVec.add(Vector3d.atLowerCornerOf(tileEntity.getBlockPos()));
+	private Vec3 getWorldPositionOf(TransportedItemStack transported) {
+		return VecHelper.getCenterOf(tileEntity.getBlockPos());
 	}
 
 	@Override
 	public BehaviourType<?> getType() {
 		return TYPE;
+	}
+
+	public boolean isItemValid(ItemStack stack) {
+		return acceptedItems.test(stack);
 	}
 
 }

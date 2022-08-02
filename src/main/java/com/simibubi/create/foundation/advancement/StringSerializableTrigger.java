@@ -1,6 +1,7 @@
 package com.simibubi.create.foundation.advancement;
 
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -10,17 +11,16 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 
-import com.google.common.collect.Sets;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 
-import mcp.MethodsReturnNonnullByDefault;
-import net.minecraft.advancements.criterion.EntityPredicate;
-import net.minecraft.entity.player.ServerPlayerEntity;
-import net.minecraft.loot.ConditionArrayParser;
-import net.minecraft.loot.ConditionArraySerializer;
+import net.minecraft.MethodsReturnNonnullByDefault;
+import net.minecraft.advancements.critereon.DeserializationContext;
+import net.minecraft.advancements.critereon.EntityPredicate;
+import net.minecraft.advancements.critereon.SerializationContext;
+import net.minecraft.server.level.ServerPlayer;
 
 @MethodsReturnNonnullByDefault
 @ParametersAreNonnullByDefault
@@ -36,10 +36,10 @@ public abstract class StringSerializableTrigger<T> extends CriterionTriggerBase<
 
 	@SafeVarargs
 	public final Instance<T> forEntries(@Nullable T... entries) {
-		return new Instance<>(this, entries == null ? null : Sets.newHashSet(entries));
+		return new Instance<>(this, entries == null ? null : createLinkedHashSet(entries));
 	}
 
-	public void trigger(ServerPlayerEntity player, @Nullable T registryEntry) {
+	public void trigger(ServerPlayer player, @Nullable T registryEntry) {
 		trigger(player, Collections.singletonList(() -> registryEntry));
 	}
 
@@ -48,7 +48,7 @@ public abstract class StringSerializableTrigger<T> extends CriterionTriggerBase<
 	}
 
 	@Override
-	public Instance<T> createInstance(JsonObject json, ConditionArrayParser context) {
+	public Instance<T> createInstance(JsonObject json, DeserializationContext context) {
 		if (json.has(getJsonKey())) {
 			JsonArray elements = json.getAsJsonArray(getJsonKey());
 			return new Instance<>(this, StreamSupport.stream(elements.spliterator(), false)
@@ -70,6 +70,12 @@ public abstract class StringSerializableTrigger<T> extends CriterionTriggerBase<
 	@Nullable
 	protected abstract String getKey(T value);
 
+	private static <T> LinkedHashSet<T> createLinkedHashSet(T[] elements) {
+		LinkedHashSet<T> set = new LinkedHashSet<>(elements.length);
+		Collections.addAll(set, elements);
+		return set;
+	}
+
 	public static class Instance<T> extends CriterionTriggerBase.Instance {
 
 		@Nullable
@@ -77,7 +83,7 @@ public abstract class StringSerializableTrigger<T> extends CriterionTriggerBase<
 		private final StringSerializableTrigger<T> trigger;
 
 		public Instance(StringSerializableTrigger<T> trigger, @Nullable Set<T> entries) {
-			super(trigger.getId(), EntityPredicate.AndPredicate.ANY);
+			super(trigger.getId(), EntityPredicate.Composite.ANY);
 			this.trigger = trigger;
 			this.entries = entries;
 		}
@@ -91,7 +97,7 @@ public abstract class StringSerializableTrigger<T> extends CriterionTriggerBase<
 		}
 
 		@Override
-		public JsonObject serializeToJson(ConditionArraySerializer p_230240_1_) {
+		public JsonObject serializeToJson(SerializationContext p_230240_1_) {
 			JsonObject jsonobject = super.serializeToJson(p_230240_1_);
 			JsonArray elements = new JsonArray();
 

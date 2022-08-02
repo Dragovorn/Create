@@ -1,6 +1,6 @@
 package com.simibubi.create.foundation.config;
 
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Supplier;
@@ -10,12 +10,16 @@ import org.apache.commons.lang3.tuple.Pair;
 import com.simibubi.create.foundation.block.BlockStressValues;
 
 import net.minecraftforge.common.ForgeConfigSpec;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModLoadingContext;
+import net.minecraftforge.fml.common.Mod.EventBusSubscriber;
 import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.fml.event.config.ModConfigEvent;
 
+@EventBusSubscriber(bus = EventBusSubscriber.Bus.MOD)
 public class AllConfigs {
 
-	private static final Map<ModConfig.Type, ConfigBase> CONFIGS = new HashMap<>();
+	private static final Map<ModConfig.Type, ConfigBase> CONFIGS = new EnumMap<>(ModConfig.Type.class);
 
 	public static CClient CLIENT;
 	public static CCommon COMMON;
@@ -49,14 +53,16 @@ public class AllConfigs {
 		BlockStressValues.registerProvider(context.getActiveNamespace(), SERVER.kinetics.stressValues);
 	}
 
-	public static void onLoad(ModConfig.Loading event) {
+	@SubscribeEvent
+	public static void onLoad(ModConfigEvent.Loading event) {
 		for (ConfigBase config : CONFIGS.values())
 			if (config.specification == event.getConfig()
 				.getSpec())
 				config.onLoad();
 	}
 
-	public static void onReload(ModConfig.Reloading event) {
+	@SubscribeEvent
+	public static void onReload(ModConfigEvent.Reloading event) {
 		for (ConfigBase config : CONFIGS.values())
 			if (config.specification == event.getConfig()
 				.getSpec())

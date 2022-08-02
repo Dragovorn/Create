@@ -5,19 +5,20 @@ import java.util.Optional;
 import com.simibubi.create.content.contraptions.base.DirectionalAxisKineticBlock;
 import com.simibubi.create.content.contraptions.base.RotatedPillarKineticBlock;
 import com.simibubi.create.content.contraptions.fluids.FluidPropagator;
-import com.simibubi.create.content.contraptions.relays.elementary.AbstractShaftBlock;
+import com.simibubi.create.content.contraptions.relays.elementary.AbstractSimpleShaftBlock;
 import com.simibubi.create.content.contraptions.relays.elementary.CogWheelBlock;
 import com.simibubi.create.foundation.block.WrenchableDirectionalBlock;
 import com.simibubi.create.foundation.utility.Lang;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.state.BooleanProperty;
-import net.minecraft.state.EnumProperty;
-import net.minecraft.state.StateContainer.Builder;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Direction.Axis;
-import net.minecraft.util.IStringSerializable;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.Axis;
+import net.minecraft.util.StringRepresentable;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition.Builder;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
 
 public class BracketBlock extends WrenchableDirectionalBlock {
 
@@ -25,7 +26,7 @@ public class BracketBlock extends WrenchableDirectionalBlock {
 		DirectionalAxisKineticBlock.AXIS_ALONG_FIRST_COORDINATE;
 	public static final EnumProperty<BracketType> TYPE = EnumProperty.create("type", BracketType.class);
 
-	public static enum BracketType implements IStringSerializable {
+	public static enum BracketType implements StringRepresentable {
 		PIPE, COG, SHAFT;
 
 		@Override
@@ -41,12 +42,12 @@ public class BracketBlock extends WrenchableDirectionalBlock {
 			.add(TYPE));
 	}
 
-	public BracketBlock(Properties p_i48415_1_) {
-		super(p_i48415_1_);
+	public BracketBlock(Properties properties) {
+		super(properties);
 	}
 
 	public Optional<BlockState> getSuitableBracket(BlockState blockState, Direction direction) {
-		if (blockState.getBlock() instanceof AbstractShaftBlock)
+		if (blockState.getBlock() instanceof AbstractSimpleShaftBlock)
 			return getSuitableBracket(blockState.getValue(RotatedPillarKineticBlock.AXIS), direction,
 				blockState.getBlock() instanceof CogWheelBlock ? BracketType.COG : BracketType.SHAFT);
 		return getSuitableBracket(FluidPropagator.getStraightPipeAxis(blockState), direction, BracketType.PIPE);
@@ -61,6 +62,13 @@ public class BracketBlock extends WrenchableDirectionalBlock {
 		return Optional.of(defaultBlockState().setValue(TYPE, type)
 			.setValue(FACING, direction)
 			.setValue(AXIS_ALONG_FIRST_COORDINATE, !alongFirst));
+	}
+
+	@Override
+	public BlockState rotate(BlockState state, Rotation rot) {
+		if (rot.ordinal() % 2 == 1)
+			state = state.cycle(AXIS_ALONG_FIRST_COORDINATE);
+		return super.rotate(state, rot);
 	}
 
 }

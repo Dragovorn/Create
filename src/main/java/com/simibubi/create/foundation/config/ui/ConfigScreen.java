@@ -9,37 +9,32 @@ import javax.annotation.Nonnull;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.util.TriConsumer;
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
 
-import com.jozufozu.flywheel.backend.Backend;
-import com.jozufozu.flywheel.backend.gl.versioned.GlCompat;
-import com.mojang.blaze3d.matrix.MatrixStack;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.simibubi.create.AllBlocks;
 import com.simibubi.create.content.contraptions.relays.elementary.CogWheelBlock;
 import com.simibubi.create.foundation.gui.AbstractSimiScreen;
-import com.simibubi.create.foundation.gui.GuiGameElement;
-import com.simibubi.create.foundation.gui.StencilElement;
+import com.simibubi.create.foundation.gui.CreateMainMenuScreen;
 import com.simibubi.create.foundation.gui.UIRenderHelper;
-import com.simibubi.create.foundation.gui.mainMenu.CreateMainMenuScreen;
+import com.simibubi.create.foundation.gui.element.GuiGameElement;
+import com.simibubi.create.foundation.gui.element.StencilElement;
 import com.simibubi.create.foundation.utility.animation.Force;
 import com.simibubi.create.foundation.utility.animation.PhysicalFloat;
 
-import net.minecraft.block.BlockState;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.shader.Framebuffer;
-import net.minecraft.client.shader.FramebufferConstants;
-import net.minecraft.util.Direction;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraftforge.client.event.ScreenEvent;
 
 public abstract class ConfigScreen extends AbstractSimiScreen {
 
 	/*
 	 *
-	 * TO DO
+	 * TODO
 	 *
 	 * reduce number of packets sent to the server when saving a bunch of values
 	 *
@@ -47,9 +42,9 @@ public abstract class ConfigScreen extends AbstractSimiScreen {
 	 *
 	 * tooltips are hidden underneath the scrollbar, if the bar is near the middle
 	 *
-	 * */
+	 */
 
-	public static final Map<String, TriConsumer<Screen, MatrixStack, Float>> backgrounds = new HashMap<>();
+	public static final Map<String, TriConsumer<Screen, PoseStack, Float>> backgrounds = new HashMap<>();
 	public static final PhysicalFloat cogSpin = PhysicalFloat.create().withLimit(10f).withDrag(0.3).addForce(new Force.Static(.2f));
 	public static final BlockState cogwheelState = AllBlocks.LARGE_COGWHEEL.getDefaultState().setValue(CogWheelBlock.AXIS, Direction.Axis.Y);
 	public static String modID = null;
@@ -66,12 +61,12 @@ public abstract class ConfigScreen extends AbstractSimiScreen {
 	}
 
 	@Override
-	public void renderBackground(@Nonnull MatrixStack ms) {
-		net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(new net.minecraftforge.client.event.GuiScreenEvent.BackgroundDrawnEvent(this, ms));
+	public void renderBackground(@Nonnull PoseStack ms) {
+		net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(new ScreenEvent.BackgroundDrawnEvent(this, ms));
 	}
 
 	@Override
-	protected void renderWindowBackground(MatrixStack ms, int mouseX, int mouseY, float partialTicks) {
+	protected void renderWindowBackground(PoseStack ms, int mouseX, int mouseY, float partialTicks) {
 		if (this.minecraft != null && this.minecraft.level != null) {
 			//in game
 			fill(ms, 0, 0, this.width, this.height, 0xb0_282c34);
@@ -82,12 +77,12 @@ public abstract class ConfigScreen extends AbstractSimiScreen {
 
 		new StencilElement() {
 			@Override
-			protected void renderStencil(MatrixStack ms) {
+			protected void renderStencil(PoseStack ms) {
 				renderCog(ms, partialTicks);
 			}
 
 			@Override
-			protected void renderElement(MatrixStack ms) {
+			protected void renderElement(PoseStack ms) {
 				fill(ms, -200, -200, 200, 200, 0x60_000000);
 			}
 		}.at(width * 0.5f, height * 0.5f, 0).render(ms);
@@ -98,35 +93,17 @@ public abstract class ConfigScreen extends AbstractSimiScreen {
 
 	@Override
 	protected void prepareFrame() {
-		Framebuffer thisBuffer = UIRenderHelper.framebuffer;
-		Framebuffer mainBuffer = Minecraft.getInstance().getMainRenderTarget();
-
-		GlCompat functions = Backend.getInstance().compat;
-		functions.fbo.bindFramebuffer(GL30.GL_READ_FRAMEBUFFER, mainBuffer.frameBufferId);
-		functions.fbo.bindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, thisBuffer.frameBufferId);
-		functions.blit.blitFramebuffer(0, 0, mainBuffer.viewWidth, mainBuffer.viewHeight, 0, 0, mainBuffer.viewWidth, mainBuffer.viewHeight, GL30.GL_COLOR_BUFFER_BIT, GL20.GL_LINEAR);
-
-		functions.fbo.bindFramebuffer(FramebufferConstants.GL_FRAMEBUFFER, thisBuffer.frameBufferId);
-		GL11.glClear(GL30.GL_STENCIL_BUFFER_BIT | GL30.GL_DEPTH_BUFFER_BIT);
-
+		UIRenderHelper.swapAndBlitColor(minecraft.getMainRenderTarget(), UIRenderHelper.framebuffer);
+		RenderSystem.clear(GL30.GL_STENCIL_BUFFER_BIT | GL30.GL_DEPTH_BUFFER_BIT, Minecraft.ON_OSX);
 	}
 
 	@Override
 	protected void endFrame() {
-
-		Framebuffer thisBuffer = UIRenderHelper.framebuffer;
-		Framebuffer mainBuffer = Minecraft.getInstance().getMainRenderTarget();
-
-		GlCompat functions = Backend.getInstance().compat;
-		functions.fbo.bindFramebuffer(GL30.GL_READ_FRAMEBUFFER, thisBuffer.frameBufferId);
-		functions.fbo.bindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, mainBuffer.frameBufferId);
-		functions.blit.blitFramebuffer(0, 0, mainBuffer.viewWidth, mainBuffer.viewHeight, 0, 0, mainBuffer.viewWidth, mainBuffer.viewHeight, GL30.GL_COLOR_BUFFER_BIT, GL20.GL_LINEAR);
-
-		functions.fbo.bindFramebuffer(FramebufferConstants.GL_FRAMEBUFFER, mainBuffer.frameBufferId);
+		UIRenderHelper.swapAndBlitColor(UIRenderHelper.framebuffer, minecraft.getMainRenderTarget());
 	}
 
 	@Override
-	protected void renderWindow(MatrixStack ms, int mouseX, int mouseY, float partialTicks) {
+	protected void renderWindow(PoseStack ms, int mouseX, int mouseY, float partialTicks) {
 	}
 
 	@Override
@@ -154,17 +131,17 @@ public abstract class ConfigScreen extends AbstractSimiScreen {
 	 * If your addon wants to render something else, please add to the
 	 * backgrounds Map in this Class with your modID as the key.
 	 */
-	protected void renderMenuBackground(MatrixStack ms, float partialTicks) {
-		TriConsumer<Screen, MatrixStack, Float> customBackground = backgrounds.get(modID);
+	protected void renderMenuBackground(PoseStack ms, float partialTicks) {
+		TriConsumer<Screen, PoseStack, Float> customBackground = backgrounds.get(modID);
 		if (customBackground != null) {
 			customBackground.accept(this, ms, partialTicks);
 			return;
 		}
 
 		float elapsedPartials = minecraft.getDeltaFrameTime();
-		CreateMainMenuScreen.panorama.render(elapsedPartials, 1);
+		CreateMainMenuScreen.PANORAMA.render(elapsedPartials, 1);
 
-		minecraft.getTextureManager().bind(CreateMainMenuScreen.PANORAMA_OVERLAY_TEXTURES);
+		RenderSystem.setShaderTexture(0, CreateMainMenuScreen.PANORAMA_OVERLAY_TEXTURES);
 		RenderSystem.enableBlend();
 		RenderSystem.blendFunc(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA);
 		blit(ms, 0, 0, this.width, this.height, 0.0F, 0.0F, 16, 128, 16, 128);
@@ -172,7 +149,7 @@ public abstract class ConfigScreen extends AbstractSimiScreen {
 		fill(ms, 0, 0, this.width, this.height, 0x90_282c34);
 	}
 
-	protected void renderCog(MatrixStack ms, float partialTicks) {
+	protected void renderCog(PoseStack ms, float partialTicks) {
 		ms.pushPose();
 
 		ms.translate(-100, 100, -100);

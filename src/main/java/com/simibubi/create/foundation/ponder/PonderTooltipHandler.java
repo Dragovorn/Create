@@ -3,24 +3,28 @@ package com.simibubi.create.foundation.ponder;
 import java.util.List;
 
 import com.google.common.base.Strings;
+import com.mojang.blaze3d.platform.InputConstants;
 import com.simibubi.create.foundation.gui.ScreenOpener;
+import com.simibubi.create.foundation.ponder.ui.NavigatableSimiScreen;
+import com.simibubi.create.foundation.ponder.ui.PonderUI;
 import com.simibubi.create.foundation.utility.Color;
 import com.simibubi.create.foundation.utility.Lang;
 import com.simibubi.create.foundation.utility.animation.LerpedFloat;
 
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.FontRenderer;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.settings.KeyBinding;
-import net.minecraft.client.util.InputMappings;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.text.IFormattableTextComponent;
-import net.minecraft.util.text.ITextComponent;
-import net.minecraft.util.text.StringTextComponent;
-import net.minecraft.util.text.TextFormatting;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.TextComponent;
+import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.client.event.RenderTooltipEvent;
 
 public class PonderTooltipHandler {
+
+	public static boolean enable = true;
 
 	static LerpedFloat holdWProgress = LerpedFloat.linear()
 		.startWithValue(0);
@@ -38,21 +42,22 @@ public class PonderTooltipHandler {
 
 	public static void deferredTick() {
 		deferTick = false;
+		Minecraft instance = Minecraft.getInstance();
+		Screen currentScreen = instance.screen;
+
 		if (hoveredStack.isEmpty() || trackingStack.isEmpty()) {
 			trackingStack = ItemStack.EMPTY;
 			holdWProgress.startWithValue(0);
 			return;
 		}
 
-		Minecraft instance = Minecraft.getInstance();
-		Screen currentScreen = instance.screen;
 		float value = holdWProgress.getValue();
 		int keyCode = ponderKeybind().getKey()
 			.getValue();
 		long window = instance.getWindow()
 			.getWindow();
 
-		if (!subject && InputMappings.isKeyDown(window, keyCode)) {
+		if (!subject && InputConstants.isKeyDown(window, keyCode)) {
 			if (value >= 1) {
 				if (currentScreen instanceof NavigatableSimiScreen)
 					((NavigatableSimiScreen) currentScreen).centerScalingOnMouse();
@@ -67,7 +72,10 @@ public class PonderTooltipHandler {
 		hoveredStack = ItemStack.EMPTY;
 	}
 
-	public static void addToTooltip(List<ITextComponent> toolTip, ItemStack stack) {
+	public static void addToTooltip(List<Component> toolTip, ItemStack stack) {
+		if (!enable)
+			return;
+
 		updateHovered(stack);
 
 		if (deferTick)
@@ -78,8 +86,8 @@ public class PonderTooltipHandler {
 
 		float renderPartialTicks = Minecraft.getInstance()
 			.getFrameTime();
-		ITextComponent component = subject ? Lang.createTranslationTextComponent(SUBJECT)
-			.withStyle(TextFormatting.GREEN)
+		Component component = subject ? Lang.translateDirect(SUBJECT)
+			.withStyle(ChatFormatting.GREEN)
 			: makeProgressBar(Math.min(1, holdWProgress.getValue(renderPartialTicks) * 8 / 7f));
 		if (toolTip.size() < 2)
 			toolTip.add(component);
@@ -90,11 +98,13 @@ public class PonderTooltipHandler {
 	protected static void updateHovered(ItemStack stack) {
 		Minecraft instance = Minecraft.getInstance();
 		Screen currentScreen = instance.screen;
+		boolean inPonderUI = currentScreen instanceof PonderUI;
+
 		ItemStack prevStack = trackingStack;
 		hoveredStack = ItemStack.EMPTY;
 		subject = false;
 
-		if (currentScreen instanceof PonderUI) {
+		if (inPonderUI) {
 			PonderUI ponderUI = (PonderUI) currentScreen;
 			if (stack.sameItem(ponderUI.getSubject()))
 				subject = true;
@@ -114,7 +124,7 @@ public class PonderTooltipHandler {
 	}
 
 	public static void handleTooltipColor(RenderTooltipEvent.Color event) {
-		if (trackingStack != event.getStack())
+		if (trackingStack != event.getItemStack())
 			return;
 		if (holdWProgress.getValue() == 0)
 			return;
@@ -137,13 +147,13 @@ public class PonderTooltipHandler {
 		return Color.mixColors(5592575, 0xffffff, (progress - .5f) * 2);
 	}
 
-	private static ITextComponent makeProgressBar(float progress) {
-		IFormattableTextComponent holdW = Lang
-			.translate(HOLD_TO_PONDER,
-				((IFormattableTextComponent) ponderKeybind().getTranslatedKeyMessage()).withStyle(TextFormatting.GRAY))
-			.withStyle(TextFormatting.DARK_GRAY);
+	private static Component makeProgressBar(float progress) {
+		MutableComponent holdW = Lang
+			.translateDirect(HOLD_TO_PONDER,
+				((MutableComponent) ponderKeybind().getTranslatedKeyMessage()).withStyle(ChatFormatting.GRAY))
+			.withStyle(ChatFormatting.DARK_GRAY);
 
-		FontRenderer fontRenderer = Minecraft.getInstance().font;
+		Font fontRenderer = Minecraft.getInstance().font;
 		float charWidth = fontRenderer.width("|");
 		float tipWidth = fontRenderer.width(holdW);
 
@@ -152,16 +162,16 @@ public class PonderTooltipHandler {
 
 		if (progress > 0) {
 			String bars = "";
-			bars += TextFormatting.GRAY + Strings.repeat("|", current);
+			bars += ChatFormatting.GRAY + Strings.repeat("|", current);
 			if (progress < 1)
-				bars += TextFormatting.DARK_GRAY + Strings.repeat("|", total - current);
-			return new StringTextComponent(bars);
+				bars += ChatFormatting.DARK_GRAY + Strings.repeat("|", total - current);
+			return new TextComponent(bars);
 		}
 
 		return holdW;
 	}
 
-	protected static KeyBinding ponderKeybind() {
+	protected static KeyMapping ponderKeybind() {
 		return Minecraft.getInstance().options.keyUp;
 	}
 

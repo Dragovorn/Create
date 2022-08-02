@@ -6,8 +6,8 @@ import com.simibubi.create.foundation.data.SpecialBlockStateGen;
 import com.tterrag.registrate.providers.DataGenContext;
 import com.tterrag.registrate.providers.RegistrateBlockstateProvider;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.client.model.generators.ModelFile;
 
 public class FluidTankGenerator extends SpecialBlockStateGen {
@@ -55,7 +55,8 @@ public class FluidTankGenerator extends SpecialBlockStateGen {
 				.texture("0", prov.modLoc("block/" + prefix + "casing"))
 				.texture("1", prov.modLoc("block/" + prefix + "fluid_tank"))
 				.texture("3", prov.modLoc("block/" + prefix + "fluid_tank_window"))
-				.texture("4", prov.modLoc("block/" + prefix + "fluid_tank_window_single"))
+				.texture("4", prov.modLoc("block/" + prefix + "casing"))
+				.texture("5", prov.modLoc("block/" + prefix + "fluid_tank_window_single"))
 				.texture("particle", prov.modLoc("block/" + prefix + "fluid_tank"));
 
 		return AssetLookup.partialBaseModel(ctx, prov, modelName);

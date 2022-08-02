@@ -5,33 +5,17 @@ import java.util.List;
 import com.simibubi.create.foundation.tileEntity.SmartTileEntity;
 import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Direction.AxisDirection;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
 
 public abstract class CrateTileEntity extends SmartTileEntity {
 
-	public CrateTileEntity(TileEntityType<?> tileEntityTypeIn) {
-		super(tileEntityTypeIn);
+	public CrateTileEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+		super(type, pos, state);
 	}
 
 	@Override
 	public void addBehaviours(List<TileEntityBehaviour> behaviours) {}
-
-	public boolean isDoubleCrate() {
-		return getBlockState().getValue(AdjustableCrateBlock.DOUBLE);
-	}
-
-	public boolean isSecondaryCrate() {
-		if (!hasLevel())
-			return false;
-		if (!(getBlockState().getBlock() instanceof CrateBlock))
-			return false;
-		return isDoubleCrate() && getFacing().getAxisDirection() == AxisDirection.NEGATIVE;
-	}
-	
-	public Direction getFacing() {
-		return getBlockState().getValue(AdjustableCrateBlock.FACING);
-	}
 
 }

@@ -4,7 +4,7 @@ import java.util.UUID;
 
 import com.mojang.authlib.GameProfile;
 
-import net.minecraft.world.server.ServerWorld;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraftforge.common.util.FakePlayer;
 
 public class PloughBlock extends AttachedActorBlock {
@@ -21,7 +21,7 @@ public class PloughBlock extends AttachedActorBlock {
 		public static final GameProfile PLOUGH_PROFILE =
 				new GameProfile(UUID.fromString("9e2faded-eeee-4ec2-c314-dad129ae971d"), "Plough");
 		
-		public PloughFakePlayer(ServerWorld world) {
+		public PloughFakePlayer(ServerLevel world) {
 			super(world, PLOUGH_PROFILE);
 		}
 		

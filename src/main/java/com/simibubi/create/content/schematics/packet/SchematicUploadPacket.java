@@ -6,10 +6,10 @@ import com.simibubi.create.Create;
 import com.simibubi.create.content.schematics.block.SchematicTableContainer;
 import com.simibubi.create.foundation.networking.SimplePacketBase;
 
-import net.minecraft.entity.player.ServerPlayerEntity;
-import net.minecraft.network.PacketBuffer;
-import net.minecraft.util.math.BlockPos;
-import net.minecraftforge.fml.network.NetworkEvent.Context;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraftforge.network.NetworkEvent.Context;
 
 public class SchematicUploadPacket extends SimplePacketBase {
 
@@ -43,7 +43,7 @@ public class SchematicUploadPacket extends SimplePacketBase {
 		return new SchematicUploadPacket(FINISH, schematic);
 	}
 
-	public SchematicUploadPacket(PacketBuffer buffer) {
+	public SchematicUploadPacket(FriendlyByteBuf buffer) {
 		code = buffer.readInt();
 		schematic = buffer.readUtf(256);
 
@@ -53,7 +53,7 @@ public class SchematicUploadPacket extends SimplePacketBase {
 			data = buffer.readByteArray();
 	}
 
-	public void write(PacketBuffer buffer) {
+	public void write(FriendlyByteBuf buffer) {
 		buffer.writeInt(code);
 		buffer.writeUtf(schematic);
 
@@ -66,12 +66,12 @@ public class SchematicUploadPacket extends SimplePacketBase {
 	public void handle(Supplier<Context> context) {
 		context.get()
 			.enqueueWork(() -> {
-				ServerPlayerEntity player = context.get()
+				ServerPlayer player = context.get()
 					.getSender();
 				if (player == null)
 					return;
 				if (code == BEGIN) {
-					BlockPos pos = ((SchematicTableContainer) player.containerMenu).getTileEntity()
+					BlockPos pos = ((SchematicTableContainer) player.containerMenu).contentHolder
 							.getBlockPos();
 					Create.SCHEMATIC_RECEIVER.handleNewUpload(player, schematic, size, pos);
 				}

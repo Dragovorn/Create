@@ -1,37 +1,26 @@
 package com.simibubi.create.content.contraptions.relays.elementary;
 
-import java.util.Optional;
-
-import com.simibubi.create.AllTileEntities;
+import com.simibubi.create.content.contraptions.base.KineticTileEntity;
 import com.simibubi.create.content.contraptions.base.RotatedPillarKineticBlock;
-import com.simibubi.create.content.contraptions.wrench.IWrenchableWithBracket;
-import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
+import com.simibubi.create.foundation.block.ITE;
+import com.simibubi.create.foundation.block.ProperWaterloggedBlock;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.IWaterLoggable;
-import net.minecraft.block.material.PushReaction;
-import net.minecraft.fluid.FluidState;
-import net.minecraft.fluid.Fluids;
-import net.minecraft.item.BlockItemUseContext;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.ItemUseContext;
-import net.minecraft.pathfinding.PathType;
-import net.minecraft.state.StateContainer.Builder;
-import net.minecraft.state.properties.BlockStateProperties;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.ActionResultType;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Direction.Axis;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.IBlockReader;
-import net.minecraft.world.IWorld;
-import net.minecraft.world.IWorldReader;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.Axis;
+import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.LevelAccessor;
+import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition.Builder;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.level.pathfinder.PathComputationType;
 
 public abstract class AbstractShaftBlock extends RotatedPillarKineticBlock
-	implements IWaterLoggable, IWrenchableWithBracket {
+	implements ITE<KineticTileEntity>, ProperWaterloggedBlock {
 
 	public AbstractShaftBlock(Properties properties) {
 		super(properties);
@@ -39,32 +28,17 @@ public abstract class AbstractShaftBlock extends RotatedPillarKineticBlock
 	}
 
 	@Override
-	public ActionResultType onWrenched(BlockState state, ItemUseContext context) {
-		return IWrenchableWithBracket.super.onWrenched(state, context);
+	public boolean isPathfindable(BlockState state, BlockGetter reader, BlockPos pos, PathComputationType type) {
+		return false;
 	}
 
 	@Override
-	public PushReaction getPistonPushReaction(BlockState state) {
-		return PushReaction.NORMAL;
+	public Class<KineticTileEntity> getTileEntityClass() {
+		return KineticTileEntity.class;
 	}
 
 	@Override
-	public TileEntity createTileEntity(BlockState state, IBlockReader world) {
-		return AllTileEntities.SIMPLE_KINETIC.create();
-	}
-
-	@Override
-	@SuppressWarnings("deprecation")
-	public void onRemove(BlockState state, World world, BlockPos pos, BlockState newState, boolean isMoving) {
-		if (state != newState && !isMoving)
-			removeBracket(world, pos, true).ifPresent(stack -> Block.popResource(world, pos, stack));
-		super.onRemove(state, world, pos, newState, isMoving);
-	}
-
-	// IRotate:
-
-	@Override
-	public boolean hasShaftTowards(IWorldReader world, BlockPos pos, BlockState state, Direction face) {
+	public boolean hasShaftTowards(LevelReader world, BlockPos pos, BlockState state, Direction face) {
 		return face.getAxis() == state.getValue(AXIS);
 	}
 
@@ -75,49 +49,24 @@ public abstract class AbstractShaftBlock extends RotatedPillarKineticBlock
 
 	@Override
 	public FluidState getFluidState(BlockState state) {
-		return state.getValue(BlockStateProperties.WATERLOGGED) ? Fluids.WATER.getSource(false)
-			: Fluids.EMPTY.defaultFluidState();
+		return fluidState(state);
 	}
 
 	@Override
 	protected void createBlockStateDefinition(Builder<Block, BlockState> builder) {
-		builder.add(BlockStateProperties.WATERLOGGED);
-		super.createBlockStateDefinition(builder);
+		super.createBlockStateDefinition(builder.add(BlockStateProperties.WATERLOGGED));
 	}
 
 	@Override
-	public BlockState updateShape(BlockState state, Direction direction, BlockState neighbourState,
-		IWorld world, BlockPos pos, BlockPos neighbourPos) {
-		if (state.getValue(BlockStateProperties.WATERLOGGED)) {
-			world.getLiquidTicks()
-				.scheduleTick(pos, Fluids.WATER, Fluids.WATER.getTickDelay(world));
-		}
+	public BlockState updateShape(BlockState state, Direction direction, BlockState neighbourState, LevelAccessor world,
+		BlockPos pos, BlockPos neighbourPos) {
+		updateWater(world, state, pos);
 		return state;
 	}
 
 	@Override
-	public BlockState getStateForPlacement(BlockItemUseContext context) {
-		FluidState ifluidstate = context.getLevel()
-			.getFluidState(context.getClickedPos());
-		return super.getStateForPlacement(context).setValue(BlockStateProperties.WATERLOGGED,
-			Boolean.valueOf(ifluidstate.getType() == Fluids.WATER));
-	}
-
-	@Override
-	public Optional<ItemStack> removeBracket(IBlockReader world, BlockPos pos, boolean inOnReplacedContext) {
-		BracketedTileEntityBehaviour behaviour = TileEntityBehaviour.get(world, pos, BracketedTileEntityBehaviour.TYPE);
-		if (behaviour == null)
-			return Optional.empty();
-		BlockState bracket = behaviour.getBracket();
-		behaviour.removeBracket(inOnReplacedContext);
-		if (bracket == Blocks.AIR.defaultBlockState())
-			return Optional.empty();
-		return Optional.of(new ItemStack(bracket.getBlock()));
-	}
-
-	@Override
-	public boolean isPathfindable(BlockState state, IBlockReader reader, BlockPos pos, PathType type) {
-		return false;
+	public BlockState getStateForPlacement(BlockPlaceContext context) {
+		return withWater(super.getStateForPlacement(context), context);
 	}
 
 }

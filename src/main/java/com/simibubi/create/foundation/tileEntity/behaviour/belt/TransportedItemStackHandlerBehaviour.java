@@ -12,12 +12,13 @@ import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 import com.simibubi.create.foundation.tileEntity.behaviour.BehaviourType;
 import com.simibubi.create.foundation.utility.VecHelper;
 
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.math.vector.Vector3d;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.Vec3;
 
 public class TransportedItemStackHandlerBehaviour extends TileEntityBehaviour {
 
-	public static BehaviourType<TransportedItemStackHandlerBehaviour> TYPE = new BehaviourType<>();
+	public static final BehaviourType<TransportedItemStackHandlerBehaviour> TYPE = new BehaviourType<>();
+
 	private ProcessingCallback processingCallback;
 	private PositionGetter positionGetter;
 
@@ -111,7 +112,7 @@ public class TransportedItemStackHandlerBehaviour extends TileEntityBehaviour {
 		this.processingCallback.applyToAllItems(maxDistanceFromCenter, processFunction);
 	}
 
-	public Vector3d getWorldPositionOf(TransportedItemStack transported) {
+	public Vec3 getWorldPositionOf(TransportedItemStack transported) {
 		return positionGetter.getWorldPositionVector(transported);
 	}
 
@@ -128,7 +129,7 @@ public class TransportedItemStackHandlerBehaviour extends TileEntityBehaviour {
 
 	@FunctionalInterface
 	public interface PositionGetter {
-		public Vector3d getWorldPositionVector(TransportedItemStack transported);
+		public Vec3 getWorldPositionVector(TransportedItemStack transported);
 	}
 
 }

@@ -1,7 +1,6 @@
 package com.simibubi.create.content.contraptions.fluids;
 
-import static net.minecraft.state.properties.BlockStateProperties.LEVEL_HONEY;
-import static net.minecraft.state.properties.BlockStateProperties.WATERLOGGED;
+import static net.minecraft.world.level.block.state.properties.BlockStateProperties.WATERLOGGED;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -9,30 +8,37 @@ import java.util.List;
 import javax.annotation.Nullable;
 
 import com.simibubi.create.AllFluids;
+import com.simibubi.create.content.contraptions.fluids.pipes.VanillaFluidTargets;
 import com.simibubi.create.content.contraptions.fluids.potion.PotionFluidHandler;
-import com.simibubi.create.foundation.advancement.AllTriggers;
+import com.simibubi.create.foundation.advancement.AdvancementBehaviour;
+import com.simibubi.create.foundation.advancement.AllAdvancements;
 import com.simibubi.create.foundation.config.AllConfigs;
 import com.simibubi.create.foundation.fluid.FluidHelper;
 import com.simibubi.create.foundation.utility.BlockFace;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.block.FlowingFluidBlock;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.fluid.FluidState;
-import net.minecraft.fluid.Fluids;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.potion.Effect;
-import net.minecraft.potion.EffectInstance;
-import net.minecraft.potion.PotionUtils;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
-import net.minecraft.util.Direction;
-import net.minecraft.util.SoundCategory;
-import net.minecraft.util.SoundEvents;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
+import net.minecraft.world.effect.MobEffect;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.alchemy.PotionUtils;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.AbstractCandleBlock;
+import net.minecraft.world.level.block.CampfireBlock;
+import net.minecraft.world.level.block.LiquidBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.level.material.Fluids;
+import net.minecraft.world.phys.AABB;
 import net.minecraftforge.common.Tags;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.fluids.FluidStack;
@@ -46,25 +52,27 @@ public class OpenEndedPipe extends FlowSource {
 	static {
 		registerEffectHandler(new PotionEffectHandler());
 		registerEffectHandler(new MilkEffectHandler());
+		registerEffectHandler(new WaterEffectHandler());
+		registerEffectHandler(new LavaEffectHandler());
 	}
 
-	private World world;
+	private Level world;
 	private BlockPos pos;
-	private AxisAlignedBB aoe;
+	private AABB aoe;
 
 	private OpenEndFluidHandler fluidHandler;
 	private BlockPos outputPos;
 	private boolean wasPulling;
 
 	private FluidStack cachedFluid;
-	private List<EffectInstance> cachedEffects;
+	private List<MobEffectInstance> cachedEffects;
 
 	public OpenEndedPipe(BlockFace face) {
 		super(face);
 		fluidHandler = new OpenEndFluidHandler();
 		outputPos = face.getConnectedPos();
 		pos = face.getPos();
-		aoe = new AxisAlignedBB(outputPos).expandTowards(0, -1, 0);
+		aoe = new AABB(outputPos).expandTowards(0, -1, 0);
 		if (face.getFace() == Direction.DOWN)
 			aoe = aoe.expandTowards(0, -1, 0);
 	}
@@ -73,7 +81,7 @@ public class OpenEndedPipe extends FlowSource {
 		EFFECT_HANDLERS.add(handler);
 	}
 
-	public World getWorld() {
+	public Level getWorld() {
 		return world;
 	}
 
@@ -85,12 +93,12 @@ public class OpenEndedPipe extends FlowSource {
 		return outputPos;
 	}
 
-	public AxisAlignedBB getAOE() {
+	public AABB getAOE() {
 		return aoe;
 	}
 
 	@Override
-	public void manageSource(World world) {
+	public void manageSource(Level world) {
 		this.world = world;
 	}
 
@@ -104,15 +112,15 @@ public class OpenEndedPipe extends FlowSource {
 		return true;
 	}
 
-	public CompoundNBT serializeNBT() {
-		CompoundNBT compound = new CompoundNBT();
+	public CompoundTag serializeNBT() {
+		CompoundTag compound = new CompoundTag();
 		fluidHandler.writeToNBT(compound);
 		compound.putBoolean("Pulling", wasPulling);
 		compound.put("Location", location.serializeNBT());
 		return compound;
 	}
 
-	public static OpenEndedPipe fromNBT(CompoundNBT compound, BlockPos tilePos) {
+	public static OpenEndedPipe fromNBT(CompoundTag compound, BlockPos tilePos) {
 		BlockFace fromNBT = BlockFace.fromNBT(compound.getCompound("Location"));
 		OpenEndedPipe oep = new OpenEndedPipe(new BlockFace(tilePos, fromNBT.getFace()));
 		oep.fluidHandler.readFromNBT(compound);
@@ -124,18 +132,19 @@ public class OpenEndedPipe extends FlowSource {
 		FluidStack empty = FluidStack.EMPTY;
 		if (world == null)
 			return empty;
-		if (!world.isAreaLoaded(outputPos, 0))
+		if (!world.isLoaded(outputPos))
 			return empty;
 
 		BlockState state = world.getBlockState(outputPos);
 		FluidState fluidState = state.getFluidState();
 		boolean waterlog = state.hasProperty(WATERLOGGED);
 
-		if (state.hasProperty(LEVEL_HONEY) && state.getValue(LEVEL_HONEY) >= 5) {
-			if (!simulate)
-				world.setBlock(outputPos, state.setValue(LEVEL_HONEY, 0), 3);
-			return new FluidStack(AllFluids.HONEY.get()
-				.getSource(), 250);
+		FluidStack drainBlock = VanillaFluidTargets.drainBlock(world, outputPos, state, simulate);
+		if (!drainBlock.isEmpty()) {
+			if (!simulate && state.hasProperty(BlockStateProperties.LEVEL_HONEY)
+				&& AllFluids.HONEY.is(drainBlock.getFluid()))
+				AdvancementBehaviour.tryAward(world, pos, AllAdvancements.HONEY_DRAIN);
+			return drainBlock;
 		}
 
 		if (!waterlog && !state.getMaterial()
@@ -149,23 +158,23 @@ public class OpenEndedPipe extends FlowSource {
 		if (simulate)
 			return stack;
 
-		AllTriggers.triggerForNearbyPlayers(AllTriggers.PIPE_SPILL, world, pos, 5);
+		if (FluidHelper.isWater(stack.getFluid()))
+			AdvancementBehaviour.tryAward(world, pos, AllAdvancements.WATER_SUPPLY);
 
 		if (waterlog) {
 			world.setBlock(outputPos, state.setValue(WATERLOGGED, false), 3);
-			world.getLiquidTicks()
-				.scheduleTick(outputPos, Fluids.WATER, 1);
+			world.scheduleTick(outputPos, Fluids.WATER, 1);
 			return stack;
 		}
 		world.setBlock(outputPos, fluidState.createLegacyBlock()
-			.setValue(FlowingFluidBlock.LEVEL, 14), 3);
+			.setValue(LiquidBlock.LEVEL, 14), 3);
 		return stack;
 	}
 
 	private boolean provideFluidToSpace(FluidStack fluid, boolean simulate) {
 		if (world == null)
 			return false;
-		if (!world.isAreaLoaded(outputPos, 0))
+		if (!world.isLoaded(outputPos))
 			return false;
 
 		BlockState state = world.getBlockState(outputPos);
@@ -177,11 +186,8 @@ public class OpenEndedPipe extends FlowSource {
 			return false;
 		if (fluid.isEmpty())
 			return false;
-		if (!FluidHelper.hasBlockState(fluid.getFluid())) {
-			if (!simulate)
-				applyEffects(fluid);
+		if (!FluidHelper.hasBlockState(fluid.getFluid()))
 			return true;
-		}
 
 		if (!fluidState.isEmpty() && fluidState.getType() != fluid.getFluid()) {
 			FluidReactions.handlePipeSpillCollision(world, outputPos, fluid.getFluid(), fluidState);
@@ -196,23 +202,18 @@ public class OpenEndedPipe extends FlowSource {
 			return true;
 
 		if (world.dimensionType()
-			.ultraWarm()
-			&& fluid.getFluid()
-				.is(FluidTags.WATER)) {
+			.ultraWarm() && FluidHelper.isTag(fluid, FluidTags.WATER)) {
 			int i = outputPos.getX();
 			int j = outputPos.getY();
 			int k = outputPos.getZ();
-			world.playSound(null, i, j, k, SoundEvents.FIRE_EXTINGUISH, SoundCategory.BLOCKS, 0.5F,
+			world.playSound(null, i, j, k, SoundEvents.FIRE_EXTINGUISH, SoundSource.BLOCKS, 0.5F,
 				2.6F + (world.random.nextFloat() - world.random.nextFloat()) * 0.8F);
 			return true;
 		}
 
-		AllTriggers.triggerForNearbyPlayers(AllTriggers.PIPE_SPILL, world, pos, 5);
-
 		if (waterlog) {
 			world.setBlock(outputPos, state.setValue(WATERLOGGED, true), 3);
-			world.getLiquidTicks()
-				.scheduleTick(outputPos, Fluids.WATER, 1);
+			world.scheduleTick(outputPos, Fluids.WATER, 1);
 			return true;
 		}
 
@@ -253,7 +254,7 @@ public class OpenEndedPipe extends FlowSource {
 			// Never allow being filled when a source is attached
 			if (world == null)
 				return 0;
-			if (!world.isAreaLoaded(outputPos, 0))
+			if (!world.isLoaded(outputPos))
 				return 0;
 			if (resource.isEmpty())
 				return 0;
@@ -261,17 +262,21 @@ public class OpenEndedPipe extends FlowSource {
 				return 0;
 
 			FluidStack containedFluidStack = getFluid();
+			boolean hasBlockState = FluidHelper.hasBlockState(containedFluidStack.getFluid());
+
 			if (!containedFluidStack.isEmpty() && !containedFluidStack.isFluidEqual(resource))
 				setFluid(FluidStack.EMPTY);
 			if (wasPulling)
 				wasPulling = false;
-			if (canApplyEffects(resource))
+			if (canApplyEffects(resource) && !hasBlockState)
 				resource = FluidHelper.copyStackWithAmount(resource, 1);
 
 			int fill = super.fill(resource, action);
 			if (action.simulate())
 				return fill;
-			if (getFluidAmount() == 1000 || !FluidHelper.hasBlockState(containedFluidStack.getFluid()))
+			if (!resource.isEmpty())
+				applyEffects(resource);
+			if (getFluidAmount() == 1000 || !hasBlockState)
 				if (provideFluidToSpace(containedFluidStack, false))
 					setFluid(FluidStack.EMPTY);
 			return fill;
@@ -293,7 +298,7 @@ public class OpenEndedPipe extends FlowSource {
 
 			if (world == null)
 				return empty;
-			if (!world.isAreaLoaded(outputPos, 0))
+			if (!world.isLoaded(outputPos))
 				return empty;
 			if (amount == 0)
 				return empty;
@@ -338,7 +343,8 @@ public class OpenEndedPipe extends FlowSource {
 	public static class PotionEffectHandler implements IEffectHandler {
 		@Override
 		public boolean canApplyEffects(OpenEndedPipe pipe, FluidStack fluid) {
-			return fluid.getFluid().isSame(AllFluids.POTION.get());
+			return fluid.getFluid()
+				.isSame(AllFluids.POTION.get());
 		}
 
 		@Override
@@ -353,15 +359,15 @@ public class OpenEndedPipe extends FlowSource {
 			if (pipe.cachedEffects.isEmpty())
 				return;
 
-			List<LivingEntity> list =
-				pipe.getWorld().getEntitiesOfClass(LivingEntity.class, pipe.getAOE(), LivingEntity::isAffectedByPotions);
-			for (LivingEntity livingentity : list) {
-				for (EffectInstance effectinstance : pipe.cachedEffects) {
-					Effect effect = effectinstance.getEffect();
+			List<LivingEntity> entities = pipe.getWorld()
+				.getEntitiesOfClass(LivingEntity.class, pipe.getAOE(), LivingEntity::isAffectedByPotions);
+			for (LivingEntity entity : entities) {
+				for (MobEffectInstance effectInstance : pipe.cachedEffects) {
+					MobEffect effect = effectInstance.getEffect();
 					if (effect.isInstantenous()) {
-						effect.applyInstantenousEffect(null, null, livingentity, effectinstance.getAmplifier(), 0.5D);
+						effect.applyInstantenousEffect(null, null, entity, effectInstance.getAmplifier(), 0.5D);
 					} else {
-						livingentity.addEffect(new EffectInstance(effectinstance));
+						entity.addEffect(new MobEffectInstance(effectInstance));
 					}
 				}
 			}
@@ -371,19 +377,69 @@ public class OpenEndedPipe extends FlowSource {
 	public static class MilkEffectHandler implements IEffectHandler {
 		@Override
 		public boolean canApplyEffects(OpenEndedPipe pipe, FluidStack fluid) {
-			return Tags.Fluids.MILK.contains(fluid.getFluid());
+			return FluidHelper.isTag(fluid, Tags.Fluids.MILK);
 		}
 
 		@Override
 		public void applyEffects(OpenEndedPipe pipe, FluidStack fluid) {
-			World world = pipe.getWorld();
+			Level world = pipe.getWorld();
 			if (world.getGameTime() % 5 != 0)
 				return;
-			List<LivingEntity> list =
+			List<LivingEntity> entities =
 				world.getEntitiesOfClass(LivingEntity.class, pipe.getAOE(), LivingEntity::isAffectedByPotions);
 			ItemStack curativeItem = new ItemStack(Items.MILK_BUCKET);
-			for (LivingEntity livingentity : list)
-				livingentity.curePotionEffects(curativeItem);
+			for (LivingEntity entity : entities)
+				entity.curePotionEffects(curativeItem);
+		}
+	}
+
+	public static class WaterEffectHandler implements IEffectHandler {
+		@Override
+		public boolean canApplyEffects(OpenEndedPipe pipe, FluidStack fluid) {
+			return FluidHelper.isTag(fluid, FluidTags.WATER);
+		}
+
+		@Override
+		public void applyEffects(OpenEndedPipe pipe, FluidStack fluid) {
+			Level world = pipe.getWorld();
+			if (world.getGameTime() % 5 != 0)
+				return;
+			List<Entity> entities = world.getEntities((Entity) null, pipe.getAOE(), Entity::isOnFire);
+			for (Entity entity : entities)
+				entity.clearFire();
+			BlockPos.betweenClosedStream(pipe.getAOE())
+				.forEach(pos -> dowseFire(world, pos));
+		}
+
+		// Adapted from ThrownPotion
+		private static void dowseFire(Level level, BlockPos pos) {
+			BlockState state = level.getBlockState(pos);
+			if (state.is(BlockTags.FIRE)) {
+				level.removeBlock(pos, false);
+			} else if (AbstractCandleBlock.isLit(state)) {
+				AbstractCandleBlock.extinguish(null, state, level, pos);
+			} else if (CampfireBlock.isLitCampfire(state)) {
+				level.levelEvent(null, 1009, pos, 0);
+				CampfireBlock.dowse(null, level, pos, state);
+				level.setBlockAndUpdate(pos, state.setValue(CampfireBlock.LIT, false));
+			}
+		}
+	}
+
+	public static class LavaEffectHandler implements IEffectHandler {
+		@Override
+		public boolean canApplyEffects(OpenEndedPipe pipe, FluidStack fluid) {
+			return FluidHelper.isTag(fluid, FluidTags.LAVA);
+		}
+
+		@Override
+		public void applyEffects(OpenEndedPipe pipe, FluidStack fluid) {
+			Level world = pipe.getWorld();
+			if (world.getGameTime() % 5 != 0)
+				return;
+			List<Entity> entities = world.getEntities((Entity) null, pipe.getAOE(), entity -> !entity.fireImmune());
+			for (Entity entity : entities)
+				entity.setSecondsOnFire(3);
 		}
 	}
 

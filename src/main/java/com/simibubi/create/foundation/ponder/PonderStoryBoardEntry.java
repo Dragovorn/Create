@@ -4,10 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import com.simibubi.create.foundation.ponder.content.PonderChapter;
-import com.simibubi.create.foundation.ponder.content.PonderTag;
-
-import net.minecraft.util.ResourceLocation;
+import net.minecraft.resources.ResourceLocation;
 
 public class PonderStoryBoardEntry {
 

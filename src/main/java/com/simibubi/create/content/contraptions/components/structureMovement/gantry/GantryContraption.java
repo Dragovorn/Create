@@ -2,16 +2,18 @@ package com.simibubi.create.content.contraptions.components.structureMovement.ga
 
 import com.simibubi.create.AllBlocks;
 import com.simibubi.create.content.contraptions.components.structureMovement.AssemblyException;
-import com.simibubi.create.content.contraptions.components.structureMovement.ContraptionLighter;
 import com.simibubi.create.content.contraptions.components.structureMovement.ContraptionType;
 import com.simibubi.create.content.contraptions.components.structureMovement.NonStationaryLighter;
 import com.simibubi.create.content.contraptions.components.structureMovement.TranslatingContraption;
+import com.simibubi.create.content.contraptions.components.structureMovement.render.ContraptionLighter;
 
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
-import net.minecraft.world.gen.feature.template.Template.BlockInfo;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate.StructureBlockInfo;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 
 public class GantryContraption extends TranslatingContraption {
 
@@ -24,7 +26,7 @@ public class GantryContraption extends TranslatingContraption {
 	}
 
 	@Override
-	public boolean assemble(World world, BlockPos pos) throws AssemblyException {
+	public boolean assemble(Level world, BlockPos pos) throws AssemblyException {
 		if (!searchMovedStructure(world, pos, null))
 			return false;
 		startMoving(world);
@@ -32,14 +34,14 @@ public class GantryContraption extends TranslatingContraption {
 	}
 
 	@Override
-	public CompoundNBT writeNBT(boolean spawnPacket) {
-		CompoundNBT tag = super.writeNBT(spawnPacket);
+	public CompoundTag writeNBT(boolean spawnPacket) {
+		CompoundTag tag = super.writeNBT(spawnPacket);
 		tag.putInt("Facing", facing.get3DDataValue());
 		return tag;
 	}
 
 	@Override
-	public void readNBT(World world, CompoundNBT tag, boolean spawnData) {
+	public void readNBT(Level world, CompoundTag tag, boolean spawnData) {
 		facing = Direction.from3DDataValue(tag.getInt("Facing"));
 		super.readNBT(world, tag, spawnData);
 	}
@@ -59,11 +61,12 @@ public class GantryContraption extends TranslatingContraption {
 	}
 
 	@Override
-	protected boolean shouldUpdateAfterMovement(BlockInfo info) {
+	protected boolean shouldUpdateAfterMovement(StructureBlockInfo info) {
 		return super.shouldUpdateAfterMovement(info) && !AllBlocks.GANTRY_CARRIAGE.has(info.state);
 	}
 
 	@Override
+	@OnlyIn(Dist.CLIENT)
 	public ContraptionLighter<?> makeLighter() {
 		return new NonStationaryLighter<>(this);
 	}

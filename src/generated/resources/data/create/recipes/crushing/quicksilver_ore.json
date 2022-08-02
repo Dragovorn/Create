@@ -11,15 +11,14 @@
     },
     {
       "item": "create:crushed_quicksilver_ore",
-      "count": 2,
-      "chance": 0.3
+      "chance": 0.75
     },
     {
-      "item": "minecraft:cobblestone",
-      "chance": 0.125
+      "item": "create:experience_nugget",
+      "chance": 0.75
     }
   ],
-  "processingTime": 300,
+  "processingTime": 400,
   "conditions": [
     {
       "value": {

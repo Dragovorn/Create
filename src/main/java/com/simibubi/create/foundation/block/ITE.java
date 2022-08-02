@@ -6,32 +6,55 @@ import java.util.function.Function;
 
 import javax.annotation.Nullable;
 
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.ActionResultType;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.IBlockReader;
+import com.simibubi.create.foundation.tileEntity.SmartTileEntity;
+import com.simibubi.create.foundation.tileEntity.SmartTileEntityTicker;
 
-public interface ITE<T extends TileEntity> {
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityTicker;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+
+public interface ITE<T extends BlockEntity> extends EntityBlock {
 
 	Class<T> getTileEntityClass();
 
-	default void withTileEntityDo(IBlockReader world, BlockPos pos, Consumer<T> action) {
+	BlockEntityType<? extends T> getTileEntityType();
+
+	default void withTileEntityDo(BlockGetter world, BlockPos pos, Consumer<T> action) {
 		getTileEntityOptional(world, pos).ifPresent(action);
 	}
 
-	default ActionResultType onTileEntityUse(IBlockReader world, BlockPos pos, Function<T, ActionResultType> action) {
+	default InteractionResult onTileEntityUse(BlockGetter world, BlockPos pos, Function<T, InteractionResult> action) {
 		return getTileEntityOptional(world, pos).map(action)
-				.orElse(ActionResultType.PASS);
+			.orElse(InteractionResult.PASS);
 	}
 
-	default Optional<T> getTileEntityOptional(IBlockReader world, BlockPos pos) {
+	default Optional<T> getTileEntityOptional(BlockGetter world, BlockPos pos) {
 		return Optional.ofNullable(getTileEntity(world, pos));
+	}
+
+	@Override
+	default BlockEntity newBlockEntity(BlockPos p_153215_, BlockState p_153216_) {
+		return getTileEntityType().create(p_153215_, p_153216_);
+	}
+
+	@Override
+	default <S extends BlockEntity> BlockEntityTicker<S> getTicker(Level p_153212_, BlockState p_153213_,
+		BlockEntityType<S> p_153214_) {
+		if (SmartTileEntity.class.isAssignableFrom(getTileEntityClass()))
+			return new SmartTileEntityTicker<>();
+		return null;
 	}
 
 	@Nullable
 	@SuppressWarnings("unchecked")
-	default T getTileEntity(IBlockReader worldIn, BlockPos pos) {
-		TileEntity tileEntity = worldIn.getBlockEntity(pos);
+	default T getTileEntity(BlockGetter worldIn, BlockPos pos) {
+		BlockEntity tileEntity = worldIn.getBlockEntity(pos);
 		Class<T> expectedClass = getTileEntityClass();
 
 		if (tileEntity == null)

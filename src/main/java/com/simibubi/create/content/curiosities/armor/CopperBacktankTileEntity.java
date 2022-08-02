@@ -1,42 +1,59 @@
 package com.simibubi.create.content.curiosities.armor;
 
+import java.util.List;
+
 import com.simibubi.create.AllItems;
 import com.simibubi.create.AllSoundEvents;
 import com.simibubi.create.Create;
 import com.simibubi.create.content.contraptions.base.KineticTileEntity;
 import com.simibubi.create.content.contraptions.particle.AirParticleData;
+import com.simibubi.create.foundation.advancement.AllAdvancements;
 import com.simibubi.create.foundation.tileEntity.ComparatorUtil;
+import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 import com.simibubi.create.foundation.utility.VecHelper;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.nbt.ListNBT;
-import net.minecraft.particles.ParticleTypes;
-import net.minecraft.state.BooleanProperty;
-import net.minecraft.state.properties.BlockStateProperties;
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.Direction.Axis;
-import net.minecraft.util.INameable;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.vector.Vector3d;
-import net.minecraft.util.text.ITextComponent;
-import net.minecraft.util.text.TranslationTextComponent;
-import net.minecraftforge.common.util.Constants.NBT;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction.Axis;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
+import net.minecraft.world.Nameable;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
+import net.minecraft.world.phys.Vec3;
 
-public class CopperBacktankTileEntity extends KineticTileEntity implements INameable {
+public class CopperBacktankTileEntity extends KineticTileEntity implements Nameable {
 
 	public int airLevel;
 	public int airLevelTimer;
-	private ITextComponent customName;
+	private Component customName;
 
 	private int capacityEnchantLevel;
-	private ListNBT enchantmentTag;
+	private ListTag enchantmentTag;
 
-	public CopperBacktankTileEntity(TileEntityType<?> typeIn) {
-		super(typeIn);
-		enchantmentTag = new ListNBT();
+	public CopperBacktankTileEntity(BlockEntityType<?> typeIn, BlockPos pos, BlockState state) {
+		super(typeIn, pos, state);
+		enchantmentTag = new ListTag();
 	}
-
+	
+	@Override
+	public void addBehaviours(List<TileEntityBehaviour> behaviours) {
+		super.addBehaviours(behaviours);
+		registerAwardables(behaviours, AllAdvancements.BACKTANK);
+	}
+	
+	@Override
+	public void onSpeedChanged(float previousSpeed) {
+		super.onSpeedChanged(previousSpeed);
+		if (getSpeed() != 0)
+			award(AllAdvancements.BACKTANK);
+	}
+	
 	@Override
 	public void tick() {
 		super.tick();
@@ -55,9 +72,9 @@ public class CopperBacktankTileEntity extends KineticTileEntity implements IName
 
 		int max = BackTankUtil.maxAir(capacityEnchantLevel);
 		if (level.isClientSide) {
-			Vector3d centerOf = VecHelper.getCenterOf(worldPosition);
-			Vector3d v = VecHelper.offsetRandomly(centerOf, Create.RANDOM, .65f);
-			Vector3d m = centerOf.subtract(v);
+			Vec3 centerOf = VecHelper.getCenterOf(worldPosition);
+			Vec3 v = VecHelper.offsetRandomly(centerOf, Create.RANDOM, .65f);
+			Vec3 m = centerOf.subtract(v);
 			if (airLevel != max)
 				level.addParticle(new AirParticleData(1, .05f), v.x, v.y, v.z, m.x, m.y, m.z);
 			return;
@@ -68,13 +85,13 @@ public class CopperBacktankTileEntity extends KineticTileEntity implements IName
 
 		int prevComparatorLevel = getComparatorOutput();
 		float abs = Math.abs(getSpeed());
-		int increment = MathHelper.clamp(((int) abs - 100) / 20, 1, 5);
+		int increment = Mth.clamp(((int) abs - 100) / 20, 1, 5);
 		airLevel = Math.min(max, airLevel + increment);
 		if (getComparatorOutput() != prevComparatorLevel && !level.isClientSide)
 			level.updateNeighbourForOutputSignal(worldPosition, state.getBlock());
 		if (airLevel == max)
 			sendData();
-		airLevelTimer = MathHelper.clamp((int) (128f - abs / 5f) - 108, 0, 20);
+		airLevelTimer = Mth.clamp((int) (128f - abs / 5f) - 108, 0, 20);
 	}
 
 	public int getComparatorOutput() {
@@ -83,37 +100,37 @@ public class CopperBacktankTileEntity extends KineticTileEntity implements IName
 	}
 
 	@Override
-	protected void write(CompoundNBT compound, boolean clientPacket) {
+	protected void write(CompoundTag compound, boolean clientPacket) {
 		super.write(compound, clientPacket);
 		compound.putInt("Air", airLevel);
 		compound.putInt("Timer", airLevelTimer);
 		compound.putInt("CapacityEnchantment", capacityEnchantLevel);
 		if (this.customName != null)
-			compound.putString("CustomName", ITextComponent.Serializer.toJson(this.customName));
+			compound.putString("CustomName", Component.Serializer.toJson(this.customName));
 		compound.put("Enchantments", enchantmentTag);
 	}
 
 	@Override
-	protected void fromTag(BlockState state, CompoundNBT compound, boolean clientPacket) {
-		super.fromTag(state, compound, clientPacket);
+	protected void read(CompoundTag compound, boolean clientPacket) {
+		super.read(compound, clientPacket);
 		int prev = airLevel;
 		capacityEnchantLevel = compound.getInt("CapacityEnchantment");
 		airLevel = compound.getInt("Air");
 		airLevelTimer = compound.getInt("Timer");
-		enchantmentTag = compound.getList("Enchantments", NBT.TAG_COMPOUND);
+		enchantmentTag = compound.getList("Enchantments", Tag.TAG_COMPOUND);
 		if (compound.contains("CustomName", 8))
-			this.customName = ITextComponent.Serializer.fromJson(compound.getString("CustomName"));
+			this.customName = Component.Serializer.fromJson(compound.getString("CustomName"));
 		if (prev != 0 && prev != airLevel && airLevel == BackTankUtil.maxAir(capacityEnchantLevel) && clientPacket)
 			playFilledEffect();
 	}
 
 	protected void playFilledEffect() {
 		AllSoundEvents.CONFIRM.playAt(level, worldPosition, 0.4f, 1, true);
-		Vector3d baseMotion = new Vector3d(.25, 0.1, 0);
-		Vector3d baseVec = VecHelper.getCenterOf(worldPosition);
+		Vec3 baseMotion = new Vec3(.25, 0.1, 0);
+		Vec3 baseVec = VecHelper.getCenterOf(worldPosition);
 		for (int i = 0; i < 360; i += 10) {
-			Vector3d m = VecHelper.rotate(baseMotion, i, Axis.Y);
-			Vector3d v = baseVec.add(m.normalize()
+			Vec3 m = VecHelper.rotate(baseMotion, i, Axis.Y);
+			Vec3 v = baseVec.add(m.normalize()
 				.scale(.25f));
 
 			level.addParticle(ParticleTypes.SPIT, v.x, v.y, v.z, m.x, m.y, m.z);
@@ -121,15 +138,10 @@ public class CopperBacktankTileEntity extends KineticTileEntity implements IName
 	}
 
 	@Override
-	public ITextComponent getName() {
+	public Component getName() {
 		return this.customName != null ? this.customName
-			: new TranslationTextComponent(AllItems.COPPER_BACKTANK.get()
-				.getDescriptionId());
-	}
-
-	@Override
-	public boolean shouldRenderNormally() {
-		return true;
+			: AllItems.COPPER_BACKTANK.get()
+				.getDescription();
 	}
 
 	public int getAirLevel() {
@@ -141,19 +153,19 @@ public class CopperBacktankTileEntity extends KineticTileEntity implements IName
 		sendData();
 	}
 
-	public void setCustomName(ITextComponent customName) {
+	public void setCustomName(Component customName) {
 		this.customName = customName;
 	}
 
-	public ITextComponent getCustomName() {
+	public Component getCustomName() {
 		return customName;
 	}
 
-	public ListNBT getEnchantmentTag() {
+	public ListTag getEnchantmentTag() {
 		return enchantmentTag;
 	}
 
-	public void setEnchantmentTag(ListNBT enchantmentTag) {
+	public void setEnchantmentTag(ListTag enchantmentTag) {
 		this.enchantmentTag = enchantmentTag;
 	}
 

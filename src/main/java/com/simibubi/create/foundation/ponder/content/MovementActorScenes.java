@@ -1,31 +1,31 @@
 package com.simibubi.create.foundation.ponder.content;
 
-import com.simibubi.create.AllItems;
 import com.simibubi.create.content.contraptions.components.actors.HarvesterTileEntity;
 import com.simibubi.create.content.contraptions.components.actors.PortableItemInterfaceTileEntity;
 import com.simibubi.create.content.contraptions.components.actors.PortableStorageInterfaceTileEntity;
 import com.simibubi.create.content.contraptions.components.structureMovement.chassis.LinearChassisBlock;
 import com.simibubi.create.foundation.ponder.ElementLink;
+import com.simibubi.create.foundation.ponder.PonderPalette;
 import com.simibubi.create.foundation.ponder.SceneBuilder;
 import com.simibubi.create.foundation.ponder.SceneBuildingUtil;
 import com.simibubi.create.foundation.ponder.Selection;
-import com.simibubi.create.foundation.ponder.elements.EntityElement;
-import com.simibubi.create.foundation.ponder.elements.InputWindowElement;
-import com.simibubi.create.foundation.ponder.elements.ParrotElement;
-import com.simibubi.create.foundation.ponder.elements.ParrotElement.FlappyPose;
-import com.simibubi.create.foundation.ponder.elements.WorldSectionElement;
+import com.simibubi.create.foundation.ponder.element.EntityElement;
+import com.simibubi.create.foundation.ponder.element.InputWindowElement;
+import com.simibubi.create.foundation.ponder.element.ParrotElement;
+import com.simibubi.create.foundation.ponder.element.ParrotElement.FlappyPose;
+import com.simibubi.create.foundation.ponder.element.WorldSectionElement;
 import com.simibubi.create.foundation.utility.Pointing;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.CropsBlock;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.item.ItemEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.vector.Vector3d;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.CropBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 
 public class MovementActorScenes {
 
@@ -114,8 +114,8 @@ public class MovementActorScenes {
 			.attachKeyFrame()
 			.text("Items can now be inserted...");
 
-		ItemStack itemStack = AllItems.COPPER_INGOT.asStack();
-		Vector3d entitySpawn = util.vector.topOf(hopper.above(3));
+		ItemStack itemStack = new ItemStack(Items.COPPER_INGOT);
+		Vec3 entitySpawn = util.vector.topOf(hopper.above(3));
 
 		ElementLink<EntityElement> entity1 =
 			scene.world.createItemEntity(entitySpawn, util.vector.of(0, 0.2, 0), itemStack);
@@ -123,9 +123,9 @@ public class MovementActorScenes {
 		ElementLink<EntityElement> entity2 =
 			scene.world.createItemEntity(entitySpawn, util.vector.of(0, 0.2, 0), itemStack);
 		scene.idle(10);
-		scene.world.modifyEntity(entity1, Entity::remove);
+		scene.world.modifyEntity(entity1, Entity::discard);
 		scene.idle(10);
-		scene.world.modifyEntity(entity2, Entity::remove);
+		scene.world.modifyEntity(entity2, Entity::discard);
 
 		scene.overlay
 			.showControls(new InputWindowElement(util.vector.topOf(5, 3, 2), Pointing.DOWN).withItem(itemStack), 40);
@@ -146,9 +146,9 @@ public class MovementActorScenes {
 		scene.world.createItemOnBelt(beltPos, Direction.EAST, itemStack);
 
 		scene.idle(20);
-		scene.world.modifyEntities(ItemEntity.class, Entity::remove);
+		scene.world.modifyEntities(ItemEntity.class, Entity::discard);
 		scene.idle(15);
-		scene.world.modifyEntities(ItemEntity.class, Entity::remove);
+		scene.world.modifyEntities(ItemEntity.class, Entity::discard);
 
 		scene.overlay.showText(120)
 			.placeNearTarget()
@@ -214,7 +214,7 @@ public class MovementActorScenes {
 				.add(util.select.position(1, 1, 2)));
 
 		scene.world.setBlocks(crops, Blocks.WHEAT.defaultBlockState()
-			.setValue(CropsBlock.AGE, 7), false);
+			.setValue(CropBlock.AGE, 7), false);
 		scene.world.showSection(util.select.layer(0), Direction.UP);
 
 		BlockPos bearingPos = util.grid.at(4, 1, 4);
@@ -282,9 +282,9 @@ public class MovementActorScenes {
 		scene.idle(101);
 		scene.world.hideSection(crops, Direction.DOWN);
 		scene.idle(15);
-		scene.world.modifyEntities(ItemEntity.class, Entity::remove);
+		scene.world.modifyEntities(ItemEntity.class, Entity::discard);
 		scene.world.setBlocks(crops, Blocks.WHEAT.defaultBlockState()
-			.setValue(CropsBlock.AGE, 7), false);
+			.setValue(CropBlock.AGE, 7), false);
 		scene.world.showSection(crops, Direction.UP);
 
 		for (int i = 0; i < 3; i++)
@@ -375,7 +375,7 @@ public class MovementActorScenes {
 		scene.world.moveSection(contraption, util.vector.of(-2, 0, 0), 60);
 		scene.idle(15);
 
-		Vector3d m = util.vector.of(-0.1, .2, 0);
+		Vec3 m = util.vector.of(-0.1, .2, 0);
 		scene.world.destroyBlock(util.grid.at(2, 1, 3));
 		scene.world.createItemEntity(util.vector.centerOf(2, 1, 3), m, new ItemStack(Items.LEVER));
 		scene.world.destroyBlock(util.grid.at(2, 1, 2));
@@ -400,7 +400,7 @@ public class MovementActorScenes {
 		scene.world.hideSection(garbage, Direction.UP);
 		scene.idle(40);
 		scene.world.setBlocks(garbage, Blocks.SNOW.defaultBlockState(), false);
-		scene.world.modifyEntities(ItemEntity.class, Entity::remove);
+		scene.world.modifyEntities(ItemEntity.class, Entity::discard);
 		ElementLink<WorldSectionElement> chest =
 			scene.world.showIndependentSection(util.select.position(4, 2, 2), Direction.DOWN);
 

@@ -1,23 +1,26 @@
 package com.simibubi.create.content.schematics.block;
 
-import com.simibubi.create.foundation.gui.IInteractionChecker;
-import com.simibubi.create.foundation.tileEntity.SyncedTileEntity;
+import java.util.List;
+
+import com.simibubi.create.foundation.tileEntity.SmartTileEntity;
+import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
+import com.simibubi.create.foundation.utility.IInteractionChecker;
 import com.simibubi.create.foundation.utility.Lang;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.inventory.container.Container;
-import net.minecraft.inventory.container.INamedContainerProvider;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.network.PacketBuffer;
-import net.minecraft.tileentity.ITickableTileEntity;
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.text.ITextComponent;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.MenuProvider;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.items.ItemStackHandler;
 
-public class SchematicTableTileEntity extends SyncedTileEntity implements ITickableTileEntity, INamedContainerProvider, IInteractionChecker {
+public class SchematicTableTileEntity extends SmartTileEntity implements MenuProvider, IInteractionChecker {
 
 	public SchematicTableInventory inventory;
 	public boolean isUploading;
@@ -37,27 +40,25 @@ public class SchematicTableTileEntity extends SyncedTileEntity implements ITicka
 		}
 	}
 
-	public SchematicTableTileEntity(TileEntityType<?> tileEntityTypeIn) {
-		super(tileEntityTypeIn);
+	public SchematicTableTileEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+		super(type, pos, state);
 		inventory = new SchematicTableInventory();
 		uploadingSchematic = null;
 		uploadingProgress = 0;
 	}
 
-	public void sendToContainer(PacketBuffer buffer) {
+	public void sendToContainer(FriendlyByteBuf buffer) {
 		buffer.writeBlockPos(getBlockPos());
 		buffer.writeNbt(getUpdateTag());
 	}
 
 	@Override
-	public void load(BlockState state, CompoundNBT compound) {
+	protected void read(CompoundTag compound, boolean clientPacket) {
 		inventory.deserializeNBT(compound.getCompound("Inventory"));
-		readClientUpdate(state, compound);
-		super.load(state, compound);
-	}
-
-	@Override
-	public void readClientUpdate(BlockState state, CompoundNBT compound) {
+		super.read(compound, clientPacket);
+		
+		if (!clientPacket)
+			return;
 		if (compound.contains("Uploading")) {
 			isUploading = true;
 			uploadingSchematic = compound.getString("Schematic");
@@ -70,22 +71,17 @@ public class SchematicTableTileEntity extends SyncedTileEntity implements ITicka
 	}
 
 	@Override
-	public CompoundNBT save(CompoundNBT compound) {
+	protected void write(CompoundTag compound, boolean clientPacket) {
 		compound.put("Inventory", inventory.serializeNBT());
-		writeToClient(compound);
-		return super.save(compound);
-	}
-
-	@Override
-	public CompoundNBT writeToClient(CompoundNBT compound) {
-		if (isUploading) {
+		super.write(compound, clientPacket);
+		
+		if (clientPacket && isUploading) {
 			compound.putBoolean("Uploading", true);
 			compound.putString("Schematic", uploadingSchematic);
 			compound.putFloat("Progress", uploadingProgress);
 		}
-		return compound;
 	}
-
+	
 	@Override
 	public void tick() {
 		// Update Client Tile
@@ -94,7 +90,7 @@ public class SchematicTableTileEntity extends SyncedTileEntity implements ITicka
 			level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 6);
 		}
 	}
-	
+
 	public void startUpload(String schematic) {
 		isUploading = true;
 		uploadingProgress = 0;
@@ -102,7 +98,7 @@ public class SchematicTableTileEntity extends SyncedTileEntity implements ITicka
 		sendUpdate = true;
 		inventory.setStackInSlot(0, ItemStack.EMPTY);
 	}
-	
+
 	public void finishUpload() {
 		isUploading = false;
 		uploadingProgress = 0;
@@ -111,21 +107,25 @@ public class SchematicTableTileEntity extends SyncedTileEntity implements ITicka
 	}
 
 	@Override
-	public Container createMenu(int id, PlayerInventory inv, PlayerEntity player) {
+	public AbstractContainerMenu createMenu(int id, Inventory inv, Player player) {
 		return SchematicTableContainer.create(id, inv, this);
 	}
 
 	@Override
-	public ITextComponent getDisplayName() {
-		return Lang.translate("gui.schematicTable.title");
+	public Component getDisplayName() {
+		return Lang.translateDirect("gui.schematicTable.title");
 	}
 
 	@Override
-	public boolean canPlayerUse(PlayerEntity player) {
+	public boolean canPlayerUse(Player player) {
 		if (level == null || level.getBlockEntity(worldPosition) != this) {
 			return false;
 		}
-		return player.distanceToSqr(worldPosition.getX() + 0.5D, worldPosition.getY() + 0.5D, worldPosition.getZ() + 0.5D) <= 64.0D;
+		return player.distanceToSqr(worldPosition.getX() + 0.5D, worldPosition.getY() + 0.5D,
+			worldPosition.getZ() + 0.5D) <= 64.0D;
 	}
+
+	@Override
+	public void addBehaviours(List<TileEntityBehaviour> behaviours) {}
 
 }

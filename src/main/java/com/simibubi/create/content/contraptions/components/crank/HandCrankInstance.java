@@ -1,26 +1,24 @@
 package com.simibubi.create.content.contraptions.components.crank;
 
-import com.jozufozu.flywheel.backend.instancing.IDynamicInstance;
-import com.jozufozu.flywheel.backend.instancing.Instancer;
-import com.jozufozu.flywheel.backend.material.MaterialManager;
+import com.jozufozu.flywheel.api.Instancer;
+import com.jozufozu.flywheel.api.MaterialManager;
+import com.jozufozu.flywheel.api.instance.DynamicInstance;
 import com.jozufozu.flywheel.core.PartialModel;
-import com.jozufozu.flywheel.core.materials.ModelData;
-import com.jozufozu.flywheel.util.transform.MatrixTransformStack;
-import com.mojang.blaze3d.matrix.MatrixStack;
+import com.jozufozu.flywheel.core.materials.model.ModelData;
 import com.simibubi.create.content.contraptions.base.SingleRotatingInstance;
 import com.simibubi.create.foundation.utility.AnimationTickHolder;
 
-import net.minecraft.block.Block;
-import net.minecraft.state.properties.BlockStateProperties;
-import net.minecraft.util.Direction;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 
-public class HandCrankInstance extends SingleRotatingInstance implements IDynamicInstance {
+public class HandCrankInstance extends SingleRotatingInstance implements DynamicInstance {
 
     private final HandCrankTileEntity tile;
     private ModelData crank;
     private Direction facing;
 
-    public HandCrankInstance(MaterialManager<?> modelManager, HandCrankTileEntity tile) {
+    public HandCrankInstance(MaterialManager modelManager, HandCrankTileEntity tile) {
         super(modelManager, tile);
 		this.tile = tile;
 
@@ -50,15 +48,12 @@ public class HandCrankInstance extends SingleRotatingInstance implements IDynami
         Direction.Axis axis = facing.getAxis();
         float angle = (tile.independentAngle + AnimationTickHolder.getPartialTicks() * tile.chasingVelocity) / 360;
 
-        MatrixStack ms = new MatrixStack();
-        MatrixTransformStack.of(ms)
+        crank.loadIdentity()
                      .translate(getInstancePosition())
                      .centre()
                      .rotate(Direction.get(Direction.AxisDirection.POSITIVE, axis), angle)
                      .unCentre();
-
-        crank.setTransform(ms);
-    }
+	}
 
     @Override
     public void remove() {

@@ -7,15 +7,15 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.simibubi.create.Create;
 import com.simibubi.create.foundation.ponder.content.PonderIndex;
-import com.simibubi.create.foundation.ponder.content.PonderTag;
-import com.simibubi.create.foundation.ponder.content.PonderTagIndexScreen;
-import com.simibubi.create.foundation.ponder.content.PonderTagScreen;
 import com.simibubi.create.foundation.ponder.content.SharedText;
+import com.simibubi.create.foundation.ponder.ui.PonderTagIndexScreen;
+import com.simibubi.create.foundation.ponder.ui.PonderTagScreen;
+import com.simibubi.create.foundation.ponder.ui.PonderUI;
 import com.simibubi.create.foundation.utility.Couple;
 import com.tterrag.registrate.AbstractRegistrate;
 
-import net.minecraft.client.resources.I18n;
-import net.minecraft.util.ResourceLocation;
+import net.minecraft.client.resources.language.I18n;
+import net.minecraft.resources.ResourceLocation;
 
 public class PonderLocalization {
 
@@ -46,33 +46,33 @@ public class PonderLocalization {
 	//
 
 	public static String getShared(ResourceLocation key) {
-		if (PonderIndex.EDITOR_MODE)
+		if (PonderIndex.editingModeActive())
 			return SHARED.containsKey(key) ? SHARED.get(key) : ("unregistered shared entry: " + key);
 		return I18n.get(langKeyForShared(key));
 	}
 
 	public static String getTag(ResourceLocation key) {
-		if (PonderIndex.EDITOR_MODE)
+		if (PonderIndex.editingModeActive())
 			return TAG.containsKey(key) ? TAG.get(key)
 				.getFirst() : ("unregistered tag entry: " + key);
 		return I18n.get(langKeyForTag(key));
 	}
 
 	public static String getTagDescription(ResourceLocation key) {
-		if (PonderIndex.EDITOR_MODE)
+		if (PonderIndex.editingModeActive())
 			return TAG.containsKey(key) ? TAG.get(key)
 				.getSecond() : ("unregistered tag entry: " + key);
 		return I18n.get(langKeyForTagDescription(key));
 	}
 
 	public static String getChapter(ResourceLocation key) {
-		if (PonderIndex.EDITOR_MODE)
+		if (PonderIndex.editingModeActive())
 			return CHAPTER.containsKey(key) ? CHAPTER.get(key) : ("unregistered chapter entry: " + key);
 		return I18n.get(langKeyForChapter(key));
 	}
 
 	public static String getSpecific(ResourceLocation sceneId, String k) {
-		if (PonderIndex.EDITOR_MODE)
+		if (PonderIndex.editingModeActive())
 			return SPECIFIC.get(sceneId)
 				.get(k);
 		return I18n.get(langKeyForSpecific(sceneId, k));
@@ -126,6 +126,7 @@ public class PonderLocalization {
 		addGeneral(object, PonderUI.CLOSE, "Close");
 		addGeneral(object, PonderUI.IDENTIFY, "Identify");
 		addGeneral(object, PonderUI.NEXT, "Next Scene");
+		addGeneral(object, PonderUI.NEXT_UP, "Up Next:");
 		addGeneral(object, PonderUI.PREVIOUS, "Previous Scene");
 		addGeneral(object, PonderUI.REPLAY, "Replay");
 		addGeneral(object, PonderUI.THINK_BACK, "Think Back");

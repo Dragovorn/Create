@@ -1,66 +1,52 @@
 package com.simibubi.create.compat.jei.category;
 
-import java.util.Arrays;
-import java.util.List;
+import javax.annotation.ParametersAreNonnullByDefault;
 
-import com.mojang.blaze3d.matrix.MatrixStack;
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.simibubi.create.AllItems;
 import com.simibubi.create.content.contraptions.processing.ProcessingOutput;
 import com.simibubi.create.content.curiosities.tools.SandPaperPolishingRecipe;
 import com.simibubi.create.foundation.gui.AllGuiTextures;
-import com.simibubi.create.foundation.gui.GuiGameElement;
+import com.simibubi.create.foundation.gui.element.GuiGameElement;
 
-import mezz.jei.api.constants.VanillaTypes;
-import mezz.jei.api.gui.IRecipeLayout;
-import mezz.jei.api.gui.ingredient.IGuiItemStackGroup;
-import mezz.jei.api.ingredients.IIngredients;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.crafting.Ingredient;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.util.NonNullList;
+import mezz.jei.api.gui.builder.IRecipeLayoutBuilder;
+import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
+import mezz.jei.api.recipe.IFocusGroup;
+import mezz.jei.api.recipe.RecipeIngredientRole;
+import net.minecraft.core.NonNullList;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.Ingredient;
 
+@ParametersAreNonnullByDefault
 public class PolishingCategory extends CreateRecipeCategory<SandPaperPolishingRecipe> {
 
-	private ItemStack renderedSandpaper;
+	private final ItemStack renderedSandpaper;
 
-	public PolishingCategory() {
-		super(itemIcon(AllItems.SAND_PAPER.get()), emptyBackground(177, 55));
+	public PolishingCategory(Info<SandPaperPolishingRecipe> info) {
+		super(info);
 		renderedSandpaper = AllItems.SAND_PAPER.asStack();
 	}
 
 	@Override
-	public Class<? extends SandPaperPolishingRecipe> getRecipeClass() {
-		return SandPaperPolishingRecipe.class;
+	public void setRecipe(IRecipeLayoutBuilder builder, SandPaperPolishingRecipe recipe, IFocusGroup focuses) {
+		builder
+				.addSlot(RecipeIngredientRole.INPUT, 27, 29)
+				.setBackground(getRenderedSlot(), -1, -1)
+				.addIngredients(recipe.getIngredients().get(0));
+
+		ProcessingOutput output = recipe.getRollableResults().get(0);
+		builder
+				.addSlot(RecipeIngredientRole.OUTPUT, 132, 29)
+				.setBackground(getRenderedSlot(output), -1, -1)
+				.addItemStack(output.getStack())
+				.addTooltipCallback(addStochasticTooltip(output));
 	}
 
 	@Override
-	public void setIngredients(SandPaperPolishingRecipe recipe, IIngredients ingredients) {
-		ingredients.setInputIngredients(recipe.getIngredients());
-		ingredients.setOutputs(VanillaTypes.ITEM, recipe.getRollableResultsAsItemStacks());
-	}
-
-	@Override
-	public void setRecipe(IRecipeLayout recipeLayout, SandPaperPolishingRecipe recipe, IIngredients ingredients) {
-		IGuiItemStackGroup itemStacks = recipeLayout.getItemStacks();
-		List<ProcessingOutput> results = recipe.getRollableResults();
-
-		itemStacks.init(0, true, 26, 28);
-		itemStacks.set(0, Arrays.asList(recipe.getIngredients()
-			.get(0)
-			.getItems()));
-		itemStacks.init(1, false, 131, 28);
-		itemStacks.set(1, results.get(0)
-			.getStack());
-
-		addStochasticTooltip(itemStacks, results);
-	}
-
-	@Override
-	public void draw(SandPaperPolishingRecipe recipe, MatrixStack matrixStack, double mouseX, double mouseY) {
-		AllGuiTextures.JEI_SLOT.draw(matrixStack, 26, 28);
-		getRenderedSlot(recipe, 0).draw(matrixStack, 131, 28);
-		AllGuiTextures.JEI_SHADOW.draw(matrixStack, 61, 21);
-		AllGuiTextures.JEI_LONG_ARROW.draw(matrixStack, 52, 32);
+	public void draw(SandPaperPolishingRecipe recipe, IRecipeSlotsView iRecipeSlotsView, PoseStack matrixStack, double mouseX, double mouseY) {
+		AllGuiTextures.JEI_SHADOW.render(matrixStack, 61, 21);
+		AllGuiTextures.JEI_LONG_ARROW.render(matrixStack, 52, 32);
 
 		NonNullList<Ingredient> ingredients = recipe.getIngredients();
 		ItemStack[] matchingStacks = ingredients.get(0)
@@ -69,7 +55,7 @@ public class PolishingCategory extends CreateRecipeCategory<SandPaperPolishingRe
 			return;
 
 
-		CompoundNBT tag = renderedSandpaper.getOrCreateTag();
+		CompoundTag tag = renderedSandpaper.getOrCreateTag();
 		tag.put("Polishing", matchingStacks[0].serializeNBT());
 		tag.putBoolean("JEI", true);
 		GuiGameElement.of(renderedSandpaper)

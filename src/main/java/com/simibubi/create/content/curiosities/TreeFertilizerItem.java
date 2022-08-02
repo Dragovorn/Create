@@ -2,16 +2,18 @@ package com.simibubi.create.content.curiosities;
 
 import com.simibubi.create.foundation.utility.worldWrappers.PlacementSimulationServerWorld;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.SaplingBlock;
-import net.minecraft.item.BoneMealItem;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemUseContext;
-import net.minecraft.util.ActionResultType;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.server.ServerWorld;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.item.BoneMealItem;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.BonemealableBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 
 public class TreeFertilizerItem extends Item {
 
@@ -20,29 +22,29 @@ public class TreeFertilizerItem extends Item {
 	}
 
 	@Override
-	public ActionResultType useOn(ItemUseContext context) {
+	public InteractionResult useOn(UseOnContext context) {
 		BlockState state = context.getLevel()
 			.getBlockState(context.getClickedPos());
 		Block block = state.getBlock();
-		if (block instanceof SaplingBlock) {
+		if (block instanceof BonemealableBlock bonemealableBlock && state.is(BlockTags.SAPLINGS)) {
 
 			if (context.getLevel().isClientSide) {
 				BoneMealItem.addGrowthParticles(context.getLevel(), context.getClickedPos(), 100);
-				return ActionResultType.SUCCESS;
+				return InteractionResult.SUCCESS;
 			}
 
 			BlockPos saplingPos = context.getClickedPos();
-			TreesDreamWorld world = new TreesDreamWorld((ServerWorld) context.getLevel(), saplingPos);
+			TreesDreamWorld world = new TreesDreamWorld((ServerLevel) context.getLevel(), saplingPos);
 
 			for (BlockPos pos : BlockPos.betweenClosed(-1, 0, -1, 1, 0, 1)) {
 				if (context.getLevel()
 					.getBlockState(saplingPos.offset(pos))
 					.getBlock() == block)
-					world.setBlockAndUpdate(pos.above(10), state.setValue(SaplingBlock.STAGE, 1));
+					world.setBlockAndUpdate(pos.above(10), withStage(state, 1));
 			}
 
-			((SaplingBlock) block).performBonemeal(world, world.getRandom(), BlockPos.ZERO.above(10),
-				state.setValue(SaplingBlock.STAGE, 1));
+			bonemealableBlock.performBonemeal(world, world.getRandom(), BlockPos.ZERO.above(10),
+					withStage(state, 1));
 
 			for (BlockPos pos : world.blocksAdded.keySet()) {
 				BlockPos actualPos = pos.offset(saplingPos).below(10);
@@ -69,20 +71,24 @@ public class TreeFertilizerItem extends Item {
 				.isCreative())
 				context.getItemInHand()
 					.shrink(1);
-			return ActionResultType.SUCCESS;
+			return InteractionResult.SUCCESS;
 
 		}
 
 		return super.useOn(context);
 	}
 
-	private class TreesDreamWorld extends PlacementSimulationServerWorld {
-		private final BlockPos saplingPos;
+	private BlockState withStage(BlockState original, int stage) {
+		if (!original.hasProperty(BlockStateProperties.STAGE))
+			return original;
+		return original.setValue(BlockStateProperties.STAGE, 1);
+	}
+
+	private static class TreesDreamWorld extends PlacementSimulationServerWorld {
 		private final BlockState soil;
 
-		protected TreesDreamWorld(ServerWorld wrapped, BlockPos saplingPos) {
+		protected TreesDreamWorld(ServerLevel wrapped, BlockPos saplingPos) {
 			super(wrapped);
-			this.saplingPos = saplingPos;
 			soil = wrapped.getBlockState(saplingPos.below());
 		}
 

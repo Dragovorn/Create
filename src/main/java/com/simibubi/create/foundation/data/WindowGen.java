@@ -17,25 +17,27 @@ import com.simibubi.create.foundation.block.connected.GlassPaneCTBehaviour;
 import com.simibubi.create.foundation.block.connected.HorizontalCTBehaviour;
 import com.tterrag.registrate.providers.DataGenContext;
 import com.tterrag.registrate.providers.RegistrateBlockstateProvider;
+import com.tterrag.registrate.providers.RegistrateRecipeProvider;
 import com.tterrag.registrate.util.DataIngredient;
 import com.tterrag.registrate.util.entry.BlockEntry;
 import com.tterrag.registrate.util.nullness.NonNullBiConsumer;
 import com.tterrag.registrate.util.nullness.NonNullConsumer;
 import com.tterrag.registrate.util.nullness.NonNullFunction;
 
-import net.minecraft.block.AbstractBlock.Properties;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.WoodType;
 import net.minecraft.client.renderer.RenderType;
-import net.minecraft.data.ShapedRecipeBuilder;
-import net.minecraft.entity.EntityType;
+import net.minecraft.core.BlockPos;
+import net.minecraft.data.recipes.ShapedRecipeBuilder;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.BlockTags;
-import net.minecraft.util.IItemProvider;
-import net.minecraft.util.ResourceLocation;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.IBlockReader;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.ItemLike;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockBehaviour.Properties;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.WoodType;
+import net.minecraft.world.level.material.MaterialColor;
 import net.minecraftforge.client.model.generators.ModelFile;
 import net.minecraftforge.common.Tags;
 
@@ -50,11 +52,11 @@ public class WindowGen {
 			.isViewBlocking(WindowGen::never);
 	}
 
-	private static boolean never(BlockState p_235436_0_, IBlockReader p_235436_1_, BlockPos p_235436_2_) {
+	private static boolean never(BlockState p_235436_0_, BlockGetter p_235436_1_, BlockPos p_235436_2_) {
 		return false;
 	}
 
-	private static Boolean never(BlockState p_235427_0_, IBlockReader p_235427_1_, BlockPos p_235427_2_,
+	private static Boolean never(BlockState p_235427_0_, BlockGetter p_235427_1_, BlockPos p_235427_2_,
 		EntityType<?> p_235427_3_) {
 		return false;
 	}
@@ -63,11 +65,11 @@ public class WindowGen {
 		return woodenWindowBlock(woodType, planksBlock, () -> RenderType::cutoutMipped);
 	}
 
-	public static BlockEntry<WindowBlock> customWindowBlock(String name, Supplier<? extends IItemProvider> ingredient,
-		CTSpriteShiftEntry ct, Supplier<Supplier<RenderType>> renderType) {
+	public static BlockEntry<WindowBlock> customWindowBlock(String name, Supplier<? extends ItemLike> ingredient,
+		Supplier<CTSpriteShiftEntry> ct, Supplier<Supplier<RenderType>> renderType, Supplier<MaterialColor> color) {
 		NonNullFunction<String, ResourceLocation> end_texture = n -> Create.asResource(palettesDir() + name + "_end");
 		NonNullFunction<String, ResourceLocation> side_texture = n -> Create.asResource(palettesDir() + n);
-		return windowBlock(name, ingredient, ct, renderType, end_texture, side_texture);
+		return windowBlock(name, ingredient, ct, renderType, end_texture, side_texture, color);
 	}
 
 	public static BlockEntry<WindowBlock> woodenWindowBlock(WoodType woodType, Block planksBlock,
@@ -77,25 +79,27 @@ public class WindowGen {
 		NonNullFunction<String, ResourceLocation> end_texture =
 			$ -> new ResourceLocation("block/" + woodName + "_planks");
 		NonNullFunction<String, ResourceLocation> side_texture = n -> Create.asResource(palettesDir() + n);
-		return windowBlock(name, () -> planksBlock, AllSpriteShifts.getWoodenWindow(woodType), renderType, end_texture,
-			side_texture);
+		return windowBlock(name, () -> planksBlock, () -> AllSpriteShifts.getWoodenWindow(woodType), renderType,
+			end_texture, side_texture, planksBlock::defaultMaterialColor);
 	}
 
-	public static BlockEntry<WindowBlock> windowBlock(String name, Supplier<? extends IItemProvider> ingredient,
-		CTSpriteShiftEntry ct, Supplier<Supplier<RenderType>> renderType,
-		NonNullFunction<String, ResourceLocation> endTexture, NonNullFunction<String, ResourceLocation> sideTexture) {
+	public static BlockEntry<WindowBlock> windowBlock(String name, Supplier<? extends ItemLike> ingredient,
+		Supplier<CTSpriteShiftEntry> ct, Supplier<Supplier<RenderType>> renderType,
+		NonNullFunction<String, ResourceLocation> endTexture, NonNullFunction<String, ResourceLocation> sideTexture,
+		Supplier<MaterialColor> color) {
 		return REGISTRATE.block(name, WindowBlock::new)
-			.onRegister(connectedTextures(new HorizontalCTBehaviour(ct)))
+			.onRegister(connectedTextures(() -> new HorizontalCTBehaviour(ct.get())))
 			.addLayer(renderType)
 			.recipe((c, p) -> ShapedRecipeBuilder.shaped(c.get(), 2)
 				.pattern(" # ")
 				.pattern("#X#")
 				.define('#', ingredient.get())
 				.define('X', DataIngredient.tag(Tags.Items.GLASS_COLORLESS))
-				.unlockedBy("has_ingredient", p.hasItem(ingredient.get()))
+				.unlockedBy("has_ingredient", RegistrateRecipeProvider.has(ingredient.get()))
 				.save(p::accept))
 			.initialProperties(() -> Blocks.GLASS)
 			.properties(WindowGen::glassProperties)
+			.properties(p -> p.color(color.get()))
 			.loot((t, g) -> t.dropWhenSilkTouch(g))
 			.blockstate((c, p) -> p.simpleBlock(c.get(), p.models()
 				.cubeColumn(c.getName(), sideTexture.apply(c.getName()), endTexture.apply(c.getName()))))
@@ -104,10 +108,11 @@ public class WindowGen {
 			.register();
 	}
 
-	public static BlockEntry<ConnectedGlassBlock> framedGlass(String name, ConnectedTextureBehaviour behaviour) {
+	public static BlockEntry<ConnectedGlassBlock> framedGlass(String name,
+		Supplier<ConnectedTextureBehaviour> behaviour) {
 		return REGISTRATE.block(name, ConnectedGlassBlock::new)
 			.onRegister(connectedTextures(behaviour))
-			.addLayer(() -> RenderType::translucent)
+			.addLayer(() -> RenderType::cutout)
 			.initialProperties(() -> Blocks.GLASS)
 			.properties(WindowGen::glassProperties)
 			.loot((t, g) -> t.dropWhenSilkTouch(g))
@@ -123,16 +128,16 @@ public class WindowGen {
 	}
 
 	public static BlockEntry<ConnectedGlassPaneBlock> framedGlassPane(String name, Supplier<? extends Block> parent,
-		CTSpriteShiftEntry ctshift) {
+		Supplier<CTSpriteShiftEntry> ctshift) {
 		ResourceLocation sideTexture = Create.asResource(palettesDir() + "framed_glass");
 		ResourceLocation itemSideTexture = Create.asResource(palettesDir() + name);
 		ResourceLocation topTexture = Create.asResource(palettesDir() + "framed_glass_pane_top");
-		Supplier<Supplier<RenderType>> renderType = () -> RenderType::translucent;
+		Supplier<Supplier<RenderType>> renderType = () -> RenderType::cutoutMipped;
 		return connectedGlassPane(name, parent, ctshift, sideTexture, itemSideTexture, topTexture, renderType);
 	}
 
 	public static BlockEntry<ConnectedGlassPaneBlock> customWindowPane(String name, Supplier<? extends Block> parent,
-		CTSpriteShiftEntry ctshift, Supplier<Supplier<RenderType>> renderType) {
+		Supplier<CTSpriteShiftEntry> ctshift, Supplier<Supplier<RenderType>> renderType) {
 		ResourceLocation topTexture = Create.asResource(palettesDir() + name + "_pane_top");
 		ResourceLocation sideTexture = Create.asResource(palettesDir() + name);
 		return connectedGlassPane(name, parent, ctshift, sideTexture, sideTexture, topTexture, renderType);
@@ -149,8 +154,8 @@ public class WindowGen {
 		String name = woodName + "_window";
 		ResourceLocation topTexture = new ResourceLocation("block/" + woodName + "_planks");
 		ResourceLocation sideTexture = Create.asResource(palettesDir() + name);
-		return connectedGlassPane(name, parent, AllSpriteShifts.getWoodenWindow(woodType), sideTexture, sideTexture,
-			topTexture, renderType);
+		return connectedGlassPane(name, parent, () -> AllSpriteShifts.getWoodenWindow(woodType), sideTexture,
+			sideTexture, topTexture, renderType);
 	}
 
 	public static BlockEntry<GlassPaneBlock> standardGlassPane(String name, Supplier<? extends Block> parent,
@@ -162,10 +167,10 @@ public class WindowGen {
 	}
 
 	private static BlockEntry<ConnectedGlassPaneBlock> connectedGlassPane(String name, Supplier<? extends Block> parent,
-		CTSpriteShiftEntry ctshift, ResourceLocation sideTexture, ResourceLocation itemSideTexture,
+		Supplier<CTSpriteShiftEntry> ctshift, ResourceLocation sideTexture, ResourceLocation itemSideTexture,
 		ResourceLocation topTexture, Supplier<Supplier<RenderType>> renderType) {
 		NonNullConsumer<? super ConnectedGlassPaneBlock> connectedTextures =
-			connectedTextures(new GlassPaneCTBehaviour(ctshift));
+			connectedTextures(() -> new GlassPaneCTBehaviour(ctshift.get()));
 		String CGPparents = "block/connected_glass_pane/";
 		String prefix = name + "_pane_";
 
@@ -202,12 +207,14 @@ public class WindowGen {
 			.onRegister(connectedTextures)
 			.addLayer(renderType)
 			.initialProperties(() -> Blocks.GLASS_PANE)
+			.properties(p -> p.color(parent.get()
+				.defaultMaterialColor()))
 			.blockstate(stateProvider)
 			.recipe((c, p) -> ShapedRecipeBuilder.shaped(c.get(), 16)
 				.pattern("###")
 				.pattern("###")
 				.define('#', parent.get())
-				.unlockedBy("has_ingredient", p.hasItem(parent.get()))
+				.unlockedBy("has_ingredient", RegistrateRecipeProvider.has(parent.get()))
 				.save(p::accept))
 			.tag(Tags.Blocks.GLASS_PANES)
 			.loot((t, g) -> t.dropWhenSilkTouch(g))

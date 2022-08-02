@@ -16,18 +16,18 @@ import com.simibubi.create.foundation.tileEntity.behaviour.BehaviourType;
 import com.simibubi.create.foundation.utility.Iterate;
 import com.simibubi.create.foundation.utility.WorldAttached;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.IBlockDisplayReader;
-import net.minecraft.world.IWorld;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.level.BlockAndTintGetter;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelAccessor;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.fluids.FluidStack;
 
 public abstract class FluidTransportBehaviour extends TileEntityBehaviour {
 
-	public static BehaviourType<FluidTransportBehaviour> TYPE = new BehaviourType<>();
+	public static final BehaviourType<FluidTransportBehaviour> TYPE = new BehaviourType<>();
 
 	public enum UpdatePhase {
 		WAIT_FOR_PUMPS, // Do not run Layer II logic while pumps could still be distributing pressure
@@ -58,7 +58,7 @@ public abstract class FluidTransportBehaviour extends TileEntityBehaviour {
 	@Override
 	public void tick() {
 		super.tick();
-		World world = getWorld();
+		Level world = getWorld();
 		BlockPos pos = getPos();
 		boolean onServer = !world.isClientSide || tileEntity.isVirtual();
 
@@ -140,7 +140,7 @@ public abstract class FluidTransportBehaviour extends TileEntityBehaviour {
 	}
 
 	@Override
-	public void read(CompoundNBT nbt, boolean clientPacket) {
+	public void read(CompoundTag nbt, boolean clientPacket) {
 		super.read(nbt, clientPacket);
 		if (interfaces == null)
 			interfaces = new IdentityHashMap<>();
@@ -159,7 +159,7 @@ public abstract class FluidTransportBehaviour extends TileEntityBehaviour {
 	}
 
 	@Override
-	public void write(CompoundNBT nbt, boolean clientPacket) {
+	public void write(CompoundTag nbt, boolean clientPacket) {
 		super.write(nbt, clientPacket);
 		if (clientPacket)
 			createConnectionData();
@@ -233,7 +233,7 @@ public abstract class FluidTransportBehaviour extends TileEntityBehaviour {
 				interfaces.put(d, new PipeConnection(d));
 	}
 
-	public AttachmentTypes getRenderedRimAttachment(IBlockDisplayReader world, BlockPos pos, BlockState state,
+	public AttachmentTypes getRenderedRimAttachment(BlockAndTintGetter world, BlockPos pos, BlockState state,
 		Direction direction) {
 		if (!canHaveFlowToward(state, direction))
 			return AttachmentTypes.NONE;
@@ -241,13 +241,13 @@ public abstract class FluidTransportBehaviour extends TileEntityBehaviour {
 		BlockPos offsetPos = pos.relative(direction);
 		BlockState facingState = world.getBlockState(offsetPos);
 
-		if (facingState.getBlock() instanceof PumpBlock && facingState.getValue(PumpBlock.FACING)
-			.getAxis() == direction.getAxis())
+		if (facingState.getBlock() instanceof PumpBlock
+			&& facingState.getValue(PumpBlock.FACING) == direction.getOpposite())
 			return AttachmentTypes.NONE;
 
 		if (AllBlocks.ENCASED_FLUID_PIPE.has(facingState)
 			&& facingState.getValue(EncasedPipeBlock.FACING_TO_PROPERTY_MAP.get(direction.getOpposite())))
-			return AttachmentTypes.NONE;
+			return AttachmentTypes.RIM;
 
 		if (FluidPropagator.hasFluidCapability(world, offsetPos, direction.getOpposite())
 			&& !AllBlocks.HOSE_PULLEY.has(facingState))
@@ -274,14 +274,14 @@ public abstract class FluidTransportBehaviour extends TileEntityBehaviour {
 	public static final WorldAttached<Map<BlockPos, Map<Direction, PipeConnection>>> interfaceTransfer =
 		new WorldAttached<>($ -> new HashMap<>());
 
-	public static void cacheFlows(IWorld world, BlockPos pos) {
+	public static void cacheFlows(LevelAccessor world, BlockPos pos) {
 		FluidTransportBehaviour pipe = TileEntityBehaviour.get(world, pos, FluidTransportBehaviour.TYPE);
 		if (pipe != null)
 			interfaceTransfer.get(world)
 				.put(pos, pipe.interfaces);
 	}
 
-	public static void loadFlows(IWorld world, BlockPos pos) {
+	public static void loadFlows(LevelAccessor world, BlockPos pos) {
 		FluidTransportBehaviour newPipe = TileEntityBehaviour.get(world, pos, FluidTransportBehaviour.TYPE);
 		if (newPipe != null)
 			newPipe.interfaces = interfaceTransfer.get(world)

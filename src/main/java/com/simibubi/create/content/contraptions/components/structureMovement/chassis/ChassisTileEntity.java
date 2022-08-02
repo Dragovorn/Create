@@ -1,7 +1,5 @@
 package com.simibubi.create.content.contraptions.components.structureMovement.chassis;
 
-import static net.minecraft.state.properties.BlockStateProperties.AXIS;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -21,14 +19,14 @@ import com.simibubi.create.foundation.tileEntity.behaviour.scrollvalue.ScrollVal
 import com.simibubi.create.foundation.utility.Iterate;
 import com.simibubi.create.foundation.utility.Lang;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.state.properties.BlockStateProperties;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Direction.Axis;
-import net.minecraft.util.Direction.AxisDirection;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.Axis;
+import net.minecraft.core.Direction.AxisDirection;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
 
@@ -36,14 +34,14 @@ public class ChassisTileEntity extends SmartTileEntity {
 
 	ScrollValueBehaviour range;
 
-	public ChassisTileEntity(TileEntityType<? extends ChassisTileEntity> type) {
-		super(type);
+	public ChassisTileEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+		super(type, pos, state);
 	}
 
 	@Override
 	public void addBehaviours(List<TileEntityBehaviour> behaviours) {
 		int max = AllConfigs.SERVER.kinetics.maxChassisRange.get();
-		range = new BulkScrollValueBehaviour(Lang.translate("generic.range"), this, new CenteredSideValueBoxTransform(),
+		range = new BulkScrollValueBehaviour(Lang.translateDirect("generic.range"), this, new CenteredSideValueBoxTransform(),
 				te -> ((ChassisTileEntity) te).collectChassisGroup());
 		range.requiresWrench();
 		range.between(1, max);
@@ -58,7 +56,7 @@ public class ChassisTileEntity extends SmartTileEntity {
 	public void initialize() {
 		super.initialize();
 		if (getBlockState().getBlock() instanceof RadialChassisBlock)
-			range.setLabel(Lang.translate("generic.radius"));
+			range.setLabel(Lang.translateDirect("generic.radius"));
 	}
 
 	public int getRange() {
@@ -86,7 +84,7 @@ public class ChassisTileEntity extends SmartTileEntity {
 			if (visited.contains(current))
 				continue;
 			visited.add(current);
-			TileEntity tileEntity = level.getBlockEntity(current);
+			BlockEntity tileEntity = level.getBlockEntity(current);
 			if (tileEntity instanceof ChassisTileEntity) {
 				ChassisTileEntity chassis = (ChassisTileEntity) tileEntity;
 				collected.add(chassis);
@@ -136,7 +134,7 @@ public class ChassisTileEntity extends SmartTileEntity {
 				continue;
 			if (!LinearChassisBlock.sameKind(state, neighbourState))
 				continue;
-			if (neighbourState.getValue(AXIS) != axis)
+			if (neighbourState.getValue(LinearChassisBlock.AXIS) != axis)
 				continue;
 
 			frontier.add(current);

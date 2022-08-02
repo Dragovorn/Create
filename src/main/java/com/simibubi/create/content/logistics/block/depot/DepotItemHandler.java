@@ -2,7 +2,7 @@ package com.simibubi.create.content.logistics.block.depot;
 
 import com.simibubi.create.content.contraptions.relays.belt.transport.TransportedItemStack;
 
-import net.minecraft.item.ItemStack;
+import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.items.IItemHandler;
 
 public class DepotItemHandler implements IItemHandler {
@@ -66,7 +66,7 @@ public class DepotItemHandler implements IItemHandler {
 
 	@Override
 	public boolean isItemValid(int slot, ItemStack stack) {
-		return slot == MAIN_SLOT;
+		return slot == MAIN_SLOT && te.isItemValid(stack);
 	}
 
 }

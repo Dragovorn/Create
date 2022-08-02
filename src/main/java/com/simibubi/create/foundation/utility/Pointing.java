@@ -1,11 +1,11 @@
 package com.simibubi.create.foundation.utility;
 
-import net.minecraft.util.Direction;
-import net.minecraft.util.Direction.Axis;
-import net.minecraft.util.Direction.AxisDirection;
-import net.minecraft.util.IStringSerializable;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.Axis;
+import net.minecraft.core.Direction.AxisDirection;
+import net.minecraft.util.StringRepresentable;
 
-public enum Pointing implements IStringSerializable {
+public enum Pointing implements StringRepresentable {
 	UP(0), LEFT(270), DOWN(180), RIGHT(90);
 
 	private int xRotation;
@@ -28,7 +28,7 @@ public enum Pointing implements IStringSerializable {
 		Direction top = axis == Axis.Y ? Direction.SOUTH : Direction.UP;
 		int rotations = direction.getAxisDirection() == AxisDirection.NEGATIVE ? 4 - ordinal() : ordinal();
 		for (int i = 0; i < rotations; i++)
-			top = DirectionHelper.rotateAround(top, axis);
+			top = top.getClockWise(axis);
 		return top;
 	}
 

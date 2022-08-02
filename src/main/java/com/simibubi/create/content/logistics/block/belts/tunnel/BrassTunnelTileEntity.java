@@ -17,7 +17,6 @@ import com.simibubi.create.AllBlocks;
 import com.simibubi.create.content.contraptions.goggles.IHaveGoggleInformation;
 import com.simibubi.create.content.contraptions.relays.belt.BeltHelper;
 import com.simibubi.create.content.contraptions.relays.belt.BeltTileEntity;
-import com.simibubi.create.foundation.advancement.AllTriggers;
 import com.simibubi.create.foundation.gui.AllIcons;
 import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 import com.simibubi.create.foundation.tileEntity.behaviour.CenteredSideValueBoxTransform;
@@ -32,23 +31,23 @@ import com.simibubi.create.foundation.utility.Iterate;
 import com.simibubi.create.foundation.utility.Lang;
 import com.simibubi.create.foundation.utility.NBTHelper;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.entity.item.ItemEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.nbt.NBTUtil;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Direction.Axis;
-import net.minecraft.util.Direction.AxisDirection;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.vector.Vector3d;
-import net.minecraft.util.text.ITextComponent;
-import net.minecraft.util.text.TextFormatting;
-import net.minecraft.util.text.TranslationTextComponent;
+import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.Axis;
+import net.minecraft.core.Direction.AxisDirection;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtUtils;
+import net.minecraft.nbt.Tag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.TranslatableComponent;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.util.Constants.NBT;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandler;
@@ -77,8 +76,8 @@ public class BrassTunnelTileEntity extends BeltTunnelTileEntity implements IHave
 	private LazyOptional<IItemHandler> beltCapability;
 	private LazyOptional<IItemHandler> tunnelCapability;
 
-	public BrassTunnelTileEntity(TileEntityType<? extends BeltTunnelTileEntity> type) {
-		super(type);
+	public BrassTunnelTileEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+		super(type, pos, state);
 		distributionTargets = Couple.create(ArrayList::new);
 		syncSet = new HashSet<>();
 		stackToDistribute = ItemStack.EMPTY;
@@ -92,7 +91,7 @@ public class BrassTunnelTileEntity extends BeltTunnelTileEntity implements IHave
 	public void addBehaviours(List<TileEntityBehaviour> behaviours) {
 		super.addBehaviours(behaviours);
 		behaviours.add(selectionMode = new ScrollOptionBehaviour<>(SelectionMode.class,
-			Lang.translate("logistics.when_multiple_outputs_available"), this,
+			Lang.translateDirect("logistics.when_multiple_outputs_available"), this,
 			new CenteredSideValueBoxTransform((state, d) -> d == Direction.UP)));
 		selectionMode.requiresWrench();
 
@@ -184,7 +183,7 @@ public class BrassTunnelTileEntity extends BeltTunnelTileEntity implements IHave
 			for (Pair<BlockPos, Direction> pair : list) {
 				BlockPos tunnelPos = pair.getKey();
 				Direction output = pair.getValue();
-				TileEntity te = level.getBlockEntity(tunnelPos);
+				BlockEntity te = level.getBlockEntity(tunnelPos);
 				if (!(te instanceof BrassTunnelTileEntity))
 					continue;
 				validTargets.add(Pair.of((BrassTunnelTileEntity) te, output));
@@ -336,7 +335,7 @@ public class BrassTunnelTileEntity extends BeltTunnelTileEntity implements IHave
 		for (boolean left : Iterate.trueAndFalse) {
 			BrassTunnelTileEntity adjacent = this;
 			while (adjacent != null) {
-				if (!level.isAreaLoaded(adjacent.getBlockPos(), 1))
+				if (!level.isLoaded(adjacent.getBlockPos()))
 					return null;
 				adjacent = adjacent.getAdjacent(left);
 				if (adjacent == null)
@@ -390,8 +389,8 @@ public class BrassTunnelTileEntity extends BeltTunnelTileEntity implements IHave
 					float beltMovementSpeed = below.getDirectionAwareBeltMovementSpeed();
 					float movementSpeed = Math.max(Math.abs(beltMovementSpeed), 1 / 8f);
 					int additionalOffset = beltMovementSpeed > 0 ? 1 : 0;
-					Vector3d outPos = BeltHelper.getVectorForOffset(controllerTE, below.index + additionalOffset);
-					Vector3d outMotion = Vector3d.atLowerCornerOf(side.getNormal())
+					Vec3 outPos = BeltHelper.getVectorForOffset(controllerTE, below.index + additionalOffset);
+					Vec3 outMotion = Vec3.atLowerCornerOf(side.getNormal())
 						.scale(movementSpeed)
 						.add(0, 1 / 8f, 0);
 					outPos.add(outMotion.normalize());
@@ -478,7 +477,7 @@ public class BrassTunnelTileEntity extends BeltTunnelTileEntity implements IHave
 		for (boolean left : Iterate.trueAndFalse) {
 			BrassTunnelTileEntity adjacent = this;
 			while (adjacent != null) {
-				if (!level.isAreaLoaded(adjacent.getBlockPos(), 1))
+				if (!level.isLoaded(adjacent.getBlockPos()))
 					return null;
 				adjacent = adjacent.getAdjacent(left);
 				if (adjacent == null)
@@ -556,7 +555,7 @@ public class BrassTunnelTileEntity extends BeltTunnelTileEntity implements IHave
 	}
 
 	@Override
-	public void write(CompoundNBT compound, boolean clientPacket) {
+	public void write(CompoundTag compound, boolean clientPacket) {
 		compound.putBoolean("SyncedOutput", syncedOutputActive);
 		compound.putBoolean("ConnectedLeft", connectedLeft);
 		compound.putBoolean("ConnectedRight", connectedRight);
@@ -569,8 +568,8 @@ public class BrassTunnelTileEntity extends BeltTunnelTileEntity implements IHave
 		for (boolean filtered : Iterate.trueAndFalse) {
 			compound.put(filtered ? "FilteredTargets" : "Targets",
 				NBTHelper.writeCompoundList(distributionTargets.get(filtered), pair -> {
-					CompoundNBT nbt = new CompoundNBT();
-					nbt.put("Pos", NBTUtil.writeBlockPos(pair.getKey()));
+					CompoundTag nbt = new CompoundTag();
+					nbt.put("Pos", NbtUtils.writeBlockPos(pair.getKey()));
 					nbt.putInt("Face", pair.getValue()
 						.get3DDataValue());
 					return nbt;
@@ -581,7 +580,7 @@ public class BrassTunnelTileEntity extends BeltTunnelTileEntity implements IHave
 	}
 
 	@Override
-	protected void fromTag(BlockState state, CompoundNBT compound, boolean clientPacket) {
+	protected void read(CompoundTag compound, boolean clientPacket) {
 		boolean wasConnectedLeft = connectedLeft;
 		boolean wasConnectedRight = connectedRight;
 
@@ -596,14 +595,14 @@ public class BrassTunnelTileEntity extends BeltTunnelTileEntity implements IHave
 
 		for (boolean filtered : Iterate.trueAndFalse) {
 			distributionTargets.set(filtered, NBTHelper
-				.readCompoundList(compound.getList(filtered ? "FilteredTargets" : "Targets", NBT.TAG_COMPOUND), nbt -> {
-					BlockPos pos = NBTUtil.readBlockPos(nbt.getCompound("Pos"));
+				.readCompoundList(compound.getList(filtered ? "FilteredTargets" : "Targets", Tag.TAG_COMPOUND), nbt -> {
+					BlockPos pos = NbtUtils.readBlockPos(nbt.getCompound("Pos"));
 					Direction face = Direction.from3DDataValue(nbt.getInt("Face"));
 					return Pair.of(pos, face);
 				}));
 		}
 
-		super.fromTag(state, compound, clientPacket);
+		super.read(compound, clientPacket);
 
 		if (!clientPacket)
 			return;
@@ -633,7 +632,6 @@ public class BrassTunnelTileEntity extends BeltTunnelTileEntity implements IHave
 			if (adjacent != null && !level.isClientSide) {
 				adjacent.updateTunnelConnections();
 				adjacent.selectionMode.setValue(selectionMode.getValue());
-				AllTriggers.triggerForNearbyPlayers(AllTriggers.CONNECT_TUNNEL, level, worldPosition, 4);
 			}
 		}
 
@@ -679,7 +677,7 @@ public class BrassTunnelTileEntity extends BeltTunnelTileEntity implements IHave
 			return null;
 		if (adjacentBlockState.getValue(BrassTunnelBlock.HORIZONTAL_AXIS) != axis)
 			return null;
-		TileEntity adjacentTE = level.getBlockEntity(adjacentPos);
+		BlockEntity adjacentTE = level.getBlockEntity(adjacentPos);
 		if (adjacentTE.isRemoved())
 			return null;
 		if (!(adjacentTE instanceof BrassTunnelTileEntity))
@@ -702,7 +700,7 @@ public class BrassTunnelTileEntity extends BeltTunnelTileEntity implements IHave
 
 	public LazyOptional<IItemHandler> getBeltCapability() {
 		if (!beltCapability.isPresent()) {
-			TileEntity tileEntity = level.getBlockEntity(worldPosition.below());
+			BlockEntity tileEntity = level.getBlockEntity(worldPosition.below());
 			if (tileEntity != null)
 				beltCapability = tileEntity.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY);
 		}
@@ -744,23 +742,23 @@ public class BrassTunnelTileEntity extends BeltTunnelTileEntity implements IHave
 	}
 
 	@Override
-	public boolean addToGoggleTooltip(List<ITextComponent> tooltip, boolean isPlayerSneaking) {
+	public boolean addToGoggleTooltip(List<Component> tooltip, boolean isPlayerSneaking) {
 		List<ItemStack> allStacks = grabAllStacksOfGroup(true);
 		if (allStacks.isEmpty())
 			return false;
 		
 		tooltip.add(componentSpacing.plainCopy()
-			.append(Lang.translate("tooltip.brass_tunnel.contains"))
-			.withStyle(TextFormatting.WHITE));
+			.append(Lang.translateDirect("tooltip.brass_tunnel.contains"))
+			.withStyle(ChatFormatting.WHITE));
 		for (ItemStack item : allStacks) {
 			tooltip.add(componentSpacing.plainCopy()
-				.append(Lang.translate("tooltip.brass_tunnel.contains_entry", new TranslationTextComponent(item.getItem()
-					.getDescriptionId(item)).getString(), item.getCount()))
-				.withStyle(TextFormatting.GRAY));
+				.append(Lang.translateDirect("tooltip.brass_tunnel.contains_entry", new TranslatableComponent(item.getDescriptionId())
+					.getString(), item.getCount()))
+				.withStyle(ChatFormatting.GRAY));
 		}
 		tooltip.add(componentSpacing.plainCopy()
-			.append(Lang.translate("tooltip.brass_tunnel.retrieve"))
-			.withStyle(TextFormatting.DARK_GRAY));
+			.append(Lang.translateDirect("tooltip.brass_tunnel.retrieve"))
+			.withStyle(ChatFormatting.DARK_GRAY));
 		
 		return true;
 	}

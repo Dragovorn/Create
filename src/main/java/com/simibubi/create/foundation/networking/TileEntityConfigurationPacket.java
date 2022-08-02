@@ -4,18 +4,18 @@ import java.util.function.Supplier;
 
 import com.simibubi.create.foundation.tileEntity.SyncedTileEntity;
 
-import net.minecraft.entity.player.ServerPlayerEntity;
-import net.minecraft.network.PacketBuffer;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
-import net.minecraftforge.fml.network.NetworkEvent.Context;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraftforge.network.NetworkEvent.Context;
 
 public abstract class TileEntityConfigurationPacket<TE extends SyncedTileEntity> extends SimplePacketBase {
 
 	protected BlockPos pos;
 
-	public TileEntityConfigurationPacket(PacketBuffer buffer) {
+	public TileEntityConfigurationPacket(FriendlyByteBuf buffer) {
 		pos = buffer.readBlockPos();
 		readSettings(buffer);
 	}
@@ -25,7 +25,7 @@ public abstract class TileEntityConfigurationPacket<TE extends SyncedTileEntity>
 	}
 
 	@Override
-	public void write(PacketBuffer buffer) {
+	public void write(FriendlyByteBuf buffer) {
 		buffer.writeBlockPos(pos);
 		writeSettings(buffer);
 	}
@@ -35,17 +35,20 @@ public abstract class TileEntityConfigurationPacket<TE extends SyncedTileEntity>
 	public void handle(Supplier<Context> context) {
 		context.get()
 			.enqueueWork(() -> {
-				ServerPlayerEntity player = context.get()
+				ServerPlayer player = context.get()
 					.getSender();
 				if (player == null)
 					return;
-				World world = player.level;
-
+				Level world = player.level;
 				if (world == null || !world.isLoaded(pos))
 					return;
-				TileEntity tileEntity = world.getBlockEntity(pos);
+				if (!pos.closerThan(player.blockPosition(), maxRange()))
+					return;
+				BlockEntity tileEntity = world.getBlockEntity(pos);
 				if (tileEntity instanceof SyncedTileEntity) {
-					applySettings((TE) tileEntity);
+					applySettings(player, (TE) tileEntity);
+					if (!causeUpdate())
+						return;
 					((SyncedTileEntity) tileEntity).sendData();
 					tileEntity.setChanged();
 				}
@@ -55,9 +58,21 @@ public abstract class TileEntityConfigurationPacket<TE extends SyncedTileEntity>
 
 	}
 
-	protected abstract void writeSettings(PacketBuffer buffer);
+	protected int maxRange() {
+		return 20;
+	}
 
-	protected abstract void readSettings(PacketBuffer buffer);
+	protected abstract void writeSettings(FriendlyByteBuf buffer);
+
+	protected abstract void readSettings(FriendlyByteBuf buffer);
+
+	protected void applySettings(ServerPlayer player, TE te) {
+		applySettings(te);
+	}
+	
+	protected boolean causeUpdate() {
+		return true;
+	}
 
 	protected abstract void applySettings(TE te);
 

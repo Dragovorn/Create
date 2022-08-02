@@ -1,28 +1,29 @@
 package com.simibubi.create.content.contraptions.components.actors;
 
-import com.jozufozu.flywheel.backend.material.InstanceMaterial;
-import com.jozufozu.flywheel.backend.material.MaterialManager;
+import com.jozufozu.flywheel.api.Material;
+import com.jozufozu.flywheel.api.MaterialManager;
+import com.jozufozu.flywheel.core.virtual.VirtualRenderWorld;
+import com.mojang.math.Quaternion;
 import com.simibubi.create.AllBlockPartials;
+import com.simibubi.create.content.contraptions.components.actors.flwdata.ActorData;
 import com.simibubi.create.content.contraptions.components.structureMovement.MovementContext;
 import com.simibubi.create.content.contraptions.components.structureMovement.render.ActorInstance;
 import com.simibubi.create.foundation.render.AllMaterialSpecs;
 import com.simibubi.create.foundation.utility.AngleHelper;
 import com.simibubi.create.foundation.utility.VecHelper;
-import com.simibubi.create.foundation.utility.worldWrappers.PlacementSimulationWorld;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.vector.Quaternion;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.block.state.BlockState;
 
 public class DrillActorInstance extends ActorInstance {
 
     ActorData drillHead;
     private final Direction facing;
 
-    public DrillActorInstance(MaterialManager<?> materialManager, PlacementSimulationWorld contraption, MovementContext context) {
+    public DrillActorInstance(MaterialManager materialManager, VirtualRenderWorld contraption, MovementContext context) {
         super(materialManager, contraption, context);
 
-        InstanceMaterial<ActorData> instanceMaterial = materialManager.defaultSolid()
+        Material<ActorData> material = materialManager.defaultSolid()
                 .material(AllMaterialSpecs.ACTORS);
 
         BlockState state = context.state;
@@ -38,7 +39,7 @@ public class DrillActorInstance extends ActorInstance {
         else
             eulerY = facing.toYRot() + ((axis == Direction.Axis.X) ? 180 : 0);
 
-        drillHead = instanceMaterial.getModel(AllBlockPartials.DRILL_HEAD, state).createInstance();
+        drillHead = material.getModel(AllBlockPartials.DRILL_HEAD, state).createInstance();
 
         drillHead.setPosition(context.localPos)
                  .setBlockLight(localBlockLight())

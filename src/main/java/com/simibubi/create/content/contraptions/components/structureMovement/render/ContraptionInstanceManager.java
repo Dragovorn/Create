@@ -1,69 +1,84 @@
 package com.simibubi.create.content.contraptions.components.structureMovement.render;
 
-import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 
 import javax.annotation.Nullable;
 
 import org.apache.commons.lang3.tuple.Pair;
 
-import com.jozufozu.flywheel.backend.instancing.tile.TileInstanceManager;
-import com.jozufozu.flywheel.backend.material.MaterialManager;
+import com.jozufozu.flywheel.api.MaterialManager;
+import com.jozufozu.flywheel.api.instance.DynamicInstance;
+import com.jozufozu.flywheel.backend.instancing.TaskEngine;
+import com.jozufozu.flywheel.backend.instancing.blockentity.BlockEntityInstanceManager;
+import com.jozufozu.flywheel.core.virtual.VirtualRenderWorld;
 import com.simibubi.create.AllMovementBehaviours;
+import com.simibubi.create.content.contraptions.components.structureMovement.Contraption;
 import com.simibubi.create.content.contraptions.components.structureMovement.MovementBehaviour;
 import com.simibubi.create.content.contraptions.components.structureMovement.MovementContext;
 
-import net.minecraft.client.renderer.ActiveRenderInfo;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.gen.feature.template.Template;
+import net.minecraft.client.Camera;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate.StructureBlockInfo;
 
-public class ContraptionInstanceManager extends TileInstanceManager {
+public class ContraptionInstanceManager extends BlockEntityInstanceManager {
 
-    protected ArrayList<ActorInstance> actors = new ArrayList<>();
+	protected ArrayList<ActorInstance> actors = new ArrayList<>();
 
-    private final WeakReference<RenderedContraption> contraption;
+	private final VirtualRenderWorld renderWorld;
 
-    ContraptionInstanceManager(RenderedContraption contraption, MaterialManager<?> materialManager) {
+	private Contraption contraption;
+
+	ContraptionInstanceManager(MaterialManager materialManager, VirtualRenderWorld renderWorld, Contraption contraption) {
 		super(materialManager);
-		this.contraption = new WeakReference<>(contraption);
+		this.renderWorld = renderWorld;
+		this.contraption = contraption;
 	}
 
-    public void tick() {
-        actors.forEach(ActorInstance::tick);
-    }
+	public void tick() {
+		actors.forEach(ActorInstance::tick);
+	}
 
-    @Override
-	public void beginFrame(ActiveRenderInfo info) {
-		super.beginFrame(info);
+	@Override
+	protected boolean canCreateInstance(BlockEntity blockEntity) {
+		return !contraption.isHiddenInPortal(blockEntity.getBlockPos());
+	}
+
+	@Override
+	public void beginFrame(TaskEngine taskEngine, Camera info) {
+		super.beginFrame(taskEngine, info);
 
 		actors.forEach(ActorInstance::beginFrame);
 	}
 
-    @Override
-	protected boolean shouldFrameUpdate(BlockPos worldPos, float lookX, float lookY, float lookZ, int cX, int cY, int cZ) {
-		return true;
+	@Override
+	protected void updateInstance(DynamicInstance dyn, float lookX, float lookY, float lookZ, int cX, int cY, int cZ) {
+		dyn.beginFrame();
 	}
 
-    @Nullable
-    public ActorInstance createActor(Pair<Template.BlockInfo, MovementContext> actor) {
-        Template.BlockInfo blockInfo = actor.getLeft();
-        MovementContext context = actor.getRight();
+	@Nullable
+	public ActorInstance createActor(Pair<StructureBlockInfo, MovementContext> actor) {
+		StructureBlockInfo blockInfo = actor.getLeft();
+		MovementContext context = actor.getRight();
 
-        MovementBehaviour movementBehaviour = AllMovementBehaviours.of(blockInfo.state);
+		if (contraption.isHiddenInPortal(context.localPos))
+			return null;
 
-        if (movementBehaviour != null && movementBehaviour.hasSpecialInstancedRendering()) {
-            ActorInstance instance = movementBehaviour.createInstance(materialManager, getContraption().renderWorld, context);
+		MovementBehaviour movementBehaviour = AllMovementBehaviours.getBehaviour(blockInfo.state);
 
-            actors.add(instance);
+		if (movementBehaviour != null && movementBehaviour.hasSpecialInstancedRendering()) {
+			ActorInstance instance = movementBehaviour.createInstance(materialManager, renderWorld, context);
 
-            return instance;
-        }
+			actors.add(instance);
 
-        return null;
-    }
+			return instance;
+		}
 
-    public RenderedContraption getContraption() {
-        return contraption.get();
-    }
+		return null;
+	}
+
+	@Override
+	public void detachLightListeners() {
+		// noop, no light updater for contraption levels
+	}
 }
 

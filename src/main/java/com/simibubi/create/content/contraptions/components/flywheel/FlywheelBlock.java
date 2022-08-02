@@ -1,118 +1,65 @@
 package com.simibubi.create.content.contraptions.components.flywheel;
 
+import com.simibubi.create.AllShapes;
 import com.simibubi.create.AllTileEntities;
-import com.simibubi.create.content.contraptions.base.HorizontalKineticBlock;
-import com.simibubi.create.content.contraptions.components.flywheel.engine.EngineTileEntity;
-import com.simibubi.create.content.contraptions.components.flywheel.engine.FurnaceEngineBlock;
-import com.simibubi.create.foundation.advancement.AllTriggers;
-import com.simibubi.create.foundation.utility.Lang;
+import com.simibubi.create.content.contraptions.base.RotatedPillarKineticBlock;
+import com.simibubi.create.foundation.block.ITE;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.item.BlockItemUseContext;
-import net.minecraft.item.ItemUseContext;
-import net.minecraft.state.EnumProperty;
-import net.minecraft.state.StateContainer.Builder;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.ActionResultType;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Direction.Axis;
-import net.minecraft.util.IStringSerializable;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.IBlockReader;
-import net.minecraft.world.IWorldReader;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.Axis;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.block.RenderShape;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
-public class FlywheelBlock extends HorizontalKineticBlock {
-
-	public static EnumProperty<ConnectionState> CONNECTION = EnumProperty.create("connection", ConnectionState.class);
+public class FlywheelBlock extends RotatedPillarKineticBlock implements ITE<FlywheelTileEntity> {
 
 	public FlywheelBlock(Properties properties) {
 		super(properties);
-		registerDefaultState(defaultBlockState().setValue(CONNECTION, ConnectionState.NONE));
 	}
 
 	@Override
-	protected void createBlockStateDefinition(Builder<Block, BlockState> builder) {
-		super.createBlockStateDefinition(builder.add(CONNECTION));
+	public Class<FlywheelTileEntity> getTileEntityClass() {
+		return FlywheelTileEntity.class;
+	}
+	
+	@Override
+	public VoxelShape getShape(BlockState pState, BlockGetter pLevel, BlockPos pPos, CollisionContext pContext) {
+		return AllShapes.LARGE_GEAR.get(pState.getValue(AXIS));
+	}
+	
+	@Override
+	public RenderShape getRenderShape(BlockState pState) {
+		return RenderShape.ENTITYBLOCK_ANIMATED;
 	}
 
 	@Override
-	public TileEntity createTileEntity(BlockState state, IBlockReader world) {
-		return AllTileEntities.FLYWHEEL.create();
+	public BlockEntityType<? extends FlywheelTileEntity> getTileEntityType() {
+		return AllTileEntities.FLYWHEEL.get();
 	}
-
+	
 	@Override
-	public BlockState getStateForPlacement(BlockItemUseContext context) {
-		Direction preferred = getPreferredHorizontalFacing(context);
-		if (preferred != null)
-			return defaultBlockState().setValue(HORIZONTAL_FACING, preferred.getOpposite());
-		return this.defaultBlockState().setValue(HORIZONTAL_FACING, context.getHorizontalDirection());
-	}
-
-	public static boolean isConnected(BlockState state) {
-		return getConnection(state) != null;
-	}
-
-	public static Direction getConnection(BlockState state) {
-		Direction facing = state.getValue(HORIZONTAL_FACING);
-		ConnectionState connection = state.getValue(CONNECTION);
-
-		if (connection == ConnectionState.LEFT)
-			return facing.getCounterClockWise();
-		if (connection == ConnectionState.RIGHT)
-			return facing.getClockWise();
-		return null;
-	}
-
-	public static void setConnection(World world, BlockPos pos, BlockState state, Direction direction) {
-		Direction facing = state.getValue(HORIZONTAL_FACING);
-		ConnectionState connection = ConnectionState.NONE;
-
-		if (direction == facing.getClockWise())
-			connection = ConnectionState.RIGHT;
-		if (direction == facing.getCounterClockWise())
-			connection = ConnectionState.LEFT;
-
-		world.setBlock(pos, state.setValue(CONNECTION, connection), 18);
-		AllTriggers.triggerForNearbyPlayers(AllTriggers.FLYWHEEL, world, pos, 4);
-	}
-
-	@Override
-	public boolean hasShaftTowards(IWorldReader world, BlockPos pos, BlockState state, Direction face) {
-		return face == state.getValue(HORIZONTAL_FACING).getOpposite();
+	public boolean hasShaftTowards(LevelReader world, BlockPos pos, BlockState state, Direction face) {
+		return face.getAxis() == getRotationAxis(state);
 	}
 
 	@Override
 	public Axis getRotationAxis(BlockState state) {
-		return state.getValue(HORIZONTAL_FACING).getAxis();
+		return state.getValue(AXIS);
 	}
 
 	@Override
-	public ActionResultType onWrenched(BlockState state, ItemUseContext context) {
-		Direction connection = getConnection(state);
-		if (connection == null)
-			return super.onWrenched(state ,context);
-
-		if (context.getClickedFace().getAxis() == state.getValue(HORIZONTAL_FACING).getAxis())
-			return ActionResultType.PASS;
-
-		World world = context.getLevel();
-		BlockPos enginePos = context.getClickedPos().relative(connection, 2);
-		BlockState engine = world.getBlockState(enginePos);
-		if (engine.getBlock() instanceof FurnaceEngineBlock)
-			((FurnaceEngineBlock) engine.getBlock()).withTileEntityDo(world, enginePos, EngineTileEntity::detachWheel);
-
-		return super.onWrenched(state.setValue(CONNECTION, ConnectionState.NONE), context);
+	public float getParticleTargetRadius() {
+		return 2f;
 	}
 
-	public enum ConnectionState implements IStringSerializable {
-		NONE, LEFT, RIGHT;
-
-		@Override
-		public String getSerializedName() {
-			return Lang.asId(name());
-		}
+	@Override
+	public float getParticleInitialRadius() {
+		return 1.75f;
 	}
-
+	
 }

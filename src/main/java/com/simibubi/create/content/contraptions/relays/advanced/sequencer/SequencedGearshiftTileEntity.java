@@ -4,11 +4,12 @@ import java.util.Vector;
 
 import com.simibubi.create.content.contraptions.relays.encased.SplitShaftTileEntity;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.Direction;
-import net.minecraftforge.common.util.Constants.NBT;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
 
 public class SequencedGearshiftTileEntity extends SplitShaftTileEntity {
 
@@ -19,8 +20,8 @@ public class SequencedGearshiftTileEntity extends SplitShaftTileEntity {
 	int timer;
 	boolean poweredPreviously;
 
-	public SequencedGearshiftTileEntity(TileEntityType<? extends SequencedGearshiftTileEntity> type) {
-		super(type);
+	public SequencedGearshiftTileEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+		super(type, pos, state);
 		instructions = Instruction.createDefault();
 		currentInstruction = -1;
 		currentInstructionDuration = -1;
@@ -134,7 +135,7 @@ public class SequencedGearshiftTileEntity extends SplitShaftTileEntity {
 	}
 
 	@Override
-	public void write(CompoundNBT compound, boolean clientPacket) {
+	public void write(CompoundTag compound, boolean clientPacket) {
 		compound.putInt("InstructionIndex", currentInstruction);
 		compound.putInt("InstructionDuration", currentInstructionDuration);
 		compound.putFloat("InstructionProgress", currentInstructionProgress);
@@ -145,14 +146,14 @@ public class SequencedGearshiftTileEntity extends SplitShaftTileEntity {
 	}
 
 	@Override
-	protected void fromTag(BlockState state, CompoundNBT compound, boolean clientPacket) {
+	protected void read(CompoundTag compound, boolean clientPacket) {
 		currentInstruction = compound.getInt("InstructionIndex");
 		currentInstructionDuration = compound.getInt("InstructionDuration");
 		currentInstructionProgress = compound.getFloat("InstructionProgress");
 		poweredPreviously = compound.getBoolean("PrevPowered");
 		timer = compound.getInt("Timer");
-		instructions = Instruction.deserializeAll(compound.getList("Instructions", NBT.TAG_COMPOUND));
-		super.fromTag(state, compound, clientPacket);
+		instructions = Instruction.deserializeAll(compound.getList("Instructions", Tag.TAG_COMPOUND));
+		super.read(compound, clientPacket);
 	}
 
 	@Override

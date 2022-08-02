@@ -1,7 +1,7 @@
 {
   "replace": false,
   "values": [
-    "create:copper_ingot",
+    "create:andesite_alloy",
     "create:zinc_ingot",
     "create:brass_ingot"
   ]

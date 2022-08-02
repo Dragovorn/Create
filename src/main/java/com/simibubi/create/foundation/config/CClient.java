@@ -19,8 +19,6 @@ public class CClient extends ConfigBase {
 	public final ConfigFloat filterItemRenderDistance = f(10f, 1, "filterItemRenderDistance", Comments.filterItemRenderDistance);
 	public final ConfigBool rainbowDebug = b(true, "enableRainbowDebug",
 			Comments.rainbowDebug);
-	public final ConfigBool experimentalRendering = b(true, "experimentalRendering",
-			Comments.experimentalRendering);
 	public final ConfigInt maxContraptionLightVolume = i(16384, 0, Integer.MAX_VALUE, "maximumContraptionLightVolume",
 			Comments.maxContraptionLightVolume);
 	// no group
@@ -64,6 +62,8 @@ public class CClient extends ConfigBase {
 			Comments.ponder);
 	public final ConfigBool comfyReading = b(false, "comfyReading",
 			Comments.comfyReading);
+	public final ConfigBool editingMode = b(false, "editingMode",
+		Comments.editingMode);
 
 	//sound group
 	public final ConfigGroup sound = group(1, "sound",
@@ -72,6 +72,10 @@ public class CClient extends ConfigBase {
 			Comments.enableAmbientSounds);
 	public final ConfigFloat ambientVolumeCap = f(.1f, 0, 1, "ambientVolumeCap",
 			Comments.ambientVolumeCap);
+
+	//train group
+	public final ConfigGroup trains = group(1, "trains", Comments.trains);
+	public final ConfigFloat mountedZoomMultiplier = f(3, 0, "mountedZoomMultiplier", Comments.mountedZoomMultiplier);
 
 	@Override
 	public String getName() {
@@ -93,7 +97,6 @@ public class CClient extends ConfigBase {
 				"Maximum Distance to the player at which items in Blocks' filter slots will be displayed"
 		};
 		static String rainbowDebug = "Show colourful debug information while the F3-Menu is open.";
-		static String experimentalRendering = "Use modern OpenGL features to drastically increase performance.";
 		static String maxContraptionLightVolume = "The maximum amount of blocks for which to try and calculate dynamic contraption lighting. Decrease if large contraption cause too much lag";
 		static String[] mainMenuConfigButtonRow = new String[]{
 				"Choose the menu row that the Create config button appears on in the main menu",
@@ -135,9 +138,13 @@ public class CClient extends ConfigBase {
 		static String indicatorScale = "Change the size of the Indicator by this multiplier";
 		static String ponder = "Ponder settings";
 		static String comfyReading = "Slow down a ponder scene whenever there is text on screen.";
+		static String editingMode = "Show additional info in the ponder view and reload scene scripts more frequently.";
 		static String sound = "Sound settings";
 		static String enableAmbientSounds = "Make cogs rumble and machines clatter.";
 		static String ambientVolumeCap = "Maximum volume modifier of Ambient noise";
+
+		static String trains = "Railway related settings";
+		static String mountedZoomMultiplier = "How far away the Camera should zoom when seated on a train";
 	}
 
 }

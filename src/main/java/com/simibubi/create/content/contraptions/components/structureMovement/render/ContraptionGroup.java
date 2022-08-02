@@ -1,25 +1,26 @@
 package com.simibubi.create.content.contraptions.components.structureMovement.render;
 
-import com.jozufozu.flywheel.backend.material.MaterialGroup;
-import com.jozufozu.flywheel.backend.material.MaterialManager;
-import com.jozufozu.flywheel.backend.state.IRenderState;
+import com.jozufozu.flywheel.backend.instancing.instancing.InstancedMaterialGroup;
+import com.jozufozu.flywheel.backend.instancing.instancing.InstancingEngine;
 
-public class ContraptionGroup<P extends ContraptionProgram> extends MaterialGroup<P> {
+import net.minecraft.client.renderer.RenderType;
 
-	private final RenderedContraption contraption;
+public class ContraptionGroup<P extends ContraptionProgram> extends InstancedMaterialGroup<P> {
 
-	public ContraptionGroup(RenderedContraption contraption, MaterialManager<P> owner, IRenderState state) {
-		super(owner, state);
+	private final FlwContraption contraption;
+
+	public ContraptionGroup(FlwContraption contraption, InstancingEngine<P> owner, RenderType type) {
+		super(owner, type);
 
 		this.contraption = contraption;
 	}
 
 	@Override
-	public void setup(P program) {
+    protected void setup(P program) {
 		contraption.setup(program);
 	}
 
-	public static <P extends ContraptionProgram> MaterialManager.GroupFactory<P> forContraption(RenderedContraption c) {
-		return (materialManager, state) -> new ContraptionGroup<>(c, materialManager, state);
+	public static <P extends ContraptionProgram> InstancingEngine.GroupFactory<P> forContraption(FlwContraption c) {
+		return (materialManager, type) -> new ContraptionGroup<>(c, materialManager, type);
 	}
 }

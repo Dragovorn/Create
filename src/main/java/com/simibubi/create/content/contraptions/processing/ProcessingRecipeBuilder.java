@@ -6,21 +6,24 @@ import java.util.function.Consumer;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.simibubi.create.foundation.data.SimpleDatagenIngredient;
+import com.simibubi.create.foundation.data.recipe.Mods;
 import com.simibubi.create.foundation.fluid.FluidHelper;
 import com.simibubi.create.foundation.fluid.FluidIngredient;
 import com.simibubi.create.foundation.utility.Pair;
 import com.simibubi.create.foundation.utility.recipe.IRecipeTypeInfo;
+import com.tterrag.registrate.util.DataIngredient;
 
-import net.minecraft.data.IFinishedRecipe;
-import net.minecraft.fluid.Fluid;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.crafting.IRecipeSerializer;
-import net.minecraft.item.crafting.Ingredient;
-import net.minecraft.tags.ITag;
-import net.minecraft.util.IItemProvider;
-import net.minecraft.util.NonNullList;
-import net.minecraft.util.ResourceLocation;
+import net.minecraft.core.NonNullList;
+import net.minecraft.data.recipes.FinishedRecipe;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.RecipeSerializer;
+import net.minecraft.world.level.ItemLike;
+import net.minecraft.world.level.material.Fluid;
 import net.minecraftforge.common.crafting.CraftingHelper;
 import net.minecraftforge.common.crafting.conditions.ICondition;
 import net.minecraftforge.common.crafting.conditions.ModLoadedCondition;
@@ -97,17 +100,17 @@ public class ProcessingRecipeBuilder<T extends ProcessingRecipe<?>> {
 		return factory.create(params);
 	}
 
-	public void build(Consumer<IFinishedRecipe> consumer) {
+	public void build(Consumer<FinishedRecipe> consumer) {
 		consumer.accept(new DataGenResult<>(build(), recipeConditions));
 	}
 
 	// Datagen shortcuts
 
-	public ProcessingRecipeBuilder<T> require(ITag.INamedTag<Item> tag) {
+	public ProcessingRecipeBuilder<T> require(TagKey<Item> tag) {
 		return require(Ingredient.of(tag));
 	}
 
-	public ProcessingRecipeBuilder<T> require(IItemProvider item) {
+	public ProcessingRecipeBuilder<T> require(ItemLike item) {
 		return require(Ingredient.of(item));
 	}
 
@@ -115,12 +118,22 @@ public class ProcessingRecipeBuilder<T extends ProcessingRecipe<?>> {
 		params.ingredients.add(ingredient);
 		return this;
 	}
+	
+	public ProcessingRecipeBuilder<T> require(Mods mod, String id) {
+		params.ingredients.add(new SimpleDatagenIngredient(mod, id));
+		return this;
+	}
+	
+	public ProcessingRecipeBuilder<T> require(ResourceLocation ingredient) {
+		params.ingredients.add(DataIngredient.ingredient(null, ingredient));
+		return this;
+	}
 
 	public ProcessingRecipeBuilder<T> require(Fluid fluid, int amount) {
 		return require(FluidIngredient.fromFluid(fluid, amount));
 	}
 
-	public ProcessingRecipeBuilder<T> require(ITag.INamedTag<Fluid> fluidTag, int amount) {
+	public ProcessingRecipeBuilder<T> require(TagKey<Fluid> fluidTag, int amount) {
 		return require(FluidIngredient.fromTag(fluidTag, amount));
 	}
 
@@ -129,19 +142,19 @@ public class ProcessingRecipeBuilder<T extends ProcessingRecipe<?>> {
 		return this;
 	}
 
-	public ProcessingRecipeBuilder<T> output(IItemProvider item) {
+	public ProcessingRecipeBuilder<T> output(ItemLike item) {
 		return output(item, 1);
 	}
 
-	public ProcessingRecipeBuilder<T> output(float chance, IItemProvider item) {
+	public ProcessingRecipeBuilder<T> output(float chance, ItemLike item) {
 		return output(chance, item, 1);
 	}
 
-	public ProcessingRecipeBuilder<T> output(IItemProvider item, int amount) {
+	public ProcessingRecipeBuilder<T> output(ItemLike item, int amount) {
 		return output(1, item, amount);
 	}
 
-	public ProcessingRecipeBuilder<T> output(float chance, IItemProvider item, int amount) {
+	public ProcessingRecipeBuilder<T> output(float chance, ItemLike item, int amount) {
 		return output(chance, new ItemStack(item, amount));
 	}
 
@@ -150,12 +163,19 @@ public class ProcessingRecipeBuilder<T extends ProcessingRecipe<?>> {
 	}
 
 	public ProcessingRecipeBuilder<T> output(float chance, ItemStack output) {
-		params.results.add(new ProcessingOutput(output, chance));
-		return this;
+		return output(new ProcessingOutput(output, chance));
 	}
 
+	public ProcessingRecipeBuilder<T> output(float chance, Mods mod, String id, int amount) {
+		return output(new ProcessingOutput(Pair.of(mod.asResource(id), amount), chance));
+	}
+	
 	public ProcessingRecipeBuilder<T> output(float chance, ResourceLocation registryName, int amount) {
-		params.results.add(new ProcessingOutput(Pair.of(registryName, amount), chance));
+		return output(new ProcessingOutput(Pair.of(registryName, amount), chance));
+	}
+	
+	public ProcessingRecipeBuilder<T> output(ProcessingOutput output) {
+		params.results.add(output);
 		return this;
 	}
 
@@ -166,6 +186,11 @@ public class ProcessingRecipeBuilder<T extends ProcessingRecipe<?>> {
 
 	public ProcessingRecipeBuilder<T> output(FluidStack fluidStack) {
 		params.fluidResults.add(fluidStack);
+		return this;
+	}
+	
+	public ProcessingRecipeBuilder<T> toolNotConsumed() {
+		params.keepHeldItem = true;
 		return this;
 	}
 
@@ -198,6 +223,8 @@ public class ProcessingRecipeBuilder<T extends ProcessingRecipe<?>> {
 		protected NonNullList<FluidStack> fluidResults;
 		protected int processingDuration;
 		protected HeatCondition requiredHeat;
+		
+		public boolean keepHeldItem;
 
 		protected ProcessingRecipeParams(ResourceLocation id) {
 			this.id = id;
@@ -207,11 +234,12 @@ public class ProcessingRecipeBuilder<T extends ProcessingRecipe<?>> {
 			fluidResults = NonNullList.create();
 			processingDuration = 0;
 			requiredHeat = HeatCondition.NONE;
+			keepHeldItem = false;
 		}
 
 	}
 
-	public static class DataGenResult<S extends ProcessingRecipe<?>> implements IFinishedRecipe {
+	public static class DataGenResult<S extends ProcessingRecipe<?>> implements FinishedRecipe {
 
 		private List<ICondition> recipeConditions;
 		private ProcessingRecipeSerializer<S> serializer;
@@ -250,7 +278,7 @@ public class ProcessingRecipeBuilder<T extends ProcessingRecipe<?>> {
 		}
 
 		@Override
-		public IRecipeSerializer<?> getType() {
+		public RecipeSerializer<?> getType() {
 			return serializer;
 		}
 

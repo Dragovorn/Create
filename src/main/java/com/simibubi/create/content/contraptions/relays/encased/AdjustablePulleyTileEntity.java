@@ -2,38 +2,39 @@ package com.simibubi.create.content.contraptions.relays.encased;
 
 import com.simibubi.create.content.contraptions.base.KineticTileEntity;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.tileentity.TileEntityType;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
 
 public class AdjustablePulleyTileEntity extends KineticTileEntity {
 
 	int signal;
 	boolean signalChanged;
 
-	public AdjustablePulleyTileEntity(TileEntityType<? extends AdjustablePulleyTileEntity> type) {
-		super(type);
+	public AdjustablePulleyTileEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+		super(type, pos, state);
 		signal = 0;
 		setLazyTickRate(40);
 	}
 
 	@Override
-	public void write(CompoundNBT compound, boolean clientPacket) {
+	public void write(CompoundTag compound, boolean clientPacket) {
 		compound.putInt("Signal", signal);
 		super.write(compound, clientPacket);
 	}
 
 	@Override
-	protected void fromTag(BlockState state, CompoundNBT compound, boolean clientPacket) {
+	protected void read(CompoundTag compound, boolean clientPacket) {
 		signal = compound.getInt("Signal");
-		super.fromTag(state, compound, clientPacket);
+		super.read(compound, clientPacket);
 	}
 
 	public float getModifier() {
 		return getModifierForSignal(signal);
 	}
 
-	public void neighborChanged() {
+	public void neighbourChanged() {
 		if (!hasLevel())
 			return;
 		int power = level.getBestNeighborSignal(worldPosition);
@@ -44,7 +45,7 @@ public class AdjustablePulleyTileEntity extends KineticTileEntity {
 	@Override
 	public void lazyTick() {
 		super.lazyTick();
-		neighborChanged();
+		neighbourChanged();
 	}
 
 	@Override

@@ -8,10 +8,10 @@ import java.util.stream.Collectors;
 import com.simibubi.create.foundation.utility.Lang;
 import com.simibubi.create.foundation.utility.VecHelper;
 
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.vector.Vector3d;
-import net.minecraft.util.text.ITextComponent;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.phys.Vec3;
 
 public class SphereBrush extends ShapedBrush {
 
@@ -34,7 +34,7 @@ public class SphereBrush extends ShapedBrush {
 	}
 
 	@Override
-	public BlockPos getOffset(Vector3d ray, Direction face, PlacementOptions option) {
+	public BlockPos getOffset(Vec3 ray, Direction face, PlacementOptions option) {
 		if (option == PlacementOptions.Merged)
 			return BlockPos.ZERO;
 
@@ -50,8 +50,8 @@ public class SphereBrush extends ShapedBrush {
 	}
 
 	@Override
-	ITextComponent getParamLabel(int paramIndex) {
-		return Lang.translate("generic.radius");
+	Component getParamLabel(int paramIndex) {
+		return Lang.translateDirect("generic.radius");
 	}
 
 	@Override

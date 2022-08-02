@@ -2,6 +2,7 @@ package com.simibubi.create.content.contraptions.components.structureMovement.be
 
 import java.util.List;
 
+import com.simibubi.create.foundation.advancement.AllAdvancements;
 import com.simibubi.create.foundation.config.AllConfigs;
 import com.simibubi.create.foundation.gui.AllIcons;
 import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
@@ -9,24 +10,28 @@ import com.simibubi.create.foundation.tileEntity.behaviour.scrollvalue.INamedIco
 import com.simibubi.create.foundation.tileEntity.behaviour.scrollvalue.ScrollOptionBehaviour;
 import com.simibubi.create.foundation.utility.Lang;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.math.MathHelper;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.util.Mth;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
 
 public class WindmillBearingTileEntity extends MechanicalBearingTileEntity {
 
 	protected ScrollOptionBehaviour<RotationDirection> movementDirection;
 	protected float lastGeneratedSpeed;
 
-	public WindmillBearingTileEntity(TileEntityType<? extends MechanicalBearingTileEntity> type) {
-		super(type);
+	protected boolean queuedReassembly;
+
+	public WindmillBearingTileEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+		super(type, pos, state);
 	}
 
 	@Override
 	public void updateGeneratedRotation() {
 		super.updateGeneratedRotation();
 		lastGeneratedSpeed = getGeneratedSpeed();
+		queuedReassembly = false;
 	}
 
 	@Override
@@ -37,14 +42,33 @@ public class WindmillBearingTileEntity extends MechanicalBearingTileEntity {
 	}
 
 	@Override
+	public void tick() {
+		super.tick();
+		if (level.isClientSide())
+			return;
+		if (!queuedReassembly)
+			return;
+		queuedReassembly = false;
+		if (!running)
+			assembleNextTick = true;
+	}
+	
+	public void disassembleForMovement() {
+		if (!running)
+			return;
+		disassemble();
+		queuedReassembly = true;
+	}
+
+	@Override
 	public float getGeneratedSpeed() {
 		if (!running)
 			return 0;
 		if (movedContraption == null)
 			return lastGeneratedSpeed;
 		int sails = ((BearingContraption) movedContraption.getContraption()).getSailBlocks()
-				/ AllConfigs.SERVER.kinetics.windmillSailsPerRPM.get();
-		return MathHelper.clamp(sails, 1, 16) * getAngleSpeedDirection();
+			/ AllConfigs.SERVER.kinetics.windmillSailsPerRPM.get();
+		return Mth.clamp(sails, 1, 16) * getAngleSpeedDirection();
 	}
 
 	@Override
@@ -58,16 +82,18 @@ public class WindmillBearingTileEntity extends MechanicalBearingTileEntity {
 	}
 
 	@Override
-	public void write(CompoundNBT compound, boolean clientPacket) {
+	public void write(CompoundTag compound, boolean clientPacket) {
 		compound.putFloat("LastGenerated", lastGeneratedSpeed);
+		compound.putBoolean("QueueAssembly", queuedReassembly);
 		super.write(compound, clientPacket);
 	}
 
 	@Override
-	protected void fromTag(BlockState state, CompoundNBT compound, boolean clientPacket) {
+	protected void read(CompoundTag compound, boolean clientPacket) {
 		if (!wasMoved)
 			lastGeneratedSpeed = compound.getFloat("LastGenerated");
-		super.fromTag(state, compound, clientPacket);
+		queuedReassembly = compound.getBoolean("QueueAssembly");
+		super.read(compound, clientPacket);
 	}
 
 	@Override
@@ -75,10 +101,11 @@ public class WindmillBearingTileEntity extends MechanicalBearingTileEntity {
 		super.addBehaviours(behaviours);
 		behaviours.remove(movementMode);
 		movementDirection = new ScrollOptionBehaviour<>(RotationDirection.class,
-			Lang.translate("contraptions.windmill.rotation_direction"), this, getMovementModeSlot());
+			Lang.translateDirect("contraptions.windmill.rotation_direction"), this, getMovementModeSlot());
 		movementDirection.requiresWrench();
 		movementDirection.withCallback($ -> onDirectionChanged());
 		behaviours.add(movementDirection);
+		registerAwardables(behaviours, AllAdvancements.WINDMILL, AllAdvancements.WINDMILL_MAXED);
 	}
 
 	private void onDirectionChanged() {
@@ -93,7 +120,7 @@ public class WindmillBearingTileEntity extends MechanicalBearingTileEntity {
 		return true;
 	}
 
-	static enum RotationDirection implements INamedIconOptions {
+	public static enum RotationDirection implements INamedIconOptions {
 
 		CLOCKWISE(AllIcons.I_REFRESH), COUNTER_CLOCKWISE(AllIcons.I_ROTATE_CCW),
 

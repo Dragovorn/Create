@@ -2,9 +2,10 @@ package com.simibubi.create.content.contraptions.components.structureMovement.be
 
 import javax.annotation.Nullable;
 
-import com.jozufozu.flywheel.backend.Backend;
-import com.jozufozu.flywheel.backend.material.MaterialManager;
+import com.jozufozu.flywheel.api.MaterialManager;
 import com.jozufozu.flywheel.core.PartialModel;
+import com.jozufozu.flywheel.core.virtual.VirtualRenderWorld;
+import com.mojang.math.Quaternion;
 import com.simibubi.create.AllBlockPartials;
 import com.simibubi.create.content.contraptions.components.structureMovement.AbstractContraptionEntity;
 import com.simibubi.create.content.contraptions.components.structureMovement.ControlledContraptionEntity;
@@ -14,40 +15,41 @@ import com.simibubi.create.content.contraptions.components.structureMovement.Ori
 import com.simibubi.create.content.contraptions.components.structureMovement.render.ActorInstance;
 import com.simibubi.create.content.contraptions.components.structureMovement.render.ContraptionMatrices;
 import com.simibubi.create.content.contraptions.components.structureMovement.render.ContraptionRenderDispatcher;
-import com.simibubi.create.foundation.render.PartialBufferer;
+import com.simibubi.create.foundation.render.CachedBufferer;
 import com.simibubi.create.foundation.render.SuperByteBuffer;
 import com.simibubi.create.foundation.utility.AnimationTickHolder;
-import com.simibubi.create.foundation.utility.worldWrappers.PlacementSimulationWorld;
 
-import net.minecraft.client.renderer.IRenderTypeBuffer;
+import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
-import net.minecraft.state.properties.BlockStateProperties;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Direction.Axis;
-import net.minecraft.util.math.vector.Quaternion;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.Axis;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 
-public class StabilizedBearingMovementBehaviour extends MovementBehaviour {
+public class StabilizedBearingMovementBehaviour implements MovementBehaviour {
 
 	@Override
 	@OnlyIn(Dist.CLIENT)
-	public void renderInContraption(MovementContext context, PlacementSimulationWorld renderWorld,
-		ContraptionMatrices matrices, IRenderTypeBuffer buffer) {
-		if (Backend.getInstance().canUseInstancing()) return;
+	public void renderInContraption(MovementContext context, VirtualRenderWorld renderWorld,
+		ContraptionMatrices matrices, MultiBufferSource buffer) {
+		if (ContraptionRenderDispatcher.canInstance())
+			return;
 
 		Direction facing = context.state.getValue(BlockStateProperties.FACING);
 		PartialModel top = AllBlockPartials.BEARING_TOP;
-		SuperByteBuffer superBuffer = PartialBufferer.get(top, context.state);
+		SuperByteBuffer superBuffer = CachedBufferer.partial(top, context.state);
 		float renderPartialTicks = AnimationTickHolder.getPartialTicks();
 
 		// rotate to match blockstate
 		Quaternion orientation = BearingInstance.getBlockStateOrientation(facing);
 
 		// rotate against parent
-		float angle = getCounterRotationAngle(context, facing, renderPartialTicks) * facing.getAxisDirection().getStep();
+		float angle = getCounterRotationAngle(context, facing, renderPartialTicks) * facing.getAxisDirection()
+			.getStep();
 
-		Quaternion rotation = facing.step().rotationDegrees(angle);
+		Quaternion rotation = facing.step()
+			.rotationDegrees(angle);
 
 		rotation.mul(orientation);
 
@@ -58,8 +60,7 @@ public class StabilizedBearingMovementBehaviour extends MovementBehaviour {
 
 		// render
 		superBuffer
-			.light(matrices.getWorld(),
-				ContraptionRenderDispatcher.getContraptionWorldLight(context, renderWorld))
+			.light(matrices.getWorld(), ContraptionRenderDispatcher.getContraptionWorldLight(context, renderWorld))
 			.renderInto(matrices.getViewProjection(), buffer.getBuffer(RenderType.solid()));
 	}
 
@@ -70,16 +71,19 @@ public class StabilizedBearingMovementBehaviour extends MovementBehaviour {
 
 	@Nullable
 	@Override
-	public ActorInstance createInstance(MaterialManager<?> materialManager, PlacementSimulationWorld simulationWorld, MovementContext context) {
+	public ActorInstance createInstance(MaterialManager materialManager, VirtualRenderWorld simulationWorld,
+		MovementContext context) {
 		return new StabilizedBearingInstance(materialManager, simulationWorld, context);
 	}
 
 	static float getCounterRotationAngle(MovementContext context, Direction facing, float renderPartialTicks) {
+		if (!context.contraption.canBeStabilized(facing, context.localPos))
+			return 0;
+
 		float offset = 0;
-
 		Axis axis = facing.getAxis();
-
 		AbstractContraptionEntity entity = context.contraption.entity;
+
 		if (entity instanceof ControlledContraptionEntity) {
 			ControlledContraptionEntity controlledCE = (ControlledContraptionEntity) entity;
 			if (context.contraption.canBeStabilized(facing, context.localPos))
@@ -91,12 +95,11 @@ public class StabilizedBearingMovementBehaviour extends MovementBehaviour {
 				offset = -orientedCE.getViewYRot(renderPartialTicks);
 			else {
 				if (orientedCE.isInitialOrientationPresent() && orientedCE.getInitialOrientation()
-						.getAxis() == axis)
+					.getAxis() == axis)
 					offset = -orientedCE.getViewXRot(renderPartialTicks);
 			}
 		}
 		return offset;
 	}
-
 
 }

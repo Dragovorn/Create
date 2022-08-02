@@ -5,106 +5,124 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import com.mojang.blaze3d.matrix.MatrixStack;
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.simibubi.create.content.logistics.item.filter.AttributeFilterContainer.WhitelistMode;
 import com.simibubi.create.content.logistics.item.filter.FilterScreenPacket.Option;
 import com.simibubi.create.foundation.gui.AllGuiTextures;
 import com.simibubi.create.foundation.gui.AllIcons;
-import com.simibubi.create.foundation.gui.widgets.IconButton;
-import com.simibubi.create.foundation.gui.widgets.Indicator;
-import com.simibubi.create.foundation.gui.widgets.Label;
-import com.simibubi.create.foundation.gui.widgets.SelectionScrollInput;
+import com.simibubi.create.foundation.gui.widget.IconButton;
+import com.simibubi.create.foundation.gui.widget.Indicator;
+import com.simibubi.create.foundation.gui.widget.Label;
+import com.simibubi.create.foundation.gui.widget.SelectionScrollInput;
 import com.simibubi.create.foundation.networking.AllPackets;
 import com.simibubi.create.foundation.utility.Lang;
 import com.simibubi.create.foundation.utility.Pair;
 
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.util.text.IFormattableTextComponent;
-import net.minecraft.util.text.ITextComponent;
-import net.minecraft.util.text.StringTextComponent;
-import net.minecraft.util.text.TextFormatting;
+import net.minecraft.ChatFormatting;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.TextComponent;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.ItemStack;
 
 public class AttributeFilterScreen extends AbstractFilterScreen<AttributeFilterContainer> {
 
 	private static final String PREFIX = "gui.attribute_filter.";
+
+	private Component addDESC = Lang.translateDirect(PREFIX + "add_attribute");
+	private Component addInvertedDESC = Lang.translateDirect(PREFIX + "add_inverted_attribute");
+
+	private Component allowDisN = Lang.translateDirect(PREFIX + "allow_list_disjunctive");
+	private Component allowDisDESC = Lang.translateDirect(PREFIX + "allow_list_disjunctive.description");
+	private Component allowConN = Lang.translateDirect(PREFIX + "allow_list_conjunctive");
+	private Component allowConDESC = Lang.translateDirect(PREFIX + "allow_list_conjunctive.description");
+	private Component denyN = Lang.translateDirect(PREFIX + "deny_list");
+	private Component denyDESC = Lang.translateDirect(PREFIX + "deny_list.description");
+
+	private Component referenceH = Lang.translateDirect(PREFIX + "add_reference_item");
+	private Component noSelectedT = Lang.translateDirect(PREFIX + "no_selected_attributes");
+	private Component selectedT = Lang.translateDirect(PREFIX + "selected_attributes");
 
 	private IconButton whitelistDis, whitelistCon, blacklist;
 	private Indicator whitelistDisIndicator, whitelistConIndicator, blacklistIndicator;
 	private IconButton add;
 	private IconButton addInverted;
 
-	private ITextComponent addDESC = Lang.translate(PREFIX + "add_attribute");
-	private ITextComponent addInvertedDESC = Lang.translate(PREFIX + "add_inverted_attribute");
-
-	private ITextComponent allowDisN = Lang.translate(PREFIX + "allow_list_disjunctive");
-	private ITextComponent allowDisDESC = Lang.translate(PREFIX + "allow_list_disjunctive.description");
-	private ITextComponent allowConN = Lang.translate(PREFIX + "allow_list_conjunctive");
-	private ITextComponent allowConDESC = Lang.translate(PREFIX + "allow_list_conjunctive.description");
-	private ITextComponent denyN = Lang.translate(PREFIX + "deny_list");
-	private ITextComponent denyDESC = Lang.translate(PREFIX + "deny_list.description");
-
-	private ITextComponent referenceH = Lang.translate(PREFIX + "add_reference_item");
-	private ITextComponent noSelectedT = Lang.translate(PREFIX + "no_selected_attributes");
-	private ITextComponent selectedT = Lang.translate(PREFIX + "selected_attributes");
-
 	private ItemStack lastItemScanned = ItemStack.EMPTY;
 	private List<ItemAttribute> attributesOfItem = new ArrayList<>();
-	private List<ITextComponent> selectedAttributes = new ArrayList<>();
+	private List<Component> selectedAttributes = new ArrayList<>();
 	private SelectionScrollInput attributeSelector;
 	private Label attributeSelectorLabel;
 
-	public AttributeFilterScreen(AttributeFilterContainer container, PlayerInventory inv, ITextComponent title) {
+	public AttributeFilterScreen(AttributeFilterContainer container, Inventory inv, Component title) {
 		super(container, inv, title, AllGuiTextures.ATTRIBUTE_FILTER);
 	}
 
 	@Override
 	protected void init() {
-		setWindowOffset(-11 + (width % 2 == 0 ? 1 : 0), 7);
+		setWindowOffset(-11, 7);
 		super.init();
 
 		int x = leftPos;
 		int y = topPos;
 
 		whitelistDis = new IconButton(x + 47, y + 59, AllIcons.I_WHITELIST_OR);
+		whitelistDis.withCallback(() -> {
+			menu.whitelistMode = WhitelistMode.WHITELIST_DISJ;
+			sendOptionUpdate(Option.WHITELIST);
+		});
 		whitelistDis.setToolTip(allowDisN);
 		whitelistCon = new IconButton(x + 65, y + 59, AllIcons.I_WHITELIST_AND);
+		whitelistCon.withCallback(() -> {
+			menu.whitelistMode = WhitelistMode.WHITELIST_CONJ;
+			sendOptionUpdate(Option.WHITELIST2);
+		});
 		whitelistCon.setToolTip(allowConN);
 		blacklist = new IconButton(x + 83, y + 59, AllIcons.I_WHITELIST_NOT);
+		blacklist.withCallback(() -> {
+			menu.whitelistMode = WhitelistMode.BLACKLIST;
+			sendOptionUpdate(Option.BLACKLIST);
+		});
 		blacklist.setToolTip(denyN);
 
-		whitelistDisIndicator = new Indicator(x + 47, y + 53, StringTextComponent.EMPTY);
-		whitelistConIndicator = new Indicator(x + 65, y + 53, StringTextComponent.EMPTY);
-		blacklistIndicator = new Indicator(x + 83, y + 53, StringTextComponent.EMPTY);
+		whitelistDisIndicator = new Indicator(x + 47, y + 53, TextComponent.EMPTY);
+		whitelistConIndicator = new Indicator(x + 65, y + 53, TextComponent.EMPTY);
+		blacklistIndicator = new Indicator(x + 83, y + 53, TextComponent.EMPTY);
 
-		widgets.addAll(Arrays.asList(blacklist, whitelistCon, whitelistDis, blacklistIndicator, whitelistConIndicator,
-			whitelistDisIndicator));
+		addRenderableWidgets(blacklist, whitelistCon, whitelistDis, blacklistIndicator, whitelistConIndicator,
+			whitelistDisIndicator);
 
-		widgets.add(add = new IconButton(x + 182, y + 21, AllIcons.I_ADD));
-		widgets.add(addInverted = new IconButton(x + 200, y + 21, AllIcons.I_ADD_INVERTED_ATTRIBUTE));
+		addRenderableWidget(add = new IconButton(x + 182, y + 21, AllIcons.I_ADD));
+		addRenderableWidget(addInverted = new IconButton(x + 200, y + 21, AllIcons.I_ADD_INVERTED_ATTRIBUTE));
+		add.withCallback(() -> {
+			handleAddedAttibute(false);
+		});
 		add.setToolTip(addDESC);
+		addInverted.withCallback(() -> {
+			handleAddedAttibute(true);
+		});
 		addInverted.setToolTip(addInvertedDESC);
 
 		handleIndicators();
 
-		attributeSelectorLabel = new Label(x + 43, y + 26, StringTextComponent.EMPTY).colored(0xF3EBDE)
+		attributeSelectorLabel = new Label(x + 43, y + 26, TextComponent.EMPTY).colored(0xF3EBDE)
 			.withShadow();
 		attributeSelector = new SelectionScrollInput(x + 39, y + 21, 137, 18);
-		attributeSelector.forOptions(Arrays.asList(StringTextComponent.EMPTY));
+		attributeSelector.forOptions(Arrays.asList(TextComponent.EMPTY));
 		attributeSelector.removeCallback();
 		referenceItemChanged(menu.ghostInventory.getStackInSlot(0));
 
-		widgets.add(attributeSelector);
-		widgets.add(attributeSelectorLabel);
+		addRenderableWidget(attributeSelector);
+		addRenderableWidget(attributeSelectorLabel);
 
 		selectedAttributes.clear();
 		selectedAttributes.add((menu.selectedAttributes.isEmpty() ? noSelectedT : selectedT).plainCopy()
-			.withStyle(TextFormatting.YELLOW));
-		menu.selectedAttributes.forEach(at -> selectedAttributes.add(new StringTextComponent("- ")
+			.withStyle(ChatFormatting.YELLOW));
+		menu.selectedAttributes.forEach(at -> selectedAttributes.add(new TextComponent("- ")
 			.append(at.getFirst()
 				.format(at.getSecond()))
-			.withStyle(TextFormatting.GRAY)));
+			.withStyle(ChatFormatting.GRAY)));
 	}
 
 	private void referenceItemChanged(ItemStack stack) {
@@ -114,7 +132,7 @@ public class AttributeFilterScreen extends AbstractFilterScreen<AttributeFilterC
 			attributeSelector.active = false;
 			attributeSelector.visible = false;
 			attributeSelectorLabel.text = referenceH.plainCopy()
-				.withStyle(TextFormatting.ITALIC);
+				.withStyle(ChatFormatting.ITALIC);
 			add.active = false;
 			addInverted.active = false;
 			attributeSelector.calling(s -> {
@@ -131,7 +149,7 @@ public class AttributeFilterScreen extends AbstractFilterScreen<AttributeFilterC
 		attributesOfItem.clear();
 		for (ItemAttribute itemAttribute : ItemAttribute.types)
 			attributesOfItem.addAll(itemAttribute.listAttributesOf(stack, minecraft.level));
-		List<ITextComponent> options = attributesOfItem.stream()
+		List<Component> options = attributesOfItem.stream()
 			.map(a -> a.format(false))
 			.collect(Collectors.toList());
 		attributeSelector.forOptions(options);
@@ -142,8 +160,8 @@ public class AttributeFilterScreen extends AbstractFilterScreen<AttributeFilterC
 			attributeSelectorLabel.setTextAndTrim(options.get(i), true, 112);
 			ItemAttribute selected = attributesOfItem.get(i);
 			for (Pair<ItemAttribute, Boolean> existing : menu.selectedAttributes) {
-				CompoundNBT testTag = new CompoundNBT();
-				CompoundNBT testTag2 = new CompoundNBT();
+				CompoundTag testTag = new CompoundTag();
+				CompoundTag testTag2 = new CompoundTag();
 				existing.getFirst()
 					.serializeNBT(testTag);
 				selected.serializeNBT(testTag2);
@@ -160,7 +178,7 @@ public class AttributeFilterScreen extends AbstractFilterScreen<AttributeFilterC
 	}
 
 	@Override
-	public void renderWindowForeground(MatrixStack matrixStack, int mouseX, int mouseY, float partialTicks) {
+	public void renderForeground(PoseStack matrixStack, int mouseX, int mouseY, float partialTicks) {
 		ItemStack stack = menu.ghostInventory.getStackInSlot(1);
 		matrixStack.pushPose();
 		matrixStack.translate(0.0F, 0.0F, 32.0F);
@@ -172,21 +190,20 @@ public class AttributeFilterScreen extends AbstractFilterScreen<AttributeFilterC
 		this.itemRenderer.blitOffset = 0.0F;
 		matrixStack.popPose();
 
-		super.renderWindowForeground(matrixStack, mouseX, mouseY, partialTicks);
+		super.renderForeground(matrixStack, mouseX, mouseY, partialTicks);
 	}
 
 	@Override
-	public void tick() {
-		super.tick();
+	protected void containerTick() {
+		super.containerTick();
 		ItemStack stackInSlot = menu.ghostInventory.getStackInSlot(0);
 		if (!stackInSlot.equals(lastItemScanned, false))
 			referenceItemChanged(stackInSlot);
 	}
 
 	@Override
-	protected void renderTooltip(MatrixStack matrixStack, int mouseX, int mouseY) {
-		if (this.minecraft.player.inventory.getCarried()
-			.isEmpty() && this.hoveredSlot != null && this.hoveredSlot.hasItem()) {
+	protected void renderTooltip(PoseStack matrixStack, int mouseX, int mouseY) {
+		if (this.menu.getCarried().isEmpty() && this.hoveredSlot != null && this.hoveredSlot.hasItem()) {
 			if (this.hoveredSlot.index == 37) {
 				renderComponentTooltip(matrixStack, selectedAttributes, mouseX, mouseY);
 				return;
@@ -202,41 +219,13 @@ public class AttributeFilterScreen extends AbstractFilterScreen<AttributeFilterC
 	}
 
 	@Override
-	protected List<IFormattableTextComponent> getTooltipDescriptions() {
+	protected List<MutableComponent> getTooltipDescriptions() {
 		return Arrays.asList(denyDESC.plainCopy(), allowConDESC.plainCopy(), allowDisDESC.plainCopy());
 	}
 
 	@Override
-	public boolean mouseClicked(double x, double y, int button) {
-		boolean mouseClicked = super.mouseClicked(x, y, button);
-
-		if (button != 0)
-			return mouseClicked;
-
-		if (blacklist.isHovered()) {
-			menu.whitelistMode = WhitelistMode.BLACKLIST;
-			sendOptionUpdate(Option.BLACKLIST);
-			return true;
-		}
-
-		if (whitelistCon.isHovered()) {
-			menu.whitelistMode = WhitelistMode.WHITELIST_CONJ;
-			sendOptionUpdate(Option.WHITELIST2);
-			return true;
-		}
-
-		if (whitelistDis.isHovered()) {
-			menu.whitelistMode = WhitelistMode.WHITELIST_DISJ;
-			sendOptionUpdate(Option.WHITELIST);
-			return true;
-		}
-
-		if (add.isHovered() && add.active)
-			return handleAddedAttibute(false);
-		if (addInverted.isHovered() && addInverted.active)
-			return handleAddedAttibute(true);
-
-		return mouseClicked;
+	protected List<Indicator> getIndicators() {
+		return Arrays.asList(blacklistIndicator, whitelistConIndicator, whitelistDisIndicator);
 	}
 
 	protected boolean handleAddedAttibute(boolean inverted) {
@@ -245,7 +234,7 @@ public class AttributeFilterScreen extends AbstractFilterScreen<AttributeFilterC
 			return false;
 		add.active = false;
 		addInverted.active = false;
-		CompoundNBT tag = new CompoundNBT();
+		CompoundTag tag = new CompoundTag();
 		ItemAttribute itemAttribute = attributesOfItem.get(index);
 		itemAttribute.serializeNBT(tag);
 		AllPackets.channel
@@ -253,9 +242,9 @@ public class AttributeFilterScreen extends AbstractFilterScreen<AttributeFilterC
 		menu.appendSelectedAttribute(itemAttribute, inverted);
 		if (menu.selectedAttributes.size() == 1)
 			selectedAttributes.set(0, selectedT.plainCopy()
-				.withStyle(TextFormatting.YELLOW));
-		selectedAttributes.add(new StringTextComponent("- ").append(itemAttribute.format(inverted))
-			.withStyle(TextFormatting.GRAY));
+				.withStyle(ChatFormatting.YELLOW));
+		selectedAttributes.add(new TextComponent("- ").append(itemAttribute.format(inverted))
+			.withStyle(ChatFormatting.GRAY));
 		return true;
 	}
 
@@ -263,7 +252,7 @@ public class AttributeFilterScreen extends AbstractFilterScreen<AttributeFilterC
 	protected void contentsCleared() {
 		selectedAttributes.clear();
 		selectedAttributes.add(noSelectedT.plainCopy()
-			.withStyle(TextFormatting.YELLOW));
+			.withStyle(ChatFormatting.YELLOW));
 		if (!lastItemScanned.isEmpty()) {
 			add.active = true;
 			addInverted.active = true;

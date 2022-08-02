@@ -9,18 +9,19 @@ import com.simibubi.create.content.contraptions.components.structureMovement.Con
 import com.simibubi.create.content.contraptions.components.structureMovement.ControlledContraptionEntity;
 import com.simibubi.create.content.contraptions.components.structureMovement.IControlContraption;
 import com.simibubi.create.content.contraptions.components.structureMovement.IDisplayAssemblyExceptions;
+import com.simibubi.create.foundation.advancement.AllAdvancements;
 import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 import com.simibubi.create.foundation.tileEntity.behaviour.ValueBoxTransform;
 import com.simibubi.create.foundation.tileEntity.behaviour.scrollvalue.ScrollOptionBehaviour;
 import com.simibubi.create.foundation.utility.Lang;
 import com.simibubi.create.foundation.utility.ServerSpeedProvider;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.vector.Vector3d;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.util.Mth;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 
 public abstract class LinearActuatorTileEntity extends KineticTileEntity
 	implements IControlContraption, IDisplayAssemblyExceptions {
@@ -38,8 +39,8 @@ public abstract class LinearActuatorTileEntity extends KineticTileEntity
 	// Custom position sync
 	protected float clientOffsetDiff;
 
-	public LinearActuatorTileEntity(TileEntityType<?> typeIn) {
-		super(typeIn);
+	public LinearActuatorTileEntity(BlockEntityType<?> typeIn, BlockPos pos, BlockState state) {
+		super(typeIn, pos, state);
 		setLazyTickRate(3);
 		forceMove = true;
 		needsContraption = true;
@@ -48,11 +49,12 @@ public abstract class LinearActuatorTileEntity extends KineticTileEntity
 	@Override
 	public void addBehaviours(List<TileEntityBehaviour> behaviours) {
 		super.addBehaviours(behaviours);
-		movementMode = new ScrollOptionBehaviour<>(MovementMode.class, Lang.translate("contraptions.movement_mode"),
+		movementMode = new ScrollOptionBehaviour<>(MovementMode.class, Lang.translateDirect("contraptions.movement_mode"),
 			this, getMovementModeSlot());
 		movementMode.requiresWrench();
 		movementMode.withCallback(t -> waitingForSpeedChange = false);
 		behaviours.add(movementMode);
+		registerAwardables(behaviours, AllAdvancements.CONTRAPTION_ACTORS);
 	}
 
 	@Override
@@ -75,7 +77,7 @@ public abstract class LinearActuatorTileEntity extends KineticTileEntity
 					movedContraption.setContraptionMotion(toMotionVector(syncSpeed));
 					return;
 				}
-				movedContraption.setContraptionMotion(Vector3d.ZERO);
+				movedContraption.setContraptionMotion(Vec3.ZERO);
 			}
 			return;
 		}
@@ -107,7 +109,7 @@ public abstract class LinearActuatorTileEntity extends KineticTileEntity
 		boolean contraptionPresent = movedContraption != null;
 		if (needsContraption && !contraptionPresent)
 			return;
-		
+
 		float movementSpeed = getMovementSpeed();
 		float newOffset = offset + movementSpeed;
 		if ((int) newOffset != (int) offset)
@@ -115,14 +117,14 @@ public abstract class LinearActuatorTileEntity extends KineticTileEntity
 
 		if (contraptionPresent) {
 			if (moveAndCollideContraption()) {
-				movedContraption.setContraptionMotion(Vector3d.ZERO);
+				movedContraption.setContraptionMotion(Vec3.ZERO);
 				offset = getGridOffset(offset);
 				resetContraptionToOffset();
 				collided();
 				return;
 			}
 		}
-		
+
 		if (!contraptionPresent || !movedContraption.isStalled())
 			offset = newOffset;
 
@@ -150,12 +152,12 @@ public abstract class LinearActuatorTileEntity extends KineticTileEntity
 	}
 
 	protected int getGridOffset(float offset) {
-		return MathHelper.clamp((int) (offset + .5f), 0, getExtensionRange());
+		return Mth.clamp((int) (offset + .5f), 0, getExtensionRange());
 	}
 
 	public float getInterpolatedOffset(float partialTicks) {
 		float interpolatedOffset =
-			MathHelper.clamp(offset + (partialTicks - .5f) * getMovementSpeed(), 0, getExtensionRange());
+			Mth.clamp(offset + (partialTicks - .5f) * getMovementSpeed(), 0, getExtensionRange());
 		return interpolatedOffset;
 	}
 
@@ -173,14 +175,19 @@ public abstract class LinearActuatorTileEntity extends KineticTileEntity
 
 	@Override
 	public void setRemoved() {
-		this.remove = true;
-		if (!level.isClientSide)
-			disassemble();
 		super.setRemoved();
 	}
 
 	@Override
-	protected void write(CompoundNBT compound, boolean clientPacket) {
+	protected void setRemovedNotDueToChunkUnload() {
+		this.remove = true;
+		if (!level.isClientSide)
+			disassemble();
+		super.setRemovedNotDueToChunkUnload();
+	}
+
+	@Override
+	protected void write(CompoundTag compound, boolean clientPacket) {
 		compound.putBoolean("Running", running);
 		compound.putBoolean("Waiting", waitingForSpeedChange);
 		compound.putFloat("Offset", offset);
@@ -194,7 +201,7 @@ public abstract class LinearActuatorTileEntity extends KineticTileEntity
 	}
 
 	@Override
-	protected void fromTag(BlockState state, CompoundNBT compound, boolean clientPacket) {
+	protected void read(CompoundTag compound, boolean clientPacket) {
 		boolean forceMovement = compound.contains("ForceMovement");
 		float offsetBefore = offset;
 
@@ -202,7 +209,7 @@ public abstract class LinearActuatorTileEntity extends KineticTileEntity
 		waitingForSpeedChange = compound.getBoolean("Waiting");
 		offset = compound.getFloat("Offset");
 		lastException = AssemblyException.read(compound);
-		super.fromTag(state, compound, clientPacket);
+		super.read(compound, clientPacket);
 
 		if (!clientPacket)
 			return;
@@ -231,9 +238,9 @@ public abstract class LinearActuatorTileEntity extends KineticTileEntity
 
 	protected abstract ValueBoxTransform getMovementModeSlot();
 
-	protected abstract Vector3d toMotionVector(float speed);
+	protected abstract Vec3 toMotionVector(float speed);
 
-	protected abstract Vector3d toPosition(float offset);
+	protected abstract Vec3 toPosition(float offset);
 
 	protected void visitNewPosition() {}
 
@@ -258,16 +265,16 @@ public abstract class LinearActuatorTileEntity extends KineticTileEntity
 		if (movedContraption == null)
 			return false;
 		if (movedContraption.isStalled()) {
-			movedContraption.setContraptionMotion(Vector3d.ZERO);
+			movedContraption.setContraptionMotion(Vec3.ZERO);
 			return false;
 		}
-		
-		Vector3d motion = getMotionVector();
+
+		Vec3 motion = getMotionVector();
 		movedContraption.setContraptionMotion(getMotionVector());
 		movedContraption.move(motion.x, motion.y, motion.z);
 		return ContraptionCollider.collideBlocks(movedContraption);
 	}
-	
+
 	protected void collided() {
 		if (level.isClientSide) {
 			waitingForSpeedChange = true;
@@ -281,20 +288,20 @@ public abstract class LinearActuatorTileEntity extends KineticTileEntity
 	protected void resetContraptionToOffset() {
 		if (movedContraption == null)
 			return;
-		Vector3d vec = toPosition(offset);
+		Vec3 vec = toPosition(offset);
 		movedContraption.setPos(vec.x, vec.y, vec.z);
 		if (getSpeed() == 0 || waitingForSpeedChange)
-			movedContraption.setContraptionMotion(Vector3d.ZERO);
+			movedContraption.setContraptionMotion(Vec3.ZERO);
 	}
 
 	public float getMovementSpeed() {
-		float movementSpeed = MathHelper.clamp(convertToLinear(getSpeed()), -.49f, .49f) + clientOffsetDiff / 2f;
+		float movementSpeed = Mth.clamp(convertToLinear(getSpeed()), -.49f, .49f) + clientOffsetDiff / 2f;
 		if (level.isClientSide)
 			movementSpeed *= ServerSpeedProvider.get();
 		return movementSpeed;
 	}
 
-	public Vector3d getMotionVector() {
+	public Vec3 getMotionVector() {
 		return toMotionVector(getMovementSpeed());
 	}
 

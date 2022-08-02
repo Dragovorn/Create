@@ -6,7 +6,6 @@ import java.util.List;
 
 import javax.annotation.Nullable;
 
-import com.jozufozu.flywheel.backend.instancing.IInstanceRendered;
 import com.simibubi.create.AllBlocks;
 import com.simibubi.create.AllItems;
 import com.simibubi.create.AllSoundEvents;
@@ -15,7 +14,7 @@ import com.simibubi.create.content.contraptions.relays.belt.BeltBlock;
 import com.simibubi.create.content.contraptions.relays.belt.BeltPart;
 import com.simibubi.create.content.contraptions.relays.belt.BeltSlope;
 import com.simibubi.create.content.contraptions.relays.belt.BeltTileEntity;
-import com.simibubi.create.content.contraptions.relays.elementary.AbstractShaftBlock;
+import com.simibubi.create.content.contraptions.relays.elementary.AbstractSimpleShaftBlock;
 import com.simibubi.create.content.schematics.ItemRequirement;
 import com.simibubi.create.content.schematics.ItemRequirement.ItemUseType;
 import com.simibubi.create.content.schematics.MaterialChecklist;
@@ -31,31 +30,32 @@ import com.simibubi.create.foundation.utility.Iterate;
 import com.simibubi.create.foundation.utility.Lang;
 import com.simibubi.create.foundation.utility.NBTProcessors;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.PistonHeadBlock;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.inventory.container.Container;
-import net.minecraft.inventory.container.INamedContainerProvider;
-import net.minecraft.item.BlockItem;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.nbt.ListNBT;
-import net.minecraft.network.PacketBuffer;
-import net.minecraft.state.properties.BedPart;
-import net.minecraft.state.properties.BlockStateProperties;
-import net.minecraft.state.properties.DoubleBlockHalf;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Direction.AxisDirection;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.text.ITextComponent;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.Axis;
+import net.minecraft.core.Direction.AxisDirection;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.MenuProvider;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.piston.PistonHeadBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BedPart;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
+import net.minecraft.world.phys.AABB;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.common.util.LazyOptional;
@@ -64,14 +64,10 @@ import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.ItemHandlerHelper;
 import net.minecraftforge.items.wrapper.EmptyHandler;
 
-public class SchematicannonTileEntity extends SmartTileEntity implements INamedContainerProvider, IInstanceRendered {
+public class SchematicannonTileEntity extends SmartTileEntity implements MenuProvider {
 
 	public static final int NEIGHBOUR_CHECKING = 100;
 	public static final int MAX_ANCHOR_DISTANCE = 256;
-
-	public enum State {
-		STOPPED, PAUSED, RUNNING;
-	}
 
 	// Inventory
 	public SchematicannonInventory inventory;
@@ -111,26 +107,16 @@ public class SchematicannonTileEntity extends SmartTileEntity implements INamedC
 
 	// Render
 	public boolean firstRenderTick;
+	public float defaultYaw;
 
-	@Override
-	public AxisAlignedBB getRenderBoundingBox() {
-		return INFINITE_EXTENT_AABB;
-	}
-
-	@Override
-	@OnlyIn(Dist.CLIENT)
-	public double getViewDistance() {
-		return super.getViewDistance() * 16;
-	}
-
-	public SchematicannonTileEntity(TileEntityType<?> tileEntityTypeIn) {
-		super(tileEntityTypeIn);
+	public SchematicannonTileEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+		super(type, pos, state);
 		setLazyTickRate(30);
 		attachedInventories = new LinkedHashSet<>();
 		flyingBlocks = new LinkedList<>();
 		inventory = new SchematicannonInventory(this);
 		statusMsg = "idle";
-		state = State.STOPPED;
+		this.state = State.STOPPED;
 		replaceMode = 2;
 		checklist = new MaterialChecklist();
 		printer = new SchematicPrinter();
@@ -147,7 +133,7 @@ public class SchematicannonTileEntity extends SmartTileEntity implements INamedC
 			if (AllBlocks.CREATIVE_CRATE.has(level.getBlockState(worldPosition.relative(facing))))
 				hasCreativeCrate = true;
 
-			TileEntity tileEntity = level.getBlockEntity(worldPosition.relative(facing));
+			BlockEntity tileEntity = level.getBlockEntity(worldPosition.relative(facing));
 			if (tileEntity != null) {
 				LazyOptional<IItemHandler> capability =
 					tileEntity.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, facing.getOpposite());
@@ -159,7 +145,7 @@ public class SchematicannonTileEntity extends SmartTileEntity implements INamedC
 	}
 
 	@Override
-	protected void fromTag(BlockState blockState, CompoundNBT compound, boolean clientPacket) {
+	protected void read(CompoundTag compound, boolean clientPacket) {
 		if (!clientPacket) {
 			inventory.deserializeNBT(compound.getCompound("Inventory"));
 		}
@@ -178,7 +164,7 @@ public class SchematicannonTileEntity extends SmartTileEntity implements INamedC
 			missingItem = ItemStack.of(compound.getCompound("MissingItem"));
 
 		// Settings
-		CompoundNBT options = compound.getCompound("Options");
+		CompoundTag options = compound.getCompound("Options");
 		replaceMode = options.getInt("ReplaceMode");
 		skipMissing = options.getBoolean("SkipMissing");
 		replaceTileEntities = options.getBoolean("ReplaceTileEntities");
@@ -189,18 +175,20 @@ public class SchematicannonTileEntity extends SmartTileEntity implements INamedC
 		if (compound.contains("FlyingBlocks"))
 			readFlyingBlocks(compound);
 
-		super.fromTag(blockState, compound, clientPacket);
+		defaultYaw = compound.getFloat("DefaultYaw");
+
+		super.read(compound, clientPacket);
 	}
 
-	protected void readFlyingBlocks(CompoundNBT compound) {
-		ListNBT tagBlocks = compound.getList("FlyingBlocks", 10);
+	protected void readFlyingBlocks(CompoundTag compound) {
+		ListTag tagBlocks = compound.getList("FlyingBlocks", 10);
 		if (tagBlocks.isEmpty())
 			flyingBlocks.clear();
 
 		boolean pastDead = false;
 
 		for (int i = 0; i < tagBlocks.size(); i++) {
-			CompoundNBT c = tagBlocks.getCompound(i);
+			CompoundTag c = tagBlocks.getCompound(i);
 			LaunchedItem launched = LaunchedItem.fromNBT(c);
 			BlockPos readBlockPos = launched.target;
 
@@ -228,7 +216,7 @@ public class SchematicannonTileEntity extends SmartTileEntity implements INamedC
 	}
 
 	@Override
-	public void write(CompoundNBT compound, boolean clientPacket) {
+	public void write(CompoundTag compound, boolean clientPacket) {
 		if (!clientPacket) {
 			compound.put("Inventory", inventory.serializeNBT());
 			if (state == State.RUNNING) {
@@ -249,21 +237,23 @@ public class SchematicannonTileEntity extends SmartTileEntity implements INamedC
 			compound.put("MissingItem", missingItem.serializeNBT());
 
 		// Settings
-		CompoundNBT options = new CompoundNBT();
+		CompoundTag options = new CompoundTag();
 		options.putInt("ReplaceMode", replaceMode);
 		options.putBoolean("SkipMissing", skipMissing);
 		options.putBoolean("ReplaceTileEntities", replaceTileEntities);
 		compound.put("Options", options);
 
 		// Printer & Flying Blocks
-		CompoundNBT printerData = new CompoundNBT();
+		CompoundTag printerData = new CompoundTag();
 		printer.write(printerData);
 		compound.put("Printer", printerData);
 
-		ListNBT tagFlyingBlocks = new ListNBT();
+		ListTag tagFlyingBlocks = new ListTag();
 		for (LaunchedItem b : flyingBlocks)
 			tagFlyingBlocks.add(b.serializeNBT());
 		compound.put("FlyingBlocks", tagFlyingBlocks);
+
+		compound.putFloat("DefaultYaw", defaultYaw);
 
 		super.write(compound, clientPacket);
 	}
@@ -369,7 +359,7 @@ public class SchematicannonTileEntity extends SmartTileEntity implements INamedC
 		}
 
 		// Check block
-		if (!getLevel().isAreaLoaded(printer.getCurrentTarget(), 0)) {
+		if (!getLevel().isLoaded(printer.getCurrentTarget())) {
 			positionNotLoaded = true;
 			statusMsg = "targetNotLoaded";
 			state = State.PAUSED;
@@ -393,7 +383,7 @@ public class SchematicannonTileEntity extends SmartTileEntity implements INamedC
 		List<ItemRequirement.StackRequirement> requiredItems = requirement.getRequiredItems();
 		if (!requirement.isEmpty()) {
 			for (ItemRequirement.StackRequirement required : requiredItems) {
-				if (!grabItemsFromAttachedInventories(required.item, required.usage, true)) {
+				if (!grabItemsFromAttachedInventories(required, true)) {
 					if (skipMissing) {
 						statusMsg = "skipping";
 						blockSkipped = true;
@@ -404,7 +394,7 @@ public class SchematicannonTileEntity extends SmartTileEntity implements INamedC
 						return;
 					}
 
-					missingItem = required.item;
+					missingItem = required.stack;
 					state = State.PAUSED;
 					statusMsg = "missingBlock";
 					return;
@@ -412,12 +402,12 @@ public class SchematicannonTileEntity extends SmartTileEntity implements INamedC
 			}
 
 			for (ItemRequirement.StackRequirement required : requiredItems)
-				grabItemsFromAttachedInventories(required.item, required.usage, false);
+				grabItemsFromAttachedInventories(required, false);
 		}
 
 		// Success
 		state = State.RUNNING;
-		ItemStack icon = requirement.isEmpty() || requiredItems.isEmpty() ? ItemStack.EMPTY : requiredItems.get(0).item;
+		ItemStack icon = requirement.isEmpty() || requiredItems.isEmpty() ? ItemStack.EMPTY : requiredItems.get(0).stack;
 		printer.handleCurrentTarget((target, blockState, tile) -> {
 			// Launch block
 			statusMsg = blockState.getBlock() != Blocks.AIR ? "placing" : "clearing";
@@ -466,7 +456,8 @@ public class SchematicannonTileEntity extends SmartTileEntity implements INamedC
 			return;
 		}
 
-		if (!printer.getAnchor().closerThan(getBlockPos(), MAX_ANCHOR_DISTANCE)) {
+		if (!printer.getAnchor()
+			.closerThan(getBlockPos(), MAX_ANCHOR_DISTANCE)) {
 			state = State.STOPPED;
 			statusMsg = "targetOutsideRange";
 			printer.resetSchematic();
@@ -485,11 +476,13 @@ public class SchematicannonTileEntity extends SmartTileEntity implements INamedC
 		return item == Items.AIR ? ItemStack.EMPTY : new ItemStack(item);
 	}
 
-	protected boolean grabItemsFromAttachedInventories(ItemStack required, ItemUseType usage, boolean simulate) {
+	protected boolean grabItemsFromAttachedInventories(ItemRequirement.StackRequirement required, boolean simulate) {
 		if (hasCreativeCrate)
 			return true;
 
 		attachedInventories.removeIf(cap -> !cap.isPresent());
+
+		ItemUseType usage = required.usage;
 
 		// Find and apply damage
 		if (usage == ItemUseType.DAMAGE) {
@@ -497,7 +490,7 @@ public class SchematicannonTileEntity extends SmartTileEntity implements INamedC
 				IItemHandler iItemHandler = cap.orElse(EmptyHandler.INSTANCE);
 				for (int slot = 0; slot < iItemHandler.getSlots(); slot++) {
 					ItemStack extractItem = iItemHandler.extractItem(slot, 1, true);
-					if (!ItemRequirement.validate(required, extractItem))
+					if (!required.matches(extractItem))
 						continue;
 					if (!extractItem.isDamageableItem())
 						continue;
@@ -517,36 +510,36 @@ public class SchematicannonTileEntity extends SmartTileEntity implements INamedC
 					return true;
 				}
 			}
+
+			return false;
 		}
 
 		// Find and remove
 		boolean success = false;
-		if (usage == ItemUseType.CONSUME) {
-			int amountFound = 0;
-			for (LazyOptional<IItemHandler> cap : attachedInventories) {
-				IItemHandler iItemHandler = cap.orElse(EmptyHandler.INSTANCE);
-				amountFound += ItemHelper
-					.extract(iItemHandler, s -> ItemRequirement.validate(required, s), ExtractionCountMode.UPTO,
-						required.getCount(), true)
-					.getCount();
+		int amountFound = 0;
+		for (LazyOptional<IItemHandler> cap : attachedInventories) {
+			IItemHandler iItemHandler = cap.orElse(EmptyHandler.INSTANCE);
+			amountFound += ItemHelper
+				.extract(iItemHandler, required::matches, ExtractionCountMode.UPTO,
+					required.stack.getCount(), true)
+				.getCount();
 
-				if (amountFound < required.getCount())
-					continue;
+			if (amountFound < required.stack.getCount())
+				continue;
 
-				success = true;
-				break;
-			}
+			success = true;
+			break;
 		}
 
 		if (!simulate && success) {
-			int amountFound = 0;
+			amountFound = 0;
 			for (LazyOptional<IItemHandler> cap : attachedInventories) {
 				IItemHandler iItemHandler = cap.orElse(EmptyHandler.INSTANCE);
 				amountFound += ItemHelper
-					.extract(iItemHandler, s -> ItemRequirement.validate(required, s), ExtractionCountMode.UPTO,
-						required.getCount(), false)
+					.extract(iItemHandler, required::matches, ExtractionCountMode.UPTO,
+						required.stack.getCount(), false)
 					.getCount();
-				if (amountFound < required.getCount())
+				if (amountFound < required.stack.getCount())
 					continue;
 				break;
 			}
@@ -575,37 +568,35 @@ public class SchematicannonTileEntity extends SmartTileEntity implements INamedC
 		blocksToPlace = 0;
 	}
 
-	protected boolean shouldPlace(BlockPos pos, BlockState state, TileEntity te,
-								  BlockState toReplace, BlockState toReplaceOther, boolean isNormalCube) {
+	protected boolean shouldPlace(BlockPos pos, BlockState state, BlockEntity te, BlockState toReplace,
+		BlockState toReplaceOther, boolean isNormalCube) {
 		if (pos.closerThan(getBlockPos(), 2f))
 			return false;
 		if (!replaceTileEntities
-				&& (toReplace.hasTileEntity() || (toReplaceOther != null && toReplaceOther.hasTileEntity())))
+			&& (toReplace.hasBlockEntity() || (toReplaceOther != null && toReplaceOther.hasBlockEntity())))
 			return false;
 
 		if (shouldIgnoreBlockState(state, te))
 			return false;
 
-		boolean placingAir = state.getBlock().isAir(state, level, pos);
+		boolean placingAir = state.isAir();
 
 		if (replaceMode == 3)
 			return true;
 		if (replaceMode == 2 && !placingAir)
 			return true;
-		if (replaceMode == 1
-				&& (isNormalCube || (!toReplace.isRedstoneConductor(level, pos)
-				&& (toReplaceOther == null || !toReplaceOther.isRedstoneConductor(level, pos))))
-				&& !placingAir)
+		if (replaceMode == 1 && (isNormalCube || (!toReplace.isRedstoneConductor(level, pos)
+			&& (toReplaceOther == null || !toReplaceOther.isRedstoneConductor(level, pos)))) && !placingAir)
 			return true;
 		if (replaceMode == 0 && !toReplace.isRedstoneConductor(level, pos)
-				&& (toReplaceOther == null || !toReplaceOther.isRedstoneConductor(level, pos)) && !placingAir)
+			&& (toReplaceOther == null || !toReplaceOther.isRedstoneConductor(level, pos)) && !placingAir)
 			return true;
 
 		return false;
 	}
 
-	protected boolean shouldIgnoreBlockState(BlockState state, TileEntity te) {
-		// Block doesnt have a mapping (Water, lava, etc)
+	protected boolean shouldIgnoreBlockState(BlockState state, BlockEntity te) {
+		// Block doesn't have a mapping (Water, lava, etc)
 		if (state.getBlock() == Blocks.STRUCTURE_VOID)
 			return true;
 
@@ -615,14 +606,17 @@ public class SchematicannonTileEntity extends SmartTileEntity implements INamedC
 		if (requirement.isInvalid())
 			return false;
 
-		// Block doesnt need to be placed twice (Doors, beds, double plants)
+		// Block doesn't need to be placed twice (Doors, beds, double plants)
 		if (state.hasProperty(BlockStateProperties.DOUBLE_BLOCK_HALF)
-				&& state.getValue(BlockStateProperties.DOUBLE_BLOCK_HALF) == DoubleBlockHalf.UPPER)
+			&& state.getValue(BlockStateProperties.DOUBLE_BLOCK_HALF) == DoubleBlockHalf.UPPER)
 			return true;
-		if (state.hasProperty(BlockStateProperties.BED_PART) && state.getValue(BlockStateProperties.BED_PART) == BedPart.HEAD)
+		if (state.hasProperty(BlockStateProperties.BED_PART)
+			&& state.getValue(BlockStateProperties.BED_PART) == BedPart.HEAD)
 			return true;
 		if (state.getBlock() instanceof PistonHeadBlock)
 			return true;
+		if (AllBlocks.BELT.has(state))
+			return state.getValue(BeltBlock.PART) == BeltPart.MIDDLE;
 
 		return false;
 	}
@@ -686,7 +680,8 @@ public class SchematicannonTileEntity extends SmartTileEntity implements INamedC
 			dontUpdateChecklist = true;
 			inventory.extractItem(BookInput, 1, false);
 			ItemStack stack = checklist.createItem();
-			stack.setCount(inventory.getStackInSlot(BookOutput).getCount() + 1);
+			stack.setCount(inventory.getStackInSlot(BookOutput)
+				.getCount() + 1);
 			inventory.setStackInSlot(BookOutput, stack);
 			sendUpdate = true;
 			return;
@@ -697,50 +692,53 @@ public class SchematicannonTileEntity extends SmartTileEntity implements INamedC
 	}
 
 	public static BlockState stripBeltIfNotLast(BlockState blockState) {
+		BeltPart part = blockState.getValue(BeltBlock.PART);
+		if (part == BeltPart.MIDDLE)
+			return Blocks.AIR.defaultBlockState();
+
 		// is highest belt?
 		boolean isLastSegment = false;
 		Direction facing = blockState.getValue(BeltBlock.HORIZONTAL_FACING);
 		BeltSlope slope = blockState.getValue(BeltBlock.SLOPE);
 		boolean positive = facing.getAxisDirection() == AxisDirection.POSITIVE;
-		boolean start = blockState.getValue(BeltBlock.PART) == BeltPart.START;
-		boolean end = blockState.getValue(BeltBlock.PART) == BeltPart.END;
+		boolean start = part == BeltPart.START;
+		boolean end = part == BeltPart.END;
 
 		switch (slope) {
-			case DOWNWARD:
-				isLastSegment = start;
-				break;
-			case UPWARD:
-				isLastSegment = end;
-				break;
-			case HORIZONTAL:
-			case VERTICAL:
-			default:
-				isLastSegment = positive && end || !positive && start;
+		case DOWNWARD:
+			isLastSegment = start;
+			break;
+		case UPWARD:
+			isLastSegment = end;
+			break;
+		default:
+			isLastSegment = positive && end || !positive && start;
 		}
-		if (!isLastSegment)
-			blockState = (blockState.getValue(BeltBlock.PART) == BeltPart.MIDDLE) ? Blocks.AIR.defaultBlockState()
-					: AllBlocks.SHAFT.getDefaultState()
-					.setValue(AbstractShaftBlock.AXIS, facing.getClockWise()
-							.getAxis());
-		return blockState;
+		if (isLastSegment)
+			return blockState;
+
+		return AllBlocks.SHAFT.getDefaultState()
+			.setValue(AbstractSimpleShaftBlock.AXIS, slope == BeltSlope.SIDEWAYS ? Axis.Y :
+				facing.getClockWise()
+					.getAxis());
 	}
 
-	protected void launchBlockOrBelt(BlockPos target, ItemStack icon, BlockState blockState, TileEntity tile) {
+	protected void launchBlockOrBelt(BlockPos target, ItemStack icon, BlockState blockState, BlockEntity tile) {
 		if (AllBlocks.BELT.has(blockState)) {
 			blockState = stripBeltIfNotLast(blockState);
 			if (tile instanceof BeltTileEntity && AllBlocks.BELT.has(blockState))
 				launchBelt(target, blockState, ((BeltTileEntity) tile).beltLength);
-			else
+			else if (blockState != Blocks.AIR.defaultBlockState())
 				launchBlock(target, icon, blockState, null);
 		} else {
-			CompoundNBT data = null;
+			CompoundTag data = null;
 			if (tile != null) {
 				if (AllBlockTags.SAFE_NBT.matches(blockState)) {
-					data = tile.save(new CompoundNBT());
+					data = tile.saveWithFullMetadata();
 					data = NBTProcessors.process(tile, data, true);
 				} else if (tile instanceof IPartialSafeNBT) {
-					data = new CompoundNBT();
-					((IPartialSafeNBT) tile).writeSafe(data, false);
+					data = new CompoundTag();
+					((IPartialSafeNBT) tile).writeSafe(data);
 					data = NBTProcessors.process(tile, data, true);
 				}
 			}
@@ -755,8 +753,8 @@ public class SchematicannonTileEntity extends SmartTileEntity implements INamedC
 		playFiringSound();
 	}
 
-	protected void launchBlock(BlockPos target, ItemStack stack, BlockState state, @Nullable CompoundNBT data) {
-		if (!state.getBlock().isAir(state, level, target))
+	protected void launchBlock(BlockPos target, ItemStack stack, BlockState state, @Nullable CompoundTag data) {
+		if (!state.isAir())
 			blocksPlaced++;
 		flyingBlocks.add(new LaunchedItem.ForBlockState(this.getBlockPos(), target, stack, state, data));
 		playFiringSound();
@@ -772,19 +770,19 @@ public class SchematicannonTileEntity extends SmartTileEntity implements INamedC
 		AllSoundEvents.SCHEMATICANNON_LAUNCH_BLOCK.playOnServer(level, worldPosition);
 	}
 
-	public void sendToContainer(PacketBuffer buffer) {
+	public void sendToContainer(FriendlyByteBuf buffer) {
 		buffer.writeBlockPos(getBlockPos());
 		buffer.writeNbt(getUpdateTag());
 	}
 
 	@Override
-	public Container createMenu(int id, PlayerInventory inv, PlayerEntity player) {
+	public AbstractContainerMenu createMenu(int id, Inventory inv, Player player) {
 		return SchematicannonContainer.create(id, inv, this);
 	}
 
 	@Override
-	public ITextComponent getDisplayName() {
-		return Lang.translate("gui.schematicannon.title");
+	public Component getDisplayName() {
+		return Lang.translateDirect("gui.schematicannon.title");
 	}
 
 	public void updateChecklist() {
@@ -824,9 +822,13 @@ public class SchematicannonTileEntity extends SmartTileEntity implements INamedC
 	}
 
 	@Override
-	public boolean shouldRenderNormally() {
-		return true;
+	@OnlyIn(Dist.CLIENT)
+	public AABB getRenderBoundingBox() {
+		return INFINITE_EXTENT_AABB;
 	}
 
+	public enum State {
+		STOPPED, PAUSED, RUNNING;
+	}
 
 }

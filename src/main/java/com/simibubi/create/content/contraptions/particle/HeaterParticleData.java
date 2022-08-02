@@ -10,17 +10,17 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.simibubi.create.AllParticleTypes;
 
-import mcp.MethodsReturnNonnullByDefault;
-import net.minecraft.client.particle.ParticleManager.IParticleMetaFactory;
-import net.minecraft.network.PacketBuffer;
-import net.minecraft.particles.IParticleData;
-import net.minecraft.particles.ParticleType;
+import net.minecraft.MethodsReturnNonnullByDefault;
+import net.minecraft.client.particle.ParticleEngine.SpriteParticleRegistration;
+import net.minecraft.core.particles.ParticleOptions;
+import net.minecraft.core.particles.ParticleType;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 
 @ParametersAreNonnullByDefault
 @MethodsReturnNonnullByDefault
-public class HeaterParticleData implements IParticleData, ICustomParticleDataWithSprite<HeaterParticleData> {
+public class HeaterParticleData implements ParticleOptions, ICustomParticleDataWithSprite<HeaterParticleData> {
 
 	public static final Codec<HeaterParticleData> CODEC = RecordCodecBuilder.create(i -> 
 		i.group(
@@ -29,8 +29,8 @@ public class HeaterParticleData implements IParticleData, ICustomParticleDataWit
 			Codec.FLOAT.fieldOf("b").forGetter(p -> p.b))
 		.apply(i, HeaterParticleData::new));
 
-	public static final IParticleData.IDeserializer<HeaterParticleData> DESERIALIZER =
-		new IParticleData.IDeserializer<HeaterParticleData>() {
+	public static final ParticleOptions.Deserializer<HeaterParticleData> DESERIALIZER =
+		new ParticleOptions.Deserializer<HeaterParticleData>() {
 			@Override
 			public HeaterParticleData fromCommand(ParticleType<HeaterParticleData> arg0, StringReader reader)
 				throws CommandSyntaxException {
@@ -44,7 +44,7 @@ public class HeaterParticleData implements IParticleData, ICustomParticleDataWit
 			}
 
 			@Override
-			public HeaterParticleData fromNetwork(ParticleType<HeaterParticleData> type, PacketBuffer buffer) {
+			public HeaterParticleData fromNetwork(ParticleType<HeaterParticleData> type, FriendlyByteBuf buffer) {
 				return new HeaterParticleData(buffer.readFloat(), buffer.readFloat(), buffer.readFloat());
 			}
 		};
@@ -64,7 +64,7 @@ public class HeaterParticleData implements IParticleData, ICustomParticleDataWit
 	}
 
 	@Override
-	public IDeserializer<HeaterParticleData> getDeserializer() {
+	public Deserializer<HeaterParticleData> getDeserializer() {
 		return DESERIALIZER;
 	}
 
@@ -75,7 +75,7 @@ public class HeaterParticleData implements IParticleData, ICustomParticleDataWit
 
 	@Override
 	@OnlyIn(Dist.CLIENT)
-	public IParticleMetaFactory<HeaterParticleData> getMetaFactory() {
+	public SpriteParticleRegistration<HeaterParticleData> getMetaFactory() {
 		return HeaterParticle.Factory::new;
 	}
 
@@ -90,7 +90,7 @@ public class HeaterParticleData implements IParticleData, ICustomParticleDataWit
 	}
 
 	@Override
-	public void writeToNetwork(PacketBuffer buffer) {
+	public void writeToNetwork(FriendlyByteBuf buffer) {
 		buffer.writeFloat(r);
 		buffer.writeFloat(g);
 		buffer.writeFloat(b);

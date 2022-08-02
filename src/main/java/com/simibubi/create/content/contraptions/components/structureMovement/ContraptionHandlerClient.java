@@ -1,25 +1,36 @@
 package com.simibubi.create.content.contraptions.components.structureMovement;
 
+import java.util.List;
+
+import javax.annotation.Nullable;
+
 import org.apache.commons.lang3.mutable.MutableObject;
 
+import com.simibubi.create.AllItems;
 import com.simibubi.create.content.contraptions.components.structureMovement.sync.ContraptionInteractionPacket;
+import com.simibubi.create.content.logistics.trains.entity.CarriageContraptionEntity;
+import com.simibubi.create.content.logistics.trains.entity.TrainRelocator;
 import com.simibubi.create.foundation.networking.AllPackets;
+import com.simibubi.create.foundation.utility.Couple;
+import com.simibubi.create.foundation.utility.Iterate;
 import com.simibubi.create.foundation.utility.RaycastHelper;
 import com.simibubi.create.foundation.utility.RaycastHelper.PredicateTraceResult;
+import com.simibubi.create.foundation.utility.VecHelper;
 
-import net.minecraft.block.BlockState;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.entity.player.ClientPlayerEntity;
-import net.minecraft.client.entity.player.RemoteClientPlayerEntity;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Hand;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.BlockRayTraceResult;
-import net.minecraft.util.math.shapes.VoxelShape;
-import net.minecraft.util.math.vector.Vector3d;
-import net.minecraft.world.gen.feature.template.Template.BlockInfo;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.player.RemotePlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate.StructureBlockInfo;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.event.InputEvent.ClickInputEvent;
@@ -36,10 +47,10 @@ public class ContraptionHandlerClient {
 	public static void preventRemotePlayersWalkingAnimations(PlayerTickEvent event) {
 		if (event.phase == Phase.START)
 			return;
-		if (!(event.player instanceof RemoteClientPlayerEntity))
+		if (!(event.player instanceof RemotePlayer))
 			return;
-		RemoteClientPlayerEntity remotePlayer = (RemoteClientPlayerEntity) event.player;
-		CompoundNBT data = remotePlayer.getPersistentData();
+		RemotePlayer remotePlayer = (RemotePlayer) event.player;
+		CompoundTag data = remotePlayer.getPersistentData();
 		if (!data.contains("LastOverrideLimbSwingUpdate"))
 			return;
 
@@ -60,62 +71,101 @@ public class ContraptionHandlerClient {
 	@OnlyIn(Dist.CLIENT)
 	public static void rightClickingOnContraptionsGetsHandledLocally(ClickInputEvent event) {
 		Minecraft mc = Minecraft.getInstance();
-		ClientPlayerEntity player = mc.player;
+		LocalPlayer player = mc.player;
+
 		if (player == null)
 			return;
-		if (player.isPassenger())
+		if (player.isSpectator())
 			return;
 		if (mc.level == null)
 			return;
 		if (!event.isUseItem())
 			return;
-		Vector3d origin = RaycastHelper.getTraceOrigin(player);
 
+		Couple<Vec3> rayInputs = getRayInputs(player);
+		Vec3 origin = rayInputs.getFirst();
+		Vec3 target = rayInputs.getSecond();
+		AABB aabb = new AABB(origin, target).inflate(16);
+		List<AbstractContraptionEntity> intersectingContraptions =
+			mc.level.getEntitiesOfClass(AbstractContraptionEntity.class, aabb);
+
+		for (AbstractContraptionEntity contraptionEntity : intersectingContraptions) {
+			BlockHitResult rayTraceResult = rayTraceContraption(origin, target, contraptionEntity);
+			if (rayTraceResult == null)
+				continue;
+
+			InteractionHand hand = event.getHand();
+			Direction face = rayTraceResult.getDirection();
+			BlockPos pos = rayTraceResult.getBlockPos();
+
+			if (contraptionEntity.handlePlayerInteraction(player, pos, face, hand)) {
+				AllPackets.channel.sendToServer(new ContraptionInteractionPacket(contraptionEntity, hand, pos, face));
+			} else if (handleSpecialInteractions(contraptionEntity, player, pos, face, hand)) {
+			} else
+				continue;
+
+			event.setCanceled(true);
+			event.setSwingHand(false);
+		}
+	}
+
+	private static boolean handleSpecialInteractions(AbstractContraptionEntity contraptionEntity, Player player,
+		BlockPos localPos, Direction side, InteractionHand interactionHand) {
+		if (AllItems.WRENCH.isIn(player.getItemInHand(interactionHand))
+			&& contraptionEntity instanceof CarriageContraptionEntity car)
+			return TrainRelocator.carriageWrenched(car.toGlobalVector(VecHelper.getCenterOf(localPos), 1), car);
+		return false;
+	}
+
+	@OnlyIn(Dist.CLIENT)
+	public static Couple<Vec3> getRayInputs(LocalPlayer player) {
+		Minecraft mc = Minecraft.getInstance();
+		Vec3 origin = RaycastHelper.getTraceOrigin(player);
 		double reach = mc.gameMode.getPickRange();
 		if (mc.hitResult != null && mc.hitResult.getLocation() != null)
 			reach = Math.min(mc.hitResult.getLocation()
 				.distanceTo(origin), reach);
+		Vec3 target = RaycastHelper.getTraceTarget(player, reach, origin);
+		return Couple.create(origin, target);
+	}
 
-		Vector3d target = RaycastHelper.getTraceTarget(player, reach, origin);
-		for (AbstractContraptionEntity contraptionEntity : mc.level
-			.getEntitiesOfClass(AbstractContraptionEntity.class, new AxisAlignedBB(origin, target))) {
+	@Nullable
+	public static BlockHitResult rayTraceContraption(Vec3 origin, Vec3 target,
+		AbstractContraptionEntity contraptionEntity) {
+		Vec3 localOrigin = contraptionEntity.toLocalVector(origin, 1);
+		Vec3 localTarget = contraptionEntity.toLocalVector(target, 1);
+		Contraption contraption = contraptionEntity.getContraption();
 
-			Vector3d localOrigin = contraptionEntity.toLocalVector(origin, 1);
-			Vector3d localTarget = contraptionEntity.toLocalVector(target, 1);
-			Contraption contraption = contraptionEntity.getContraption();
-
-			MutableObject<BlockRayTraceResult> mutableResult = new MutableObject<>();
-			PredicateTraceResult predicateResult = RaycastHelper.rayTraceUntil(localOrigin, localTarget, p -> {
-				BlockInfo blockInfo = contraption.getBlocks()
-					.get(p);
+		MutableObject<BlockHitResult> mutableResult = new MutableObject<>();
+		PredicateTraceResult predicateResult = RaycastHelper.rayTraceUntil(localOrigin, localTarget, p -> {
+			for (Direction d : Iterate.directions) {
+				if (d == Direction.UP)
+					continue;
+				BlockPos pos = d == Direction.DOWN ? p : p.relative(d);
+				StructureBlockInfo blockInfo = contraption.getBlocks()
+					.get(pos);
 				if (blockInfo == null)
-					return false;
+					continue;
 				BlockState state = blockInfo.state;
-				VoxelShape raytraceShape = state.getShape(Minecraft.getInstance().level, BlockPos.ZERO.below());
+				VoxelShape raytraceShape = state.getShape(contraption.getContraptionWorld(), BlockPos.ZERO.below());
 				if (raytraceShape.isEmpty())
-					return false;
-				BlockRayTraceResult rayTrace = raytraceShape.clip(localOrigin, localTarget, p);
+					continue;
+				if (contraption.isHiddenInPortal(pos))
+					continue;
+				BlockHitResult rayTrace = raytraceShape.clip(localOrigin, localTarget, pos);
 				if (rayTrace != null) {
 					mutableResult.setValue(rayTrace);
 					return true;
 				}
-				return false;
-			});
+			}
+			return false;
+		});
 
-			if (predicateResult == null || predicateResult.missed())
-				return;
+		if (predicateResult == null || predicateResult.missed())
+			return null;
 
-			BlockRayTraceResult rayTraceResult = mutableResult.getValue();
-			Hand hand = event.getHand();
-			Direction face = rayTraceResult.getDirection();
-			BlockPos pos = rayTraceResult.getBlockPos();
-
-			if (!contraptionEntity.handlePlayerInteraction(player, pos, face, hand))
-				return;
-			AllPackets.channel.sendToServer(new ContraptionInteractionPacket(contraptionEntity, hand, pos, face));
-			event.setCanceled(true);
-			event.setSwingHand(false);
-		}
+		BlockHitResult rayTraceResult = mutableResult.getValue();
+		return rayTraceResult;
 	}
 
 }

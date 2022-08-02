@@ -7,14 +7,11 @@ import java.util.function.Consumer;
 import javax.annotation.Nonnull;
 
 import com.simibubi.create.AllItems;
-import com.simibubi.create.AllTags.AllItemTags;
 import com.simibubi.create.foundation.utility.NBTHelper;
 
-import net.minecraft.block.ShulkerBoxBlock;
-import net.minecraft.item.BlockItem;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraftforge.common.util.Constants.NBT;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.items.ItemHandlerHelper;
 import net.minecraftforge.items.ItemStackHandler;
 
@@ -91,14 +88,9 @@ public class ToolboxInventory extends ItemStackHandler {
 
 	@Override
 	public boolean isItemValid(int slot, ItemStack stack) {
-		if (AllItemTags.TOOLBOXES.matches(stack))
+		if (!stack.getItem().canFitInsideContainerItems())
 			return false;
-		if (stack.getItem() instanceof BlockItem) {
-			BlockItem blockItem = (BlockItem) stack.getItem();
-			if (blockItem.getBlock() instanceof ShulkerBoxBlock)
-				return false;
-		}
-		
+
 		if (slot < 0 || slot >= getSlots())
 			return false;
 		int compartment = slot / STACKS_PER_COMPARTMENT;
@@ -136,23 +128,24 @@ public class ToolboxInventory extends ItemStackHandler {
 	}
 
 	@Override
-	public CompoundNBT serializeNBT() {
-		CompoundNBT compound = super.serializeNBT();
+	public CompoundTag serializeNBT() {
+		CompoundTag compound = super.serializeNBT();
 		compound.put("Compartments", NBTHelper.writeItemList(filters));
 		return compound;
 	}
 
 	@Override
 	protected void onContentsChanged(int slot) {
-		if (!settling && !te.getWorld().isClientSide)
+		if (!settling && !te.getLevel().isClientSide)
 			settle(slot / STACKS_PER_COMPARTMENT);
 		te.sendData();
+		te.setChanged();
 		super.onContentsChanged(slot);
 	}
 
 	@Override
-	public void deserializeNBT(CompoundNBT nbt) {
-		filters = NBTHelper.readItemList(nbt.getList("Compartments", NBT.TAG_COMPOUND));
+	public void deserializeNBT(CompoundTag nbt) {
+		filters = NBTHelper.readItemList(nbt.getList("Compartments", Tag.TAG_COMPOUND));
 		if (filters.size() != 8) {
 			filters.clear();
 			for (int i = 0; i < 8; i++)

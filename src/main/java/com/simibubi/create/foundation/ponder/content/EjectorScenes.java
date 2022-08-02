@@ -1,26 +1,27 @@
 package com.simibubi.create.foundation.ponder.content;
 
 import com.simibubi.create.AllBlocks;
-import com.simibubi.create.AllItems;
 import com.simibubi.create.content.logistics.block.depot.EjectorTileEntity;
 import com.simibubi.create.foundation.gui.AllIcons;
 import com.simibubi.create.foundation.ponder.ElementLink;
+import com.simibubi.create.foundation.ponder.PonderPalette;
 import com.simibubi.create.foundation.ponder.SceneBuilder;
 import com.simibubi.create.foundation.ponder.SceneBuildingUtil;
 import com.simibubi.create.foundation.ponder.Selection;
-import com.simibubi.create.foundation.ponder.elements.InputWindowElement;
-import com.simibubi.create.foundation.ponder.elements.ParrotElement;
-import com.simibubi.create.foundation.ponder.elements.WorldSectionElement;
+import com.simibubi.create.foundation.ponder.element.InputWindowElement;
+import com.simibubi.create.foundation.ponder.element.ParrotElement;
+import com.simibubi.create.foundation.ponder.element.WorldSectionElement;
 import com.simibubi.create.foundation.utility.NBTHelper;
 import com.simibubi.create.foundation.utility.Pointing;
 
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.item.ItemEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.vector.Vector3d;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.items.ItemHandlerHelper;
 
 public class EjectorScenes {
@@ -46,7 +47,7 @@ public class EjectorScenes {
 			.withItem(asStack), 50);
 		scene.idle(7);
 		Object slot = new Object();
-		scene.overlay.chaseBoundingBoxOutline(PonderPalette.OUTPUT, slot, new AxisAlignedBB(targetPos), 160);
+		scene.overlay.chaseBoundingBoxOutline(PonderPalette.OUTPUT, slot, new AABB(targetPos), 160);
 
 		scene.overlay.showText(70)
 			.attachKeyFrame()
@@ -74,7 +75,7 @@ public class EjectorScenes {
 		scene.idle(70);
 
 		slot = new Object();
-		AxisAlignedBB bb = new AxisAlignedBB(ejectorPos.west());
+		AABB bb = new AABB(ejectorPos.west());
 		scene.overlay.chaseBoundingBoxOutline(PonderPalette.OUTPUT, slot, bb, 20);
 		scene.idle(10);
 		scene.overlay.chaseBoundingBoxOutline(PonderPalette.GREEN, slot, bb.expandTowards(-15, 15, 0), 100);
@@ -114,8 +115,8 @@ public class EjectorScenes {
 			.placeNearTarget();
 		scene.idle(60);
 
-		ItemStack copperBlock = AllBlocks.COPPER_BLOCK.asStack();
-		ItemStack copperIngot = AllItems.COPPER_INGOT.asStack();
+		ItemStack copperBlock = new ItemStack(Items.COPPER_BLOCK);
+		ItemStack copperIngot = new ItemStack(Items.COPPER_INGOT);
 		scene.overlay.showControls(new InputWindowElement(util.vector.topOf(ejectorPos)
 			.add(0.5, 0, 0), Pointing.RIGHT).withItem(copperBlock), 30);
 		scene.idle(7);
@@ -127,7 +128,7 @@ public class EjectorScenes {
 			.placeNearTarget();
 		scene.idle(60);
 
-		scene.world.modifyEntities(ItemEntity.class, Entity::remove);
+		scene.world.modifyEntities(ItemEntity.class, Entity::discard);
 		scene.world.hideSection(targetS, Direction.SOUTH);
 		scene.idle(15);
 		scene.world.restoreBlocks(targetS);
@@ -150,8 +151,8 @@ public class EjectorScenes {
 		scene.world.setBlock(targetPos, AllBlocks.ANDESITE_CASING.getDefaultState(), false);
 		scene.world.showSection(targetS, Direction.NORTH);
 
-		Vector3d input = util.vector.of(4.8, 1 + 12 / 16f, 2.5);
-		Vector3d topOfSlot = input.add(0, 2 / 16f, 0);
+		Vec3 input = util.vector.of(4.8, 1 + 12 / 16f, 2.5);
+		Vec3 topOfSlot = input.add(0, 2 / 16f, 0);
 		scene.overlay.showControls(new InputWindowElement(topOfSlot, Pointing.DOWN).scroll()
 			.withWrench(), 60);
 		scene.overlay.showFilterSlotInput(input, 80);
@@ -187,7 +188,7 @@ public class EjectorScenes {
 		scene.world.hideSection(util.select.fromTo(5, 1, 0, 4, 1, 1), Direction.UP);
 		scene.world.hideSection(util.select.position(5, 0, 1), Direction.DOWN);
 		scene.idle(30);
-		scene.world.modifyEntities(ItemEntity.class, Entity::remove);
+		scene.world.modifyEntities(ItemEntity.class, Entity::discard);
 
 		scene.addKeyframe();
 		ElementLink<ParrotElement> birb = scene.special.createBirb(util.vector.topOf(ejectorPos)
@@ -208,6 +209,7 @@ public class EjectorScenes {
 			.text("Other Entities will always trigger an Ejector when stepping on it")
 			.pointAt(util.vector.topOf(targetPos))
 			.placeNearTarget();
+		scene.idle(50);
 
 	}
 
@@ -252,8 +254,8 @@ public class EjectorScenes {
 			.placeNearTarget();
 		scene.idle(110);
 
-		Vector3d input = util.vector.of(2.5, 1 + 12 / 16f, 2.8);
-		Vector3d topOfSlot = input.add(0, 2 / 16f, 0);
+		Vec3 input = util.vector.of(2.5, 1 + 12 / 16f, 2.8);
+		Vec3 topOfSlot = input.add(0, 2 / 16f, 0);
 		scene.overlay.showControls(new InputWindowElement(topOfSlot, Pointing.DOWN).scroll()
 			.withWrench(), 60);
 		scene.overlay.showFilterSlotInput(input, 80);
@@ -269,9 +271,9 @@ public class EjectorScenes {
 		scene.idle(90);
 
 		scene.overlay.showControls(new InputWindowElement(util.vector.topOf(util.grid.at(4, 1, 3)), Pointing.DOWN)
-			.withItem(AllItems.COPPER_INGOT.asStack()), 20);
+			.withItem(new ItemStack(Items.COPPER_INGOT)), 20);
 		scene.idle(7);
-		scene.world.createItemOnBelt(util.grid.at(4, 1, 3), Direction.UP, AllItems.COPPER_INGOT.asStack(64));
+		scene.world.createItemOnBelt(util.grid.at(4, 1, 3), Direction.UP, new ItemStack(Items.COPPER_INGOT, 64));
 		scene.idle(40);
 		scene.world.multiplyKineticSpeed(util.select.everywhere(), 1 / 16f);
 		scene.overlay.showText(80)
@@ -303,13 +305,13 @@ public class EjectorScenes {
 		scene.world.showSection(redstone, Direction.EAST);
 
 		BlockPos ejectorPos = util.grid.at(4, 1, 2);
-		Vector3d topOf = util.vector.topOf(ejectorPos.above(2));
-		ItemStack copper = AllItems.COPPER_INGOT.asStack();
+		Vec3 topOf = util.vector.topOf(ejectorPos.above(2));
+		ItemStack copper = new ItemStack(Items.COPPER_INGOT);
 
 		for (int i = 0; i < 3; i++) {
 			scene.world.createItemEntity(topOf, util.vector.of(0, 0.1, 0), copper);
 			scene.idle(12);
-			scene.world.modifyEntities(ItemEntity.class, Entity::remove);
+			scene.world.modifyEntities(ItemEntity.class, Entity::discard);
 			scene.world.createItemOnBeltLike(ejectorPos, Direction.UP, copper);
 			scene.idle(20);
 			if (i == 1) {
@@ -349,7 +351,7 @@ public class EjectorScenes {
 		for (int i = 0; i < 6; i++) {
 			scene.world.createItemEntity(topOf, util.vector.of(0, 0.1, 0), copper);
 			scene.idle(12);
-			scene.world.modifyEntities(ItemEntity.class, Entity::remove);
+			scene.world.modifyEntities(ItemEntity.class, Entity::discard);
 			scene.world.createItemOnBeltLike(ejectorPos, Direction.UP, copper);
 			scene.idle(1);
 			scene.world.toggleRedstonePower(observerRedstone);

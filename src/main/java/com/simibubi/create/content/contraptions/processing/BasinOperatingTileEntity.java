@@ -5,25 +5,26 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import com.simibubi.create.content.contraptions.base.KineticTileEntity;
-import com.simibubi.create.foundation.advancement.AllTriggers;
-import com.simibubi.create.foundation.advancement.ITriggerable;
+import com.simibubi.create.foundation.advancement.CreateAdvancement;
 import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 import com.simibubi.create.foundation.tileEntity.behaviour.simple.DeferralBehaviour;
 import com.simibubi.create.foundation.utility.recipe.RecipeFinder;
 
-import net.minecraft.inventory.IInventory;
-import net.minecraft.item.crafting.IRecipe;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.tileentity.TileEntityType;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.Container;
+import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
 
 public abstract class BasinOperatingTileEntity extends KineticTileEntity {
 
 	public DeferralBehaviour basinChecker;
 	public boolean basinRemoved;
-	protected IRecipe<?> currentRecipe;
+	protected Recipe<?> currentRecipe;
 
-	public BasinOperatingTileEntity(TileEntityType<?> typeIn) {
-		super(typeIn);
+	public BasinOperatingTileEntity(BlockEntityType<?> typeIn, BlockPos pos, BlockState state) {
+		super(typeIn, pos, state);
 	}
 
 	@Override
@@ -67,7 +68,7 @@ public abstract class BasinOperatingTileEntity extends KineticTileEntity {
 			.isPresent())
 			return true;
 
-		List<IRecipe<?>> recipes = getMatchingRecipes();
+		List<Recipe<?>> recipes = getMatchingRecipes();
 		if (recipes.isEmpty())
 			return true;
 		currentRecipe = recipes.get(0);
@@ -84,7 +85,7 @@ public abstract class BasinOperatingTileEntity extends KineticTileEntity {
 		return true;
 	}
 
-	protected <C extends IInventory> boolean matchBasinRecipe(IRecipe<C> recipe) {
+	protected <C extends Container> boolean matchBasinRecipe(Recipe<C> recipe) {
 		if (recipe == null)
 			return false;
 		Optional<BasinTileEntity> basin = getBasin();
@@ -104,9 +105,7 @@ public abstract class BasinOperatingTileEntity extends KineticTileEntity {
 		boolean wasEmpty = basin.canContinueProcessing();
 		if (!BasinRecipe.apply(basin, currentRecipe))
 			return;
-		Optional<ITriggerable> processedRecipeTrigger = getProcessedRecipeTrigger();
-		if (level != null && !level.isClientSide && processedRecipeTrigger.isPresent())
-			AllTriggers.triggerForNearbyPlayers(processedRecipeTrigger.get(), level, worldPosition, 4);
+		getProcessedRecipeTrigger().ifPresent(this::award);
 		basin.inputTank.sendDataImmediately();
 
 		// Continue mixing
@@ -118,8 +117,8 @@ public abstract class BasinOperatingTileEntity extends KineticTileEntity {
 		basin.notifyChangeOfContents();
 	}
 
-	protected List<IRecipe<?>> getMatchingRecipes() {
-		List<IRecipe<?>> list = RecipeFinder.get(getRecipeCacheKey(), level, this::matchStaticFilters);
+	protected List<Recipe<?>> getMatchingRecipes() {
+		List<Recipe<?>> list = RecipeFinder.get(getRecipeCacheKey(), level, this::matchStaticFilters);
 		return list.stream()
 			.filter(this::matchBasinRecipe)
 			.sorted((r1, r2) -> r2.getIngredients()
@@ -134,22 +133,17 @@ public abstract class BasinOperatingTileEntity extends KineticTileEntity {
 	protected Optional<BasinTileEntity> getBasin() {
 		if (level == null)
 			return Optional.empty();
-		TileEntity basinTE = level.getBlockEntity(worldPosition.below(2));
+		BlockEntity basinTE = level.getBlockEntity(worldPosition.below(2));
 		if (!(basinTE instanceof BasinTileEntity))
 			return Optional.empty();
 		return Optional.of((BasinTileEntity) basinTE);
 	}
 
-	protected Optional<ITriggerable> getProcessedRecipeTrigger() {
+	protected Optional<CreateAdvancement> getProcessedRecipeTrigger() {
 		return Optional.empty();
 	}
 
-	protected abstract <C extends IInventory> boolean matchStaticFilters(IRecipe<C> recipe);
+	protected abstract <C extends Container> boolean matchStaticFilters(Recipe<C> recipe);
 
 	protected abstract Object getRecipeCacheKey();
-
-	@Override
-	public boolean shouldRenderNormally() {
-		return true;
-	}
 }

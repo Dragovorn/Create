@@ -9,12 +9,11 @@ import com.simibubi.create.Create;
 import com.simibubi.create.content.contraptions.base.KineticTileEntity;
 import com.simibubi.create.content.contraptions.components.structureMovement.ITransformableTE;
 import com.simibubi.create.content.contraptions.components.structureMovement.StructureTransform;
-import com.simibubi.create.content.logistics.block.mechanicalArm.ArmInteractionPoint.Jukebox;
+import com.simibubi.create.content.logistics.block.mechanicalArm.AllArmInteractionPointTypes.JukeboxPoint;
 import com.simibubi.create.content.logistics.block.mechanicalArm.ArmInteractionPoint.Mode;
-import com.simibubi.create.foundation.advancement.AllTriggers;
+import com.simibubi.create.foundation.advancement.AllAdvancements;
 import com.simibubi.create.foundation.config.AllConfigs;
 import com.simibubi.create.foundation.gui.AllIcons;
-import com.simibubi.create.foundation.gui.widgets.InterpolatedAngle;
 import com.simibubi.create.foundation.item.TooltipHelper;
 import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 import com.simibubi.create.foundation.tileEntity.behaviour.CenteredSideValueBoxTransform;
@@ -24,31 +23,33 @@ import com.simibubi.create.foundation.utility.AngleHelper;
 import com.simibubi.create.foundation.utility.Lang;
 import com.simibubi.create.foundation.utility.NBTHelper;
 import com.simibubi.create.foundation.utility.VecHelper;
+import com.simibubi.create.foundation.utility.animation.LerpedFloat;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.block.JukeboxBlock;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.nbt.INBT;
-import net.minecraft.nbt.ListNBT;
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.Direction;
-import net.minecraft.util.SoundCategory;
-import net.minecraft.util.SoundEvents;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.vector.Vector3d;
-import net.minecraft.util.text.ITextComponent;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.common.util.Constants.NBT;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.SectionPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.Mth;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.JukeboxBlock;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.ChunkSource;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 public class ArmTileEntity extends KineticTileEntity implements ITransformableTE {
 
 	// Server
 	List<ArmInteractionPoint> inputs;
 	List<ArmInteractionPoint> outputs;
-	ListNBT interactionPointTag;
+	ListTag interactionPointTag;
 
 	// Both
 	float chasedPointProgress;
@@ -58,11 +59,11 @@ public class ArmTileEntity extends KineticTileEntity implements ITransformableTE
 
 	// Client
 	ArmAngleTarget previousTarget;
-	InterpolatedAngle lowerArmAngle;
-	InterpolatedAngle upperArmAngle;
-	InterpolatedAngle baseAngle;
-	InterpolatedAngle headAngle;
-	InterpolatedAngle clawAngle;
+	LerpedFloat lowerArmAngle;
+	LerpedFloat upperArmAngle;
+	LerpedFloat baseAngle;
+	LerpedFloat headAngle;
+	LerpedFloat clawAngle;
 	float previousBaseAngle;
 	boolean updateInteractionPoints;
 
@@ -76,23 +77,23 @@ public class ArmTileEntity extends KineticTileEntity implements ITransformableTE
 		SEARCH_INPUTS, MOVE_TO_INPUT, SEARCH_OUTPUTS, MOVE_TO_OUTPUT, DANCING
 	}
 
-	public ArmTileEntity(TileEntityType<?> typeIn) {
-		super(typeIn);
+	public ArmTileEntity(BlockEntityType<?> typeIn, BlockPos pos, BlockState state) {
+		super(typeIn, pos, state);
 		inputs = new ArrayList<>();
 		outputs = new ArrayList<>();
-		interactionPointTag = new ListNBT();
+		interactionPointTag = new ListTag();
 		heldItem = ItemStack.EMPTY;
 		phase = Phase.SEARCH_INPUTS;
 		previousTarget = ArmAngleTarget.NO_TARGET;
-		baseAngle = new InterpolatedAngle();
-		baseAngle.init(previousTarget.baseAngle);
-		lowerArmAngle = new InterpolatedAngle();
-		lowerArmAngle.init(previousTarget.lowerArmAngle);
-		upperArmAngle = new InterpolatedAngle();
-		upperArmAngle.init(previousTarget.upperArmAngle);
-		headAngle = new InterpolatedAngle();
-		headAngle.init(previousTarget.headAngle);
-		clawAngle = new InterpolatedAngle();
+		baseAngle = LerpedFloat.angular();
+		baseAngle.startWithValue(previousTarget.baseAngle);
+		lowerArmAngle = LerpedFloat.angular();
+		lowerArmAngle.startWithValue(previousTarget.lowerArmAngle);
+		upperArmAngle = LerpedFloat.angular();
+		upperArmAngle.startWithValue(previousTarget.upperArmAngle);
+		headAngle = LerpedFloat.angular();
+		headAngle.startWithValue(previousTarget.headAngle);
+		clawAngle = LerpedFloat.angular();
 		previousBaseAngle = previousTarget.baseAngle;
 		updateInteractionPoints = true;
 		redstoneLocked = false;
@@ -103,9 +104,12 @@ public class ArmTileEntity extends KineticTileEntity implements ITransformableTE
 		super.addBehaviours(behaviours);
 
 		selectionMode = new ScrollOptionBehaviour<SelectionMode>(SelectionMode.class,
-			Lang.translate("logistics.when_multiple_outputs_available"), this, new SelectionModeValueBox());
+			Lang.translateDirect("logistics.when_multiple_outputs_available"), this, new SelectionModeValueBox());
 		selectionMode.requiresWrench();
 		behaviours.add(selectionMode);
+
+		registerAwardables(behaviours, AllAdvancements.ARM_BLAZE_BURNER, AllAdvancements.ARM_MANY_TARGETS,
+			AllAdvancements.MECHANICAL_ARM, AllAdvancements.MUSICAL_ARM);
 	}
 
 	@Override
@@ -118,7 +122,7 @@ public class ArmTileEntity extends KineticTileEntity implements ITransformableTE
 			if (phase == Phase.MOVE_TO_INPUT) {
 				ArmInteractionPoint point = getTargetedInteractionPoint();
 				if (point != null)
-					point.keepAlive(level);
+					point.keepAlive();
 			}
 			return;
 		}
@@ -160,17 +164,17 @@ public class ArmTileEntity extends KineticTileEntity implements ITransformableTE
 	}
 
 	@Override
-	@OnlyIn(Dist.CLIENT)
-	public AxisAlignedBB makeRenderBoundingBox() {
-		return super.makeRenderBoundingBox().inflate(3);
+	protected AABB createRenderBoundingBox() {
+		return super.createRenderBoundingBox().inflate(3);
 	}
 
 	private boolean checkForMusicAmong(List<ArmInteractionPoint> list) {
 		for (ArmInteractionPoint armInteractionPoint : list) {
-			if (!(armInteractionPoint instanceof Jukebox))
+			if (!(armInteractionPoint instanceof AllArmInteractionPointTypes.JukeboxPoint))
 				continue;
-			BlockState state = level.getBlockState(armInteractionPoint.pos);
-			if (state.getOptionalValue(JukeboxBlock.HAS_RECORD).orElse(false))
+			BlockState state = level.getBlockState(armInteractionPoint.getPos());
+			if (state.getOptionalValue(JukeboxBlock.HAS_RECORD)
+				.orElse(false))
 				return true;
 		}
 		return false;
@@ -189,7 +193,7 @@ public class ArmTileEntity extends KineticTileEntity implements ITransformableTE
 		ArmAngleTarget target = targetedInteractionPoint == null ? ArmAngleTarget.NO_TARGET
 			: targetedInteractionPoint.getTargetAngles(worldPosition, isOnCeiling());
 
-		baseAngle.set(AngleHelper.angleLerp(chasedPointProgress, previousBaseAngle,
+		baseAngle.setValue(AngleHelper.angleLerp(chasedPointProgress, previousBaseAngle,
 			target == ArmAngleTarget.NO_TARGET ? previousBaseAngle : target.baseAngle));
 
 		// Arm's angles first backup to resting position and then continue
@@ -199,16 +203,17 @@ public class ArmTileEntity extends KineticTileEntity implements ITransformableTE
 			previousTarget = ArmAngleTarget.NO_TARGET;
 		float progress = chasedPointProgress == 1 ? 1 : (chasedPointProgress % .5f) * 2;
 
-		lowerArmAngle.set(MathHelper.lerp(progress, previousTarget.lowerArmAngle, target.lowerArmAngle));
-		upperArmAngle.set(MathHelper.lerp(progress, previousTarget.upperArmAngle, target.upperArmAngle));
+		lowerArmAngle.setValue(Mth.lerp(progress, previousTarget.lowerArmAngle, target.lowerArmAngle));
+		upperArmAngle.setValue(Mth.lerp(progress, previousTarget.upperArmAngle, target.upperArmAngle));
+		headAngle.setValue(AngleHelper.angleLerp(progress, previousTarget.headAngle % 360, target.headAngle % 360));
 
-		headAngle.set(AngleHelper.angleLerp(progress, previousTarget.headAngle % 360, target.headAngle % 360));
 		return false;
 	}
 
 	protected boolean isOnCeiling() {
 		BlockState state = getBlockState();
-		return hasLevel() && state.getOptionalValue(ArmBlock.CEILING).orElse(false);
+		return hasLevel() && state.getOptionalValue(ArmBlock.CEILING)
+			.orElse(false);
 	}
 
 	@Nullable
@@ -239,9 +244,9 @@ public class ArmTileEntity extends KineticTileEntity implements ITransformableTE
 
 		InteractionPoints: for (int i = startIndex; i < scanRange; i++) {
 			ArmInteractionPoint armInteractionPoint = inputs.get(i);
-			if (!armInteractionPoint.isStillValid(level))
+			if (!armInteractionPoint.isValid())
 				continue;
-			for (int j = 0; j < armInteractionPoint.getSlotCount(level); j++) {
+			for (int j = 0; j < armInteractionPoint.getSlotCount(); j++) {
 				if (getDistributableAmount(armInteractionPoint, j) == 0)
 					continue;
 
@@ -277,10 +282,10 @@ public class ArmTileEntity extends KineticTileEntity implements ITransformableTE
 
 		for (int i = startIndex; i < scanRange; i++) {
 			ArmInteractionPoint armInteractionPoint = outputs.get(i);
-			if (!armInteractionPoint.isStillValid(level))
+			if (!armInteractionPoint.isValid())
 				continue;
 
-			ItemStack remainder = armInteractionPoint.insert(level, held, true);
+			ItemStack remainder = armInteractionPoint.insert(held, true);
 			if (remainder.equals(heldItem, false))
 				continue;
 
@@ -314,18 +319,36 @@ public class ArmTileEntity extends KineticTileEntity implements ITransformableTE
 	}
 
 	protected int getDistributableAmount(ArmInteractionPoint armInteractionPoint, int i) {
-		ItemStack stack = armInteractionPoint.extract(level, i, true);
+		ItemStack stack = armInteractionPoint.extract(i, true);
 		ItemStack remainder = simulateInsertion(stack);
-		return stack.getCount() - remainder.getCount();
+		if (stack.sameItem(remainder)) {
+			return stack.getCount() - remainder.getCount();
+		} else {
+			return stack.getCount();
+		}
+	}
+
+	private ItemStack simulateInsertion(ItemStack stack) {
+		for (ArmInteractionPoint armInteractionPoint : outputs) {
+			if (armInteractionPoint.isValid())
+				stack = armInteractionPoint.insert(stack, true);
+			if (stack.isEmpty())
+				break;
+		}
+		return stack;
 	}
 
 	protected void depositItem() {
 		ArmInteractionPoint armInteractionPoint = getTargetedInteractionPoint();
-		if (armInteractionPoint != null) {
+		if (armInteractionPoint != null && armInteractionPoint.isValid()) {
 			ItemStack toInsert = heldItem.copy();
-			ItemStack remainder = armInteractionPoint.insert(level, toInsert, false);
+			ItemStack remainder = armInteractionPoint.insert(toInsert, false);
 			heldItem = remainder;
+
+			if (armInteractionPoint instanceof JukeboxPoint && remainder.isEmpty())
+				award(AllAdvancements.MUSICAL_ARM);
 		}
+
 		phase = heldItem.isEmpty() ? Phase.SEARCH_INPUTS : Phase.SEARCH_OUTPUTS;
 		chasedPointProgress = 0;
 		chasedPointIndex = -1;
@@ -333,19 +356,19 @@ public class ArmTileEntity extends KineticTileEntity implements ITransformableTE
 		setChanged();
 
 		if (!level.isClientSide)
-			AllTriggers.triggerForNearbyPlayers(AllTriggers.MECHANICAL_ARM, level, worldPosition, 10);
+			award(AllAdvancements.MECHANICAL_ARM);
 	}
 
 	protected void collectItem() {
 		ArmInteractionPoint armInteractionPoint = getTargetedInteractionPoint();
-		if (armInteractionPoint != null)
-			for (int i = 0; i < armInteractionPoint.getSlotCount(level); i++) {
+		if (armInteractionPoint != null && armInteractionPoint.isValid())
+			for (int i = 0; i < armInteractionPoint.getSlotCount(); i++) {
 				int amountExtracted = getDistributableAmount(armInteractionPoint, i);
 				if (amountExtracted == 0)
 					continue;
 
 				ItemStack prevHeld = heldItem;
-				heldItem = armInteractionPoint.extract(level, i, amountExtracted, false);
+				heldItem = armInteractionPoint.extract(i, amountExtracted, false);
 				phase = Phase.SEARCH_OUTPUTS;
 				chasedPointProgress = 0;
 				chasedPointIndex = -1;
@@ -353,8 +376,8 @@ public class ArmTileEntity extends KineticTileEntity implements ITransformableTE
 				setChanged();
 
 				if (!prevHeld.sameItem(heldItem))
-					level.playSound(null, worldPosition, SoundEvents.ITEM_PICKUP, SoundCategory.BLOCKS, .125f,
-							.5f + Create.RANDOM.nextFloat() * .25f);
+					level.playSound(null, worldPosition, SoundEvents.ITEM_PICKUP, SoundSource.BLOCKS, .125f,
+						.5f + Create.RANDOM.nextFloat() * .25f);
 				return;
 			}
 
@@ -363,15 +386,6 @@ public class ArmTileEntity extends KineticTileEntity implements ITransformableTE
 		chasedPointIndex = -1;
 		sendData();
 		setChanged();
-	}
-
-	private ItemStack simulateInsertion(ItemStack stack) {
-		for (ArmInteractionPoint armInteractionPoint : outputs) {
-			stack = armInteractionPoint.insert(level, stack, true);
-			if (stack.isEmpty())
-				break;
-		}
-		return stack;
 	}
 
 	public void redstoneUpdate() {
@@ -391,39 +405,73 @@ public class ArmTileEntity extends KineticTileEntity implements ITransformableTE
 		if (interactionPointTag == null)
 			return;
 
-		for (INBT inbt : interactionPointTag) {
-			ArmInteractionPoint.transformPos(transform, (CompoundNBT) inbt);
+		for (Tag tag : interactionPointTag) {
+			ArmInteractionPoint.transformPos((CompoundTag) tag, transform);
 		}
 
-		sendData();
-		setChanged();
+		notifyUpdate();
+	}
+
+	// ClientLevel#hasChunk (and consequently #isAreaLoaded) always returns true,
+	// so manually check the ChunkSource to avoid weird behavior on the client side
+	protected boolean isAreaActuallyLoaded(BlockPos center, int range) {
+		if (!level.isAreaLoaded(center, range)) {
+			return false;
+		}
+		if (level.isClientSide) {
+			int minY = center.getY() - range;
+			int maxY = center.getY() + range;
+			if (maxY < level.getMinBuildHeight() || minY >= level.getMaxBuildHeight()) {
+				return false;
+			}
+
+			int minX = center.getX() - range;
+			int minZ = center.getZ() - range;
+			int maxX = center.getX() + range;
+			int maxZ = center.getZ() + range;
+
+			int minChunkX = SectionPos.blockToSectionCoord(minX);
+			int maxChunkX = SectionPos.blockToSectionCoord(maxX);
+			int minChunkZ = SectionPos.blockToSectionCoord(minZ);
+			int maxChunkZ = SectionPos.blockToSectionCoord(maxZ);
+
+			ChunkSource chunkSource = level.getChunkSource();
+			for (int chunkX = minChunkX; chunkX <= maxChunkX; ++chunkX) {
+				for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; ++chunkZ) {
+					if (!chunkSource.hasChunk(chunkX, chunkZ)) {
+						return false;
+					}
+				}
+			}
+		}
+		return true;
 	}
 
 	protected void initInteractionPoints() {
 		if (!updateInteractionPoints || interactionPointTag == null)
 			return;
-		if (!level.isAreaLoaded(worldPosition, getRange() + 1))
+		if (!isAreaActuallyLoaded(worldPosition, getRange() + 1))
 			return;
 		inputs.clear();
 		outputs.clear();
 
 		boolean hasBlazeBurner = false;
-		for (INBT inbt : interactionPointTag) {
-			ArmInteractionPoint point = ArmInteractionPoint.deserialize(level, worldPosition, (CompoundNBT) inbt);
+		for (Tag tag : interactionPointTag) {
+			ArmInteractionPoint point = ArmInteractionPoint.deserialize((CompoundTag) tag, level, worldPosition);
 			if (point == null)
 				continue;
-			if (point.mode == Mode.DEPOSIT)
+			if (point.getMode() == Mode.DEPOSIT)
 				outputs.add(point);
-			if (point.mode == Mode.TAKE)
+			else if (point.getMode() == Mode.TAKE)
 				inputs.add(point);
-			hasBlazeBurner |= point instanceof ArmInteractionPoint.BlazeBurner;
+			hasBlazeBurner |= point instanceof AllArmInteractionPointTypes.BlazeBurnerPoint;
 		}
 
 		if (!level.isClientSide) {
 			if (outputs.size() >= 10)
-				AllTriggers.triggerForNearbyPlayers(AllTriggers.ARM_MANY_TARGETS, level, worldPosition, 5);
+				award(AllAdvancements.ARM_MANY_TARGETS);
 			if (hasBlazeBurner)
-				AllTriggers.triggerForNearbyPlayers(AllTriggers.ARM_BLAZE_BURNER, level, worldPosition, 5);
+				award(AllAdvancements.ARM_BLAZE_BURNER);
 		}
 
 		updateInteractionPoints = false;
@@ -431,23 +479,23 @@ public class ArmTileEntity extends KineticTileEntity implements ITransformableTE
 		setChanged();
 	}
 
-	public void writeInteractionPoints(CompoundNBT compound) {
+	public void writeInteractionPoints(CompoundTag compound) {
 		if (updateInteractionPoints) {
 			compound.put("InteractionPoints", interactionPointTag);
 		} else {
-			ListNBT pointsNBT = new ListNBT();
+			ListTag pointsNBT = new ListTag();
 			inputs.stream()
-					.map(aip -> aip.serialize(worldPosition))
-					.forEach(pointsNBT::add);
+				.map(aip -> aip.serialize(worldPosition))
+				.forEach(pointsNBT::add);
 			outputs.stream()
-					.map(aip -> aip.serialize(worldPosition))
-					.forEach(pointsNBT::add);
+				.map(aip -> aip.serialize(worldPosition))
+				.forEach(pointsNBT::add);
 			compound.put("InteractionPoints", pointsNBT);
 		}
 	}
 
 	@Override
-	public void write(CompoundNBT compound, boolean clientPacket) {
+	public void write(CompoundTag compound, boolean clientPacket) {
 		super.write(compound, clientPacket);
 
 		writeInteractionPoints(compound);
@@ -460,24 +508,24 @@ public class ArmTileEntity extends KineticTileEntity implements ITransformableTE
 	}
 
 	@Override
-	public void writeSafe(CompoundNBT compound, boolean clientPacket) {
-		super.writeSafe(compound, clientPacket);
+	public void writeSafe(CompoundTag compound) {
+		super.writeSafe(compound);
 
 		writeInteractionPoints(compound);
 	}
 
 	@Override
-	protected void fromTag(BlockState state, CompoundNBT compound, boolean clientPacket) {
+	protected void read(CompoundTag compound, boolean clientPacket) {
 		int previousIndex = chasedPointIndex;
 		Phase previousPhase = phase;
-		ListNBT interactionPointTagBefore = interactionPointTag;
+		ListTag interactionPointTagBefore = interactionPointTag;
 
-		super.fromTag(state, compound, clientPacket);
+		super.read(compound, clientPacket);
 		heldItem = ItemStack.of(compound.getCompound("HeldItem"));
 		phase = NBTHelper.readEnum(compound, "Phase", Phase.class);
 		chasedPointIndex = compound.getInt("TargetPointIndex");
 		chasedPointProgress = compound.getFloat("MovementProgress");
-		interactionPointTag = compound.getList("InteractionPoints", NBT.TAG_COMPOUND);
+		interactionPointTag = compound.getList("InteractionPoints", Tag.TAG_COMPOUND);
 		redstoneLocked = compound.getBoolean("Powered");
 
 		if (!clientPacket)
@@ -492,10 +540,14 @@ public class ArmTileEntity extends KineticTileEntity implements ITransformableTE
 				previousPoint = inputs.get(previousIndex);
 			if (previousPhase == Phase.MOVE_TO_OUTPUT && previousIndex < outputs.size())
 				previousPoint = outputs.get(previousIndex);
-			previousTarget =
-				previousPoint == null ? ArmAngleTarget.NO_TARGET : previousPoint.getTargetAngles(worldPosition, ceiling);
+			previousTarget = previousPoint == null ? ArmAngleTarget.NO_TARGET
+				: previousPoint.getTargetAngles(worldPosition, ceiling);
 			if (previousPoint != null)
-				previousBaseAngle = previousPoint.getTargetAngles(worldPosition, ceiling).baseAngle;
+				previousBaseAngle = previousTarget.baseAngle;
+
+			ArmInteractionPoint targetedPoint = getTargetedInteractionPoint();
+			if (targetedPoint != null)
+				targetedPoint.updateCachedState();
 		}
 	}
 
@@ -504,7 +556,7 @@ public class ArmTileEntity extends KineticTileEntity implements ITransformableTE
 	}
 
 	@Override
-	public boolean addToTooltip(List<ITextComponent> tooltip, boolean isPlayerSneaking) {
+	public boolean addToTooltip(List<Component> tooltip, boolean isPlayerSneaking) {
 		if (super.addToTooltip(tooltip, isPlayerSneaking))
 			return true;
 		if (isPlayerSneaking)
@@ -518,21 +570,27 @@ public class ArmTileEntity extends KineticTileEntity implements ITransformableTE
 		return true;
 	}
 
-	@Override
-	public boolean shouldRenderNormally() {
-		return true;
+	public void setLevel(Level level) {
+		super.setLevel(level);
+		for (ArmInteractionPoint input : inputs) {
+			input.setLevel(level);
+		}
+		for (ArmInteractionPoint output : outputs) {
+			output.setLevel(level);
+		}
 	}
 
 	private class SelectionModeValueBox extends CenteredSideValueBoxTransform {
 
 		public SelectionModeValueBox() {
-			super((blockState, direction) -> direction != Direction.DOWN && direction != Direction.UP);
+			super((blockState, direction) -> !direction.getAxis()
+				.isVertical());
 		}
 
 		@Override
-		protected Vector3d getLocalOffset(BlockState state) {
+		protected Vec3 getLocalOffset(BlockState state) {
 			int yPos = state.getValue(ArmBlock.CEILING) ? 16 - 3 : 3;
-			Vector3d location = VecHelper.voxelSpace(8, yPos, 15.95);
+			Vec3 location = VecHelper.voxelSpace(8, yPos, 15.95);
 			location = VecHelper.rotateCentered(location, AngleHelper.horizontalAngle(getSide()), Direction.Axis.Y);
 			return location;
 		}

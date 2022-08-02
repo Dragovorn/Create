@@ -1,34 +1,30 @@
 package com.simibubi.create.content.contraptions.relays.elementary;
 
-import java.util.Optional;
-import java.util.function.Function;
 import java.util.function.Predicate;
 
+import org.jetbrains.annotations.Nullable;
+
+import com.simibubi.create.content.contraptions.components.structureMovement.StructureTransform;
 import com.simibubi.create.content.schematics.ItemRequirement;
-import com.simibubi.create.foundation.advancement.AllTriggers;
-import com.simibubi.create.foundation.advancement.ITriggerable;
 import com.simibubi.create.foundation.tileEntity.SmartTileEntity;
 import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 import com.simibubi.create.foundation.tileEntity.behaviour.BehaviourType;
 import com.simibubi.create.foundation.utility.NBTHelper;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.nbt.NBTUtil;
-import net.minecraft.world.World;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtUtils;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 
 public class BracketedTileEntityBehaviour extends TileEntityBehaviour {
 
-	public static BehaviourType<BracketedTileEntityBehaviour> TYPE = new BehaviourType<>();
+	public static final BehaviourType<BracketedTileEntityBehaviour> TYPE = new BehaviourType<>();
 
-	private Optional<BlockState> bracket;
+	private BlockState bracket;
 	private boolean reRender;
 
 	private Predicate<BlockState> pred;
-	private Function<BlockState, ITriggerable> trigger;
 
 	public BracketedTileEntityBehaviour(SmartTileEntity te) {
 		this(te, state -> true);
@@ -37,12 +33,6 @@ public class BracketedTileEntityBehaviour extends TileEntityBehaviour {
 	public BracketedTileEntityBehaviour(SmartTileEntity te, Predicate<BlockState> pred) {
 		super(te);
 		this.pred = pred;
-		bracket = Optional.empty();
-	}
-
-	public BracketedTileEntityBehaviour withTrigger(Function<BlockState, ITriggerable> trigger) {
-		this.trigger = trigger;
-		return this;
 	}
 
 	@Override
@@ -51,40 +41,66 @@ public class BracketedTileEntityBehaviour extends TileEntityBehaviour {
 	}
 
 	public void applyBracket(BlockState state) {
-		this.bracket = Optional.of(state);
+		this.bracket = state;
 		reRender = true;
 		tileEntity.notifyUpdate();
-	}
-
-	public void triggerAdvancements(World world, PlayerEntity player, BlockState state) {
-		if (trigger == null)
+		Level world = getWorld();
+		if (world.isClientSide)
 			return;
-		AllTriggers.triggerFor(trigger.apply(state), player);
+		tileEntity.getBlockState()
+			.updateNeighbourShapes(world, getPos(), 3);
 	}
 
-	public void removeBracket(boolean inOnReplacedContext) {
-		World world = getWorld();
+	public void transformBracket(StructureTransform transform) {
+		if (isBracketPresent()) {
+			BlockState transformedBracket = transform.apply(bracket);
+			applyBracket(transformedBracket);
+		}
+	}
+
+	@Nullable
+	public BlockState removeBracket(boolean inOnReplacedContext) {
+		if (bracket == null) {
+			return null;
+		}
+
+		BlockState removed = this.bracket;
+		Level world = getWorld();
 		if (!world.isClientSide)
-			world.levelEvent(2001, getPos(), Block.getId(getBracket()));
-		this.bracket = Optional.empty();
+			world.levelEvent(2001, getPos(), Block.getId(bracket));
+		this.bracket = null;
 		reRender = true;
-		if (inOnReplacedContext)
+		if (inOnReplacedContext) {
 			tileEntity.sendData();
-		else
-			tileEntity.notifyUpdate();
+			return removed;
+		}
+		tileEntity.notifyUpdate();
+		if (world.isClientSide)
+			return removed;
+		tileEntity.getBlockState()
+			.updateNeighbourShapes(world, getPos(), 3);
+		return removed;
 	}
 
 	public boolean isBracketPresent() {
-		return getBracket() != Blocks.AIR.defaultBlockState();
+		return bracket != null;
 	}
 
+	@Nullable
 	public BlockState getBracket() {
-		return bracket.orElse(Blocks.AIR.defaultBlockState());
+		return bracket;
+	}
+
+	public boolean canHaveBracket() {
+		return pred.test(tileEntity.getBlockState());
 	}
 
 	@Override
 	public ItemRequirement getRequiredItems() {
-		return ItemRequirement.of(getBracket(), null);
+		if (!isBracketPresent()) {
+			return ItemRequirement.NONE;
+		}
+		return ItemRequirement.of(bracket, null);
 	}
 
 	@Override
@@ -93,8 +109,10 @@ public class BracketedTileEntityBehaviour extends TileEntityBehaviour {
 	}
 
 	@Override
-	public void write(CompoundNBT nbt, boolean clientPacket) {
-		bracket.ifPresent(p -> nbt.put("Bracket", NBTUtil.writeBlockState(p)));
+	public void write(CompoundTag nbt, boolean clientPacket) {
+		if (isBracketPresent()) {
+			nbt.put("Bracket", NbtUtils.writeBlockState(bracket));
+		}
 		if (clientPacket && reRender) {
 			NBTHelper.putMarker(nbt, "Redraw");
 			reRender = false;
@@ -103,17 +121,12 @@ public class BracketedTileEntityBehaviour extends TileEntityBehaviour {
 	}
 
 	@Override
-	public void read(CompoundNBT nbt, boolean clientPacket) {
-		bracket = Optional.empty();
+	public void read(CompoundTag nbt, boolean clientPacket) {
 		if (nbt.contains("Bracket"))
-			bracket = Optional.of(NBTUtil.readBlockState(nbt.getCompound("Bracket")));
+			bracket = NbtUtils.readBlockState(nbt.getCompound("Bracket"));
 		if (clientPacket && nbt.contains("Redraw"))
 			getWorld().sendBlockUpdated(getPos(), tileEntity.getBlockState(), tileEntity.getBlockState(), 16);
 		super.read(nbt, clientPacket);
-	}
-
-	public boolean canHaveBracket() {
-		return pred.test(tileEntity.getBlockState());
 	}
 
 }

@@ -3,20 +3,20 @@ package com.simibubi.create.content.contraptions.fluids.actors;
 import java.util.List;
 
 import com.simibubi.create.content.contraptions.base.KineticTileEntity;
+import com.simibubi.create.foundation.advancement.AllAdvancements;
 import com.simibubi.create.foundation.fluid.SmartFluidTank;
 import com.simibubi.create.foundation.item.TooltipHelper;
 import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 import com.simibubi.create.foundation.utility.ServerSpeedProvider;
 import com.simibubi.create.foundation.utility.animation.LerpedFloat;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.text.ITextComponent;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.fluids.FluidStack;
@@ -34,8 +34,8 @@ public class HosePulleyTileEntity extends KineticTileEntity {
 	private HosePulleyFluidHandler handler;
 	private boolean infinite;
 
-	public HosePulleyTileEntity(TileEntityType<?> typeIn) {
-		super(typeIn);
+	public HosePulleyTileEntity(BlockEntityType<?> typeIn, BlockPos pos, BlockState state) {
+		super(typeIn, pos, state);
 		offset = LerpedFloat.linear()
 			.startWithValue(0);
 		isMoving = true;
@@ -52,7 +52,7 @@ public class HosePulleyTileEntity extends KineticTileEntity {
 	}
 
 	@Override
-	public boolean addToGoggleTooltip(List<ITextComponent> tooltip, boolean isPlayerSneaking) {
+	public boolean addToGoggleTooltip(List<Component> tooltip, boolean isPlayerSneaking) {
 		boolean addToGoggleTooltip = super.addToGoggleTooltip(tooltip, isPlayerSneaking);
 		if (infinite)
 			TooltipHelper.addHint(tooltip, "hint.hose_pulley");
@@ -66,6 +66,7 @@ public class HosePulleyTileEntity extends KineticTileEntity {
 		behaviours.add(drainer);
 		behaviours.add(filler);
 		super.addBehaviours(behaviours);
+		registerAwardables(behaviours, AllAdvancements.HOSE_PULLEY, AllAdvancements.HOSE_PULLEY_LAVA);
 	}
 
 	protected void onTankContentsChanged(FluidStack contents) {}
@@ -98,15 +99,8 @@ public class HosePulleyTileEntity extends KineticTileEntity {
 	}
 
 	@Override
-	@OnlyIn(Dist.CLIENT)
-	public AxisAlignedBB getRenderBoundingBox() {
-		return super.getRenderBoundingBox().expandTowards(0, -offset.getValue(), 0);
-	}
-
-	@Override
-	@OnlyIn(Dist.CLIENT)
-	public double getViewDistance() {
-		return super.getViewDistance() + offset.getValue() * offset.getValue();
+	protected AABB createRenderBoundingBox() {
+		return super.createRenderBoundingBox().expandTowards(0, -offset.getValue(), 0);
 	}
 
 	@Override
@@ -127,6 +121,7 @@ public class HosePulleyTileEntity extends KineticTileEntity {
 			isMoving = false;
 
 		offset.setValue(newOffset);
+		invalidateRenderBoundingBox();
 	}
 
 	@Override
@@ -151,19 +146,19 @@ public class HosePulleyTileEntity extends KineticTileEntity {
 	}
 
 	@Override
-	protected void write(CompoundNBT compound, boolean clientPacket) {
+	protected void write(CompoundTag compound, boolean clientPacket) {
 		compound.put("Offset", offset.writeNBT());
-		compound.put("Tank", internalTank.writeToNBT(new CompoundNBT()));
+		compound.put("Tank", internalTank.writeToNBT(new CompoundTag()));
 		super.write(compound, clientPacket);
 		if (clientPacket)
 			compound.putBoolean("Infinite", infinite);
 	}
 
 	@Override
-	protected void fromTag(BlockState state, CompoundNBT compound, boolean clientPacket) {
+	protected void read(CompoundTag compound, boolean clientPacket) {
 		offset.readNBT(compound.getCompound("Offset"), clientPacket);
 		internalTank.readFromNBT(compound.getCompound("Tank"));
-		super.fromTag(state, compound, clientPacket);
+		super.read(compound, clientPacket);
 		if (clientPacket)
 			infinite = compound.getBoolean("Infinite");
 	}
@@ -191,10 +186,5 @@ public class HosePulleyTileEntity extends KineticTileEntity {
 			&& (side == null || HosePulleyBlock.hasPipeTowards(level, worldPosition, getBlockState(), side)))
 			return this.capability.cast();
 		return super.getCapability(cap, side);
-	}
-
-	@Override
-	public boolean shouldRenderNormally() {
-		return true;
 	}
 }

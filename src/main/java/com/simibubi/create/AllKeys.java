@@ -2,10 +2,12 @@ package com.simibubi.create;
 
 import org.lwjgl.glfw.GLFW;
 
+import com.mojang.blaze3d.platform.InputConstants;
+
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.settings.KeyBinding;
-import net.minecraftforge.fml.client.registry.ClientRegistry;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraftforge.client.ClientRegistry;
 
 public enum AllKeys {
 
@@ -15,7 +17,7 @@ public enum AllKeys {
 
 	;
 
-	private KeyBinding keybind;
+	private KeyMapping keybind;
 	private String description;
 	private int key;
 	private boolean modifiable;
@@ -28,7 +30,7 @@ public enum AllKeys {
 
 	public static void register() {
 		for (AllKeys key : values()) {
-			key.keybind = new KeyBinding(key.description, key.key, Create.NAME);
+			key.keybind = new KeyMapping(key.description, key.key, Create.NAME);
 			if (!key.modifiable)
 				continue;
 
@@ -36,7 +38,7 @@ public enum AllKeys {
 		}
 	}
 
-	public KeyBinding getKeybind() {
+	public KeyMapping getKeybind() {
 		return keybind;
 	}
 
@@ -58,9 +60,15 @@ public enum AllKeys {
 	}
 
 	public static boolean isKeyDown(int key) {
-		return GLFW.glfwGetKey(Minecraft.getInstance()
+		return InputConstants.isKeyDown(Minecraft.getInstance()
 			.getWindow()
-			.getWindow(), key) != 0;
+			.getWindow(), key);
+	}
+
+	public static boolean isMouseButtonDown(int button) {
+		return GLFW.glfwGetMouseButton(Minecraft.getInstance()
+			.getWindow()
+			.getWindow(), button) == 1;
 	}
 
 	public static boolean ctrlDown() {

@@ -1,7 +1,8 @@
 package com.simibubi.create;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.util.ResourceLocation;
+import com.mojang.blaze3d.systems.RenderSystem;
+
+import net.minecraft.resources.ResourceLocation;
 
 public enum AllSpecialTextures {
 
@@ -11,6 +12,7 @@ public enum AllSpecialTextures {
 	CUTOUT_CHECKERED("cutout_checkerboard.png"),
 	HIGHLIGHT_CHECKERED("highlighted_checkerboard.png"),
 	SELECTION("selection.png"),
+	GLUE("glue.png"),
 
 	;
 
@@ -22,9 +24,7 @@ public enum AllSpecialTextures {
 	}
 
 	public void bind() {
-		Minecraft.getInstance()
-			.getTextureManager()
-			.bind(location);
+		RenderSystem.setShaderTexture(0, location);
 	}
 
 	public ResourceLocation getLocation() {

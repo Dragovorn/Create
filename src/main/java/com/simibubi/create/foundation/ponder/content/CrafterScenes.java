@@ -3,27 +3,27 @@ package com.simibubi.create.foundation.ponder.content;
 import java.util.Collection;
 
 import com.google.common.collect.ImmutableList;
-import com.simibubi.create.AllBlocks;
 import com.simibubi.create.AllItems;
 import com.simibubi.create.content.contraptions.components.crafter.MechanicalCrafterBlock;
 import com.simibubi.create.content.contraptions.components.crafter.MechanicalCrafterTileEntity;
 import com.simibubi.create.foundation.ponder.ElementLink;
+import com.simibubi.create.foundation.ponder.PonderPalette;
 import com.simibubi.create.foundation.ponder.SceneBuilder;
 import com.simibubi.create.foundation.ponder.SceneBuildingUtil;
 import com.simibubi.create.foundation.ponder.Selection;
-import com.simibubi.create.foundation.ponder.elements.EntityElement;
-import com.simibubi.create.foundation.ponder.elements.InputWindowElement;
+import com.simibubi.create.foundation.ponder.element.EntityElement;
+import com.simibubi.create.foundation.ponder.element.InputWindowElement;
 import com.simibubi.create.foundation.utility.Couple;
 import com.simibubi.create.foundation.utility.Pointing;
 
-import net.minecraft.block.Blocks;
-import net.minecraft.entity.Entity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.vector.Vector3d;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.items.ItemHandlerHelper;
 
 public class CrafterScenes {
@@ -105,12 +105,12 @@ public class CrafterScenes {
 
 		for (Couple<BlockPos> c : couples) {
 			scene.idle(5);
-			Vector3d p1 = util.vector.blockSurface(c.getFirst(), Direction.NORTH)
+			Vec3 p1 = util.vector.blockSurface(c.getFirst(), Direction.NORTH)
 				.add(0, 0, -0.125);
-			Vector3d p2 = util.vector.blockSurface(c.getSecond(), Direction.NORTH)
+			Vec3 p2 = util.vector.blockSurface(c.getSecond(), Direction.NORTH)
 				.add(0, 0, -0.125);
-			AxisAlignedBB point = new AxisAlignedBB(p1, p1);
-			AxisAlignedBB line = new AxisAlignedBB(p1, p2);
+			AABB point = new AABB(p1, p1);
+			AABB line = new AABB(p1, p2);
 			scene.overlay.chaseBoundingBoxOutline(PonderPalette.GREEN, p1, point, 2);
 			scene.idle(1);
 			scene.overlay.chaseBoundingBoxOutline(PonderPalette.GREEN, p1, line, 30);
@@ -161,11 +161,12 @@ public class CrafterScenes {
 			.placeNearTarget();
 		scene.idle(60);
 
-		ItemStack alloy = AllItems.ANDESITE_ALLOY.asStack();
-		ItemStack log = new ItemStack(Items.OAK_LOG);
+		ItemStack redstoneDust = new ItemStack(Items.REDSTONE);
+		ItemStack iron = new ItemStack(Items.IRON_INGOT);
+		ItemStack cobble = new ItemStack(Items.COBBLESTONE);
 
-		scene.world.setCraftingResult(util.grid.at(1, 1, 2), AllBlocks.ANDESITE_CASING.asStack(4));
-		
+		scene.world.setCraftingResult(util.grid.at(1, 1, 2), new ItemStack(Items.PISTON));
+
 		scene.world.modifyTileEntity(util.grid.at(2, 3, 2), type, mct -> mct.getInventory()
 			.insertItem(0, planks.copy(), false));
 		scene.idle(5);
@@ -173,22 +174,22 @@ public class CrafterScenes {
 			.insertItem(0, planks.copy(), false));
 		scene.idle(5);
 		scene.world.modifyTileEntity(util.grid.at(3, 2, 2), type, mct -> mct.getInventory()
-			.insertItem(0, alloy.copy(), false));
+			.insertItem(0, cobble.copy(), false));
 		scene.idle(5);
 		scene.world.modifyTileEntity(util.grid.at(2, 2, 2), type, mct -> mct.getInventory()
-			.insertItem(0, log.copy(), false));
+			.insertItem(0, iron.copy(), false));
 		scene.idle(5);
 		scene.world.modifyTileEntity(util.grid.at(1, 2, 2), type, mct -> mct.getInventory()
-			.insertItem(0, alloy.copy(), false));
+			.insertItem(0, cobble.copy(), false));
 		scene.idle(5);
 		scene.world.modifyTileEntity(util.grid.at(1, 1, 2), type, mct -> mct.getInventory()
-			.insertItem(0, planks.copy(), false));
+			.insertItem(0, cobble.copy(), false));
 		scene.idle(5);
 		scene.world.modifyTileEntity(util.grid.at(2, 1, 2), type, mct -> mct.getInventory()
-			.insertItem(0, planks.copy(), false));
+			.insertItem(0, redstoneDust.copy(), false));
 		scene.idle(5);
 		scene.world.modifyTileEntity(util.grid.at(3, 1, 2), type, mct -> mct.getInventory()
-			.insertItem(0, planks.copy(), false));
+			.insertItem(0, cobble.copy(), false));
 
 		scene.overlay.showText(80)
 			.attachKeyFrame()
@@ -200,8 +201,7 @@ public class CrafterScenes {
 		scene.world.removeItemsFromBelt(depotPos);
 
 		ItemStack stick = new ItemStack(Items.STICK);
-		ItemStack iron = new ItemStack(Items.IRON_INGOT);
-		
+
 		scene.world.setCraftingResult(util.grid.at(1, 1, 2), new ItemStack(Items.IRON_PICKAXE));
 
 		scene.world.modifyTileEntity(util.grid.at(1, 3, 2), type, mct -> mct.getInventory()
@@ -279,8 +279,8 @@ public class CrafterScenes {
 		scene.rotateCameraY(-60 - 90 - 30);
 		scene.idle(40);
 
-		Vector3d v = util.vector.blockSurface(util.grid.at(2, 2, 2), Direction.WEST);
-		AxisAlignedBB bb = new AxisAlignedBB(v, v).inflate(.125f, .5, .5);
+		Vec3 v = util.vector.blockSurface(util.grid.at(2, 2, 2), Direction.WEST);
+		AABB bb = new AABB(v, v).inflate(.125f, .5, .5);
 		v = v.add(0, 0, .5);
 
 		scene.overlay.chaseBoundingBoxOutline(PonderPalette.WHITE, new Object(), bb, 45);
@@ -394,11 +394,11 @@ public class CrafterScenes {
 		scene.idle(20);
 
 		scene.overlay.showText(90)
-		.attachKeyFrame()
-		.colored(PonderPalette.GREEN)
-		.pointAt(util.vector.blockSurface(util.grid.at(2, 2, 2), Direction.NORTH))
-		.text("Using Slot Covers, Crafters can be set to act as an Empty Slot in the arrangement")
-		.placeNearTarget();
+			.attachKeyFrame()
+			.colored(PonderPalette.GREEN)
+			.pointAt(util.vector.blockSurface(util.grid.at(2, 2, 2), Direction.NORTH))
+			.text("Using Slot Covers, Crafters can be set to act as an Empty Slot in the arrangement")
+			.placeNearTarget();
 		scene.idle(100);
 		scene.overlay
 			.showControls(new InputWindowElement(util.vector.blockSurface(util.grid.at(2, 2, 2), Direction.NORTH)
@@ -434,17 +434,17 @@ public class CrafterScenes {
 		ElementLink<EntityElement> ingot =
 			scene.world.createItemEntity(util.vector.centerOf(4, 4, 2), util.vector.of(0, 0.2, 0), iron);
 		scene.idle(17);
-		scene.world.modifyEntity(ingot, Entity::remove);
+		scene.world.modifyEntity(ingot, Entity::discard);
 		scene.world.modifyTileEntity(util.grid.at(3, 2, 2), type, mct -> mct.getInventory()
 			.insertItem(0, iron.copy(), false));
 		ingot = scene.world.createItemEntity(util.vector.centerOf(4, 4, 2), util.vector.of(0, 0.2, 0), iron);
 		scene.idle(17);
-		scene.world.modifyEntity(ingot, Entity::remove);
+		scene.world.modifyEntity(ingot, Entity::discard);
 		scene.world.modifyTileEntity(util.grid.at(2, 1, 2), type, mct -> mct.getInventory()
 			.insertItem(0, iron.copy(), false));
 		ingot = scene.world.createItemEntity(util.vector.centerOf(4, 4, 2), util.vector.of(0, 0.2, 0), iron);
 		scene.idle(17);
-		scene.world.modifyEntity(ingot, Entity::remove);
+		scene.world.modifyEntity(ingot, Entity::discard);
 		scene.world.modifyTileEntity(util.grid.at(1, 2, 2), type, mct -> mct.getInventory()
 			.insertItem(0, iron.copy(), false));
 

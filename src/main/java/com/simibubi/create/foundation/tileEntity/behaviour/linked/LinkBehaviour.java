@@ -14,16 +14,17 @@ import com.simibubi.create.foundation.tileEntity.SmartTileEntity;
 import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 import com.simibubi.create.foundation.tileEntity.behaviour.BehaviourType;
 import com.simibubi.create.foundation.tileEntity.behaviour.ValueBoxTransform;
+import com.simibubi.create.foundation.utility.Couple;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.vector.Vector3d;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 
 public class LinkBehaviour extends TileEntityBehaviour implements IRedstoneLinkable {
 
-	public static BehaviourType<LinkBehaviour> TYPE = new BehaviourType<>();
+	public static final BehaviourType<LinkBehaviour> TYPE = new BehaviourType<>();
 
 	enum Mode {
 		TRANSMIT, RECEIVE
@@ -33,7 +34,7 @@ public class LinkBehaviour extends TileEntityBehaviour implements IRedstoneLinka
 	Frequency frequencyLast;
 	ValueBoxTransform firstSlot;
 	ValueBoxTransform secondSlot;
-	Vector3d textShift;
+	Vec3 textShift;
 
 	public boolean newPosition;
 	private Mode mode;
@@ -46,7 +47,7 @@ public class LinkBehaviour extends TileEntityBehaviour implements IRedstoneLinka
 		frequencyLast = Frequency.EMPTY;
 		firstSlot = slots.getLeft();
 		secondSlot = slots.getRight();
-		textShift = Vector3d.ZERO;
+		textShift = Vec3.ZERO;
 		newPosition = true;
 	}
 
@@ -66,7 +67,7 @@ public class LinkBehaviour extends TileEntityBehaviour implements IRedstoneLinka
 		return behaviour;
 	}
 
-	public LinkBehaviour moveText(Vector3d shift) {
+	public LinkBehaviour moveText(Vec3 shift) {
 		textShift = shift;
 		return this;
 	}
@@ -109,8 +110,8 @@ public class LinkBehaviour extends TileEntityBehaviour implements IRedstoneLinka
 	}
 
 	@Override
-	public Pair<Frequency, Frequency> getNetworkKey() {
-		return Pair.of(frequencyFirst, frequencyLast);
+	public Couple<Frequency> getNetworkKey() {
+		return Couple.create(frequencyFirst, frequencyLast);
 	}
 
 	@Override
@@ -127,18 +128,18 @@ public class LinkBehaviour extends TileEntityBehaviour implements IRedstoneLinka
 	}
 
 	@Override
-	public void write(CompoundNBT nbt, boolean clientPacket) {
+	public void write(CompoundTag nbt, boolean clientPacket) {
 		super.write(nbt, clientPacket);
 		nbt.put("FrequencyFirst", frequencyFirst.getStack()
-			.save(new CompoundNBT()));
+			.save(new CompoundTag()));
 		nbt.put("FrequencyLast", frequencyLast.getStack()
-			.save(new CompoundNBT()));
+			.save(new CompoundTag()));
 		nbt.putLong("LastKnownPosition", tileEntity.getBlockPos()
 			.asLong());
 	}
 
 	@Override
-	public void read(CompoundNBT nbt, boolean clientPacket) {
+	public void read(CompoundTag nbt, boolean clientPacket) {
 		long positionInTag = tileEntity.getBlockPos()
 			.asLong();
 		long positionKey = nbt.getLong("LastKnownPosition");
@@ -181,12 +182,12 @@ public class LinkBehaviour extends TileEntityBehaviour implements IRedstoneLinka
 	}
 
 	public static class SlotPositioning {
-		Function<BlockState, Pair<Vector3d, Vector3d>> offsets;
-		Function<BlockState, Vector3d> rotation;
+		Function<BlockState, Pair<Vec3, Vec3>> offsets;
+		Function<BlockState, Vec3> rotation;
 		float scale;
 
-		public SlotPositioning(Function<BlockState, Pair<Vector3d, Vector3d>> offsetsForState,
-			Function<BlockState, Vector3d> rotationForState) {
+		public SlotPositioning(Function<BlockState, Pair<Vec3, Vec3>> offsetsForState,
+			Function<BlockState, Vec3> rotationForState) {
 			offsets = offsetsForState;
 			rotation = rotationForState;
 			scale = 1;
@@ -199,9 +200,9 @@ public class LinkBehaviour extends TileEntityBehaviour implements IRedstoneLinka
 
 	}
 
-	public boolean testHit(Boolean first, Vector3d hit) {
+	public boolean testHit(Boolean first, Vec3 hit) {
 		BlockState state = tileEntity.getBlockState();
-		Vector3d localHit = hit.subtract(Vector3d.atLowerCornerOf(tileEntity.getBlockPos()));
+		Vec3 localHit = hit.subtract(Vec3.atLowerCornerOf(tileEntity.getBlockPos()));
 		return (first ? firstSlot : secondSlot).testHit(state, localHit);
 	}
 

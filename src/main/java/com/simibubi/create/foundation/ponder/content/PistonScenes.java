@@ -1,24 +1,26 @@
 package com.simibubi.create.foundation.ponder.content;
 
+import com.simibubi.create.AllItems;
 import com.simibubi.create.content.contraptions.components.structureMovement.piston.MechanicalPistonHeadBlock;
 import com.simibubi.create.foundation.ponder.ElementLink;
+import com.simibubi.create.foundation.ponder.PonderPalette;
 import com.simibubi.create.foundation.ponder.SceneBuilder;
 import com.simibubi.create.foundation.ponder.SceneBuildingUtil;
 import com.simibubi.create.foundation.ponder.Selection;
-import com.simibubi.create.foundation.ponder.elements.InputWindowElement;
-import com.simibubi.create.foundation.ponder.elements.ParrotElement;
-import com.simibubi.create.foundation.ponder.elements.ParrotElement.FaceCursorPose;
-import com.simibubi.create.foundation.ponder.elements.WorldSectionElement;
+import com.simibubi.create.foundation.ponder.element.InputWindowElement;
+import com.simibubi.create.foundation.ponder.element.ParrotElement;
+import com.simibubi.create.foundation.ponder.element.ParrotElement.FaceCursorPose;
+import com.simibubi.create.foundation.ponder.element.WorldSectionElement;
 import com.simibubi.create.foundation.utility.Pointing;
 
-import net.minecraft.block.Blocks;
-import net.minecraft.block.DoublePlantBlock;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.state.properties.DoubleBlockHalf;
-import net.minecraft.state.properties.PistonType;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.DoublePlantBlock;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
+import net.minecraft.world.level.block.state.properties.PistonType;
 
 public class PistonScenes {
 
@@ -80,7 +82,8 @@ public class PistonScenes {
 				.withItem(new ItemStack(Items.SLIME_BALL)),
 			30);
 		scene.idle(7);
-		scene.world.modifyBlock(piston.north(), s -> s.setValue(MechanicalPistonHeadBlock.TYPE, PistonType.STICKY), false);
+		scene.world.modifyBlock(piston.north(), s -> s.setValue(MechanicalPistonHeadBlock.TYPE, PistonType.STICKY),
+			false);
 		scene.effects.superGlue(piston, Direction.WEST, true);
 
 		scene.idle(33);
@@ -107,6 +110,14 @@ public class PistonScenes {
 
 		scene.idle(50);
 		scene.world.setBlock(util.grid.at(2, 1, 1), Blocks.AIR.defaultBlockState(), false);
+
+		scene.world.replaceBlocks(util.select.fromTo(2, 3, 2, 2, 2, 0), Blocks.OAK_PLANKS.defaultBlockState(), false);
+		scene.overlay.showOutline(PonderPalette.GREEN, "glue", util.select.fromTo(2, 2, 3, 2, 1, 3)
+			.add(util.select.fromTo(2, 1, 3, 2, 1, 1))
+			.add(util.select.position(1, 1, 1)), 40);
+		scene.overlay.showControls(new InputWindowElement(util.vector.centerOf(util.grid.at(2, 2, 0)), Pointing.RIGHT)
+			.withItem(AllItems.SUPER_GLUE.asStack()), 40);
+
 		ElementLink<WorldSectionElement> chassis =
 			scene.world.showIndependentSection(util.select.fromTo(2, 2, 0, 2, 3, 2), Direction.DOWN);
 		scene.world.moveSection(chassis, util.vector.of(0, -1, 1), 0);

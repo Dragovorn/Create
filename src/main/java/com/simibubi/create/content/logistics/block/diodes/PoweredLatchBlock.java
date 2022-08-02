@@ -2,19 +2,21 @@ package com.simibubi.create.content.logistics.block.diodes;
 
 import java.util.Random;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.RedstoneWireBlock;
-import net.minecraft.state.BooleanProperty;
-import net.minecraft.state.StateContainer.Builder;
-import net.minecraft.util.ActionResultType;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.IBlockReader;
-import net.minecraft.world.TickPriority;
-import net.minecraft.world.World;
-import net.minecraft.world.server.ServerWorld;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.RedStoneWireBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition.Builder;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
+import net.minecraft.world.ticks.TickPriority;
 
 public class PoweredLatchBlock extends ToggleLatchBlock {
 
@@ -31,7 +33,7 @@ public class PoweredLatchBlock extends ToggleLatchBlock {
 	}
 
 	@Override
-	protected void checkTickOnNeighbor(World worldIn, BlockPos pos, BlockState state) {
+	protected void checkTickOnNeighbor(Level worldIn, BlockPos pos, BlockState state) {
 		boolean back = state.getValue(POWERED);
 		boolean shouldBack = shouldTurnOn(worldIn, pos, state);
 		boolean side = state.getValue(POWERED_SIDE);
@@ -43,13 +45,14 @@ public class PoweredLatchBlock extends ToggleLatchBlock {
 		else if (side || back)
 			tickpriority = TickPriority.VERY_HIGH;
 
-		if (worldIn.getBlockTicks().willTickThisTick(pos, this))
+		if (worldIn.getBlockTicks()
+			.willTickThisTick(pos, this))
 			return;
 		if (back != shouldBack || side != shouldSide)
-			worldIn.getBlockTicks().scheduleTick(pos, this, this.getDelay(state), tickpriority);
+			worldIn.scheduleTick(pos, this, this.getDelay(state), tickpriority);
 	}
 
-	protected boolean isPoweredOnSides(World worldIn, BlockPos pos, BlockState state) {
+	protected boolean isPoweredOnSides(Level worldIn, BlockPos pos, BlockState state) {
 		Direction direction = state.getValue(FACING);
 		Direction left = direction.getClockWise();
 		Direction right = direction.getCounterClockWise();
@@ -60,14 +63,14 @@ public class PoweredLatchBlock extends ToggleLatchBlock {
 			if (i > 0)
 				return true;
 			BlockState blockstate = worldIn.getBlockState(blockpos);
-			if (blockstate.getBlock() == Blocks.REDSTONE_WIRE && blockstate.getValue(RedstoneWireBlock.POWER) > 0)
+			if (blockstate.getBlock() == Blocks.REDSTONE_WIRE && blockstate.getValue(RedStoneWireBlock.POWER) > 0)
 				return true;
 		}
 		return false;
 	}
 
 	@Override
-	public void tick(BlockState state, ServerWorld worldIn, BlockPos pos, Random random) {
+	public void tick(BlockState state, ServerLevel worldIn, BlockPos pos, Random random) {
 		boolean back = state.getValue(POWERED);
 		boolean shouldBack = this.shouldTurnOn(worldIn, pos, state);
 		boolean side = state.getValue(POWERED_SIDE);
@@ -95,19 +98,23 @@ public class PoweredLatchBlock extends ToggleLatchBlock {
 	}
 
 	@Override
-	protected ActionResultType activated(World worldIn, BlockPos pos, BlockState state) {
+	protected InteractionResult activated(Level worldIn, BlockPos pos, BlockState state) {
 		if (state.getValue(POWERED) != state.getValue(POWERED_SIDE))
-			return ActionResultType.PASS;
-		if (!worldIn.isClientSide)
+			return InteractionResult.PASS;
+		if (!worldIn.isClientSide) {
+			float f = !state.getValue(POWERING) ? 0.6F : 0.5F;
+			worldIn.playSound(null, pos, SoundEvents.LEVER_CLICK, SoundSource.BLOCKS, 0.3F, f);
 			worldIn.setBlock(pos, state.cycle(POWERING), 2);
-		return ActionResultType.SUCCESS;
+		}
+		return InteractionResult.SUCCESS;
 	}
 
 	@Override
-	public boolean canConnectRedstone(BlockState state, IBlockReader world, BlockPos pos, Direction side) {
+	public boolean canConnectRedstone(BlockState state, BlockGetter world, BlockPos pos, Direction side) {
 		if (side == null)
 			return false;
-		return side.getAxis().isHorizontal();
+		return side.getAxis()
+			.isHorizontal();
 	}
 
 }

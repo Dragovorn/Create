@@ -3,7 +3,6 @@ package com.simibubi.create.content.logistics.block.funnel;
 import java.lang.ref.WeakReference;
 import java.util.List;
 
-import com.jozufozu.flywheel.backend.instancing.IInstanceRendered;
 import com.jozufozu.flywheel.backend.instancing.InstancedRenderDispatcher;
 import com.simibubi.create.AllBlocks;
 import com.simibubi.create.AllSoundEvents;
@@ -13,8 +12,8 @@ import com.simibubi.create.content.contraptions.relays.belt.BeltTileEntity;
 import com.simibubi.create.content.contraptions.relays.belt.transport.TransportedItemStack;
 import com.simibubi.create.content.logistics.block.funnel.BeltFunnelBlock.Shape;
 import com.simibubi.create.content.logistics.packet.FunnelFlapPacket;
+import com.simibubi.create.foundation.advancement.AllAdvancements;
 import com.simibubi.create.foundation.config.AllConfigs;
-import com.simibubi.create.foundation.gui.widgets.InterpolatedChasingValue;
 import com.simibubi.create.foundation.networking.AllPackets;
 import com.simibubi.create.foundation.tileEntity.SmartTileEntity;
 import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
@@ -23,20 +22,23 @@ import com.simibubi.create.foundation.tileEntity.behaviour.filtering.FilteringBe
 import com.simibubi.create.foundation.tileEntity.behaviour.inventory.InvManipulationBehaviour;
 import com.simibubi.create.foundation.utility.BlockFace;
 import com.simibubi.create.foundation.utility.VecHelper;
+import com.simibubi.create.foundation.utility.animation.LerpedFloat;
+import com.simibubi.create.foundation.utility.animation.LerpedFloat.Chaser;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.entity.item.ItemEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.state.properties.BlockStateProperties;
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.vector.Vector3d;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
 
-public class FunnelTileEntity extends SmartTileEntity implements IHaveHoveringInformation, IInstanceRendered {
+public class FunnelTileEntity extends SmartTileEntity implements IHaveHoveringInformation {
 
 	private FilteringBehaviour filtering;
 	private InvManipulationBehaviour invManipulation;
@@ -44,18 +46,16 @@ public class FunnelTileEntity extends SmartTileEntity implements IHaveHoveringIn
 
 	private WeakReference<ItemEntity> lastObserved; // In-world Extractors only
 
-	InterpolatedChasingValue flap;
+	LerpedFloat flap;
 
 	static enum Mode {
 		INVALID, PAUSED, COLLECT, PUSHING_TO_BELT, TAKING_FROM_BELT, EXTRACT
 	}
 
-	public FunnelTileEntity(TileEntityType<?> tileEntityTypeIn) {
-		super(tileEntityTypeIn);
+	public FunnelTileEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+		super(type, pos, state);
 		extractionCooldown = 0;
-		flap = new InterpolatedChasingValue().start(.25f)
-			.target(0)
-			.withSpeed(.05f);
+		flap = createChasingFlap();
 	}
 
 	public Mode determineCurrentMode() {
@@ -87,7 +87,7 @@ public class FunnelTileEntity extends SmartTileEntity implements IHaveHoveringIn
 	@Override
 	public void tick() {
 		super.tick();
-		flap.tick();
+		flap.tickChaser();
 		Mode mode = determineCurrentMode();
 		if (level.isClientSide)
 			return;
@@ -117,7 +117,7 @@ public class FunnelTileEntity extends SmartTileEntity implements IHaveHoveringIn
 			return;
 
 		boolean trackingEntityPresent = true;
-		AxisAlignedBB area = getEntityOverflowScanningArea();
+		AABB area = getEntityOverflowScanningArea();
 
 		// Check if last item is still blocking the extractor
 		if (lastObserved == null) {
@@ -153,19 +153,19 @@ public class FunnelTileEntity extends SmartTileEntity implements IHaveHoveringIn
 		flap(false);
 		onTransfer(stack);
 
-		Vector3d outputPos = VecHelper.getCenterOf(worldPosition);
+		Vec3 outputPos = VecHelper.getCenterOf(worldPosition);
 		boolean vertical = facing.getAxis()
 			.isVertical();
 		boolean up = facing == Direction.UP;
 
-		outputPos = outputPos.add(Vector3d.atLowerCornerOf(facing.getNormal())
+		outputPos = outputPos.add(Vec3.atLowerCornerOf(facing.getNormal())
 			.scale(vertical ? up ? .15f : .5f : .25f));
 		if (!vertical)
 			outputPos = outputPos.subtract(0, .45f, 0);
 
-		Vector3d motion = Vector3d.ZERO;
+		Vec3 motion = Vec3.ZERO;
 		if (up)
-			motion = new Vector3d(0, 4 / 16f, 0);
+			motion = new Vec3(0, 4 / 16f, 0);
 
 		ItemEntity item = new ItemEntity(level, outputPos.x, outputPos.y, outputPos.z, stack.copy());
 		item.setDefaultPickUpDelay();
@@ -176,12 +176,12 @@ public class FunnelTileEntity extends SmartTileEntity implements IHaveHoveringIn
 		startCooldown();
 	}
 
-	static final AxisAlignedBB coreBB =
-		new AxisAlignedBB(VecHelper.CENTER_OF_ORIGIN, VecHelper.CENTER_OF_ORIGIN).inflate(.75f);
+	static final AABB coreBB =
+		new AABB(VecHelper.CENTER_OF_ORIGIN, VecHelper.CENTER_OF_ORIGIN).inflate(.75f);
 
-	private AxisAlignedBB getEntityOverflowScanningArea() {
+	private AABB getEntityOverflowScanningArea() {
 		Direction facing = AbstractFunnelBlock.getFunnelFacing(getBlockState());
-		AxisAlignedBB bb = coreBB.move(worldPosition);
+		AABB bb = coreBB.move(worldPosition);
 		if (facing == null || facing == Direction.UP)
 			return bb;
 		return bb.expandTowards(0, -1, 0);
@@ -236,6 +236,7 @@ public class FunnelTileEntity extends SmartTileEntity implements IHaveHoveringIn
 
 		behaviours.add(new DirectBeltInputBehaviour(this).onlyInsertWhen(this::supportsDirectBeltInput)
 			.setInsertionHandler(this::handleDirectBeltInput));
+		registerAwardables(behaviours, AllAdvancements.FUNNEL);
 	}
 
 	private boolean supportsAmountOnFilter() {
@@ -285,7 +286,7 @@ public class FunnelTileEntity extends SmartTileEntity implements IHaveHoveringIn
 		if (!level.isClientSide) {
 			AllPackets.channel.send(packetTarget(), new FunnelFlapPacket(this, inward));
 		} else {
-			flap.set(inward ? 1 : -1);
+			flap.setValue(inward ? 1 : -1);
 			AllSoundEvents.FUNNEL_FLAP.playAt(level, worldPosition, 1, 1, true);
 		}
 	}
@@ -316,33 +317,30 @@ public class FunnelTileEntity extends SmartTileEntity implements IHaveHoveringIn
 	}
 
 	@Override
-	protected void write(CompoundNBT compound, boolean clientPacket) {
+	protected void write(CompoundTag compound, boolean clientPacket) {
 		super.write(compound, clientPacket);
 		compound.putInt("TransferCooldown", extractionCooldown);
 	}
 
 	@Override
-	protected void fromTag(BlockState state, CompoundNBT compound, boolean clientPacket) {
-		super.fromTag(state, compound, clientPacket);
+	protected void read(CompoundTag compound, boolean clientPacket) {
+		super.read(compound, clientPacket);
 		extractionCooldown = compound.getInt("TransferCooldown");
 
 		if (clientPacket)
 			DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> InstancedRenderDispatcher.enqueueUpdate(this));
 	}
 
-	@Override
-	public double getViewDistance() {
-		return hasFlap() ? super.getViewDistance() : 64;
-	}
-
 	public void onTransfer(ItemStack stack) {
 		AllBlocks.CONTENT_OBSERVER.get()
 			.onFunnelTransfer(level, worldPosition, stack);
+		award(AllAdvancements.FUNNEL);
 	}
-
-	@Override
-	public boolean shouldRenderNormally() {
-		return true;
+	
+	private LerpedFloat createChasingFlap() {
+		return LerpedFloat.linear()
+			.startWithValue(.25f)
+			.chase(0, .05f, Chaser.EXP);
 	}
 
 }

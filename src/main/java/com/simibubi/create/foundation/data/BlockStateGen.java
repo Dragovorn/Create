@@ -13,36 +13,39 @@ import org.apache.commons.lang3.tuple.Pair;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.simibubi.create.Create;
 import com.simibubi.create.content.contraptions.base.DirectionalAxisKineticBlock;
+import com.simibubi.create.content.contraptions.components.steam.whistle.WhistleBlock.WhistleSize;
+import com.simibubi.create.content.contraptions.components.steam.whistle.WhistleExtenderBlock;
+import com.simibubi.create.content.contraptions.components.steam.whistle.WhistleExtenderBlock.WhistleExtenderShape;
 import com.simibubi.create.content.contraptions.components.structureMovement.chassis.LinearChassisBlock;
 import com.simibubi.create.content.contraptions.components.structureMovement.chassis.RadialChassisBlock;
 import com.simibubi.create.content.contraptions.components.structureMovement.mounted.CartAssembleRailType;
 import com.simibubi.create.content.contraptions.components.structureMovement.mounted.CartAssemblerBlock;
-import com.simibubi.create.content.contraptions.components.tracks.ReinforcedRailBlock;
 import com.simibubi.create.content.contraptions.fluids.pipes.EncasedPipeBlock;
 import com.simibubi.create.content.contraptions.fluids.pipes.FluidPipeBlock;
 import com.simibubi.create.content.contraptions.processing.burner.BlazeBurnerBlock;
-import com.simibubi.create.content.palettes.PavedBlock;
 import com.simibubi.create.foundation.utility.Iterate;
 import com.simibubi.create.foundation.utility.Pointing;
-import com.simibubi.create.foundation.worldgen.OxidizingBlock;
-import com.tterrag.registrate.builders.BlockBuilder;
 import com.tterrag.registrate.providers.DataGenContext;
 import com.tterrag.registrate.providers.RegistrateBlockstateProvider;
 import com.tterrag.registrate.util.nullness.NonNullBiConsumer;
-import com.tterrag.registrate.util.nullness.NonNullUnaryOperator;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.state.BooleanProperty;
-import net.minecraft.state.properties.BlockStateProperties;
-import net.minecraft.state.properties.RailShape;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Direction.Axis;
-import net.minecraft.util.Direction.AxisDirection;
-import net.minecraft.util.ResourceLocation;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.Axis;
+import net.minecraft.core.Direction.AxisDirection;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.TrapDoorBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
+import net.minecraft.world.level.block.state.properties.Half;
+import net.minecraft.world.level.block.state.properties.RailShape;
+import net.minecraftforge.client.model.generators.BlockModelProvider;
 import net.minecraftforge.client.model.generators.ConfiguredModel;
 import net.minecraftforge.client.model.generators.ModelFile;
+import net.minecraftforge.client.model.generators.ModelFile.ExistingModelFile;
 import net.minecraftforge.client.model.generators.MultiPartBlockStateBuilder;
 
 public class BlockStateGen {
@@ -73,6 +76,12 @@ public class BlockStateGen {
 		boolean customItem) {
 		return (c, p) -> horizontalAxisBlock(c, p, getBlockModel(customItem, c, p));
 	}
+	
+	public static <T extends Block> NonNullBiConsumer<DataGenContext<Block, T>, RegistrateBlockstateProvider> simpleCubeAll(
+		String path) {
+		return (c, p) -> p.simpleBlock(c.get(), p.models()
+			.cubeAll(c.getName(), p.modLoc("block/" + path)));
+	}
 
 	public static <T extends DirectionalAxisKineticBlock> NonNullBiConsumer<DataGenContext<Block, T>, RegistrateBlockstateProvider> directionalAxisBlockProvider() {
 		return (c, p) -> directionalAxisBlock(c, p, ($, vertical) -> p.models()
@@ -82,17 +91,6 @@ public class BlockStateGen {
 	public static <T extends Block> NonNullBiConsumer<DataGenContext<Block, T>, RegistrateBlockstateProvider> horizontalWheelProvider(
 		boolean customItem) {
 		return (c, p) -> horizontalWheel(c, p, getBlockModel(customItem, c, p));
-	}
-
-	public static <P> NonNullUnaryOperator<BlockBuilder<OxidizingBlock, P>> oxidizedBlockstate() {
-		return b -> b.blockstate((ctx, prov) -> prov.getVariantBuilder(ctx.getEntry())
-			.forAllStates(state -> {
-				String name = AssetLookup.getOxidizedModel(ctx.getName(), state.getValue(OxidizingBlock.OXIDIZATION));
-				return ConfiguredModel.builder()
-					.modelFile(prov.models()
-						.cubeAll(name, prov.modLoc(name)))
-					.build();
-			}));
 	}
 
 	// Utility
@@ -205,14 +203,6 @@ public class BlockStateGen {
 			.cubeAll(ctx.getName(), prov.modLoc(texturePath)));
 	}
 
-	public static <T extends Block> void pavedBlock(DataGenContext<Block, T> ctx, RegistrateBlockstateProvider prov,
-		ModelFile top, ModelFile covered) {
-		prov.getVariantBuilder(ctx.getEntry())
-			.forAllStates(state -> ConfiguredModel.builder()
-				.modelFile(state.getValue(PavedBlock.COVERED) ? covered : top)
-				.build());
-	}
-
 	public static NonNullBiConsumer<DataGenContext<Block, CartAssemblerBlock>, RegistrateBlockstateProvider> cartAssembler() {
 		return (c, p) -> p.getVariantBuilder(c.get())
 			.forAllStates(state -> {
@@ -227,8 +217,8 @@ public class BlockStateGen {
 
 				return ConfiguredModel.builder()
 					.modelFile(p.models()
-						.getExistingFile(p.modLoc(
-							"block/" + c.getName() + "/block_" + type.getSerializedName() + (powered ? "_powered" : ""))))
+						.getExistingFile(p.modLoc("block/" + c.getName() + "/block_" + type.getSerializedName()
+							+ (powered ? "_powered" : ""))))
 					.rotationY(yRotation % 360)
 					.build();
 			});
@@ -239,19 +229,6 @@ public class BlockStateGen {
 			.modelFile(p.models()
 				.getExistingFile(p.modLoc("block/" + c.getName() + "/block")))
 			.build();
-	}
-
-	public static NonNullBiConsumer<DataGenContext<Block, ReinforcedRailBlock>, RegistrateBlockstateProvider> reinforcedRail() {
-		return (c, p) -> p.getVariantBuilder(c.get())
-			.forAllStates(state -> {
-				return ConfiguredModel.builder()
-					.modelFile(p.models()
-						.getExistingFile(p.modLoc(
-							"block/" + c.getName() + "/block" + (state.getValue(ReinforcedRailBlock.CONNECTS_S) ? "_s" : "")
-								+ (state.getValue(ReinforcedRailBlock.CONNECTS_N) ? "_n" : ""))))
-					.rotationY(state.getValue(ReinforcedRailBlock.RAIL_SHAPE) == RailShape.EAST_WEST ? 90 : 0)
-					.build();
-			});
 	}
 
 	public static <B extends LinearChassisBlock> NonNullBiConsumer<DataGenContext<Block, B>, RegistrateBlockstateProvider> linearChassis() {
@@ -376,6 +353,63 @@ public class BlockStateGen {
 		};
 	}
 
+	public static <P extends TrapDoorBlock> NonNullBiConsumer<DataGenContext<Block, P>, RegistrateBlockstateProvider> uvLockedTrapdoorBlock(
+		P block, ModelFile bottom, ModelFile top, ModelFile open) {
+		return (c, p) -> {
+			p.getVariantBuilder(block)
+				.forAllStatesExcept(state -> {
+					int xRot = 0;
+					int yRot = ((int) state.getValue(TrapDoorBlock.FACING)
+						.toYRot()) + 180;
+					boolean isOpen = state.getValue(TrapDoorBlock.OPEN);
+					if (!isOpen)
+						yRot = 0;
+					yRot %= 360;
+					return ConfiguredModel.builder()
+						.modelFile(isOpen ? open : state.getValue(TrapDoorBlock.HALF) == Half.TOP ? top : bottom)
+						.rotationX(xRot)
+						.rotationY(yRot)
+						.uvLock(!isOpen)
+						.build();
+				}, TrapDoorBlock.POWERED, TrapDoorBlock.WATERLOGGED);
+		};
+	}
+
+	public static <P extends WhistleExtenderBlock> NonNullBiConsumer<DataGenContext<Block, P>, RegistrateBlockstateProvider> whistleExtender() {
+		return (c, p) -> {
+			BlockModelProvider models = p.models();
+			String basePath = "block/steam_whistle/extension/";
+			MultiPartBlockStateBuilder builder = p.getMultipartBuilder(c.get());
+
+			for (WhistleSize size : WhistleSize.values()) {
+				String basePathSize = basePath + size.getSerializedName() + "_";
+				ExistingModelFile topRim = models.getExistingFile(Create.asResource(basePathSize + "top_rim"));
+				ExistingModelFile single = models.getExistingFile(Create.asResource(basePathSize + "single"));
+				ExistingModelFile double_ = models.getExistingFile(Create.asResource(basePathSize + "double"));
+
+				builder.part()
+					.modelFile(topRim)
+					.addModel()
+					.condition(WhistleExtenderBlock.SIZE, size)
+					.condition(WhistleExtenderBlock.SHAPE, WhistleExtenderShape.DOUBLE)
+					.end()
+					.part()
+					.modelFile(single)
+					.addModel()
+					.condition(WhistleExtenderBlock.SIZE, size)
+					.condition(WhistleExtenderBlock.SHAPE, WhistleExtenderShape.SINGLE)
+					.end()
+					.part()
+					.modelFile(double_)
+					.addModel()
+					.condition(WhistleExtenderBlock.SIZE, size)
+					.condition(WhistleExtenderBlock.SHAPE, WhistleExtenderShape.DOUBLE,
+						WhistleExtenderShape.DOUBLE_CONNECTED)
+					.end();
+			}
+		};
+	}
+
 	public static <P extends FluidPipeBlock> NonNullBiConsumer<DataGenContext<Block, P>, RegistrateBlockstateProvider> pipe() {
 		return (c, p) -> {
 			String path = "block/" + c.getName();
@@ -386,17 +420,26 @@ public class BlockStateGen {
 			String RD = "rd";
 			String LR = "lr";
 			String UD = "ud";
+			String U = "u";
+			String D = "d";
+			String L = "l";
+			String R = "r";
+
 			String NONE = "none";
 
-			List<String> orientations = ImmutableList.of(LU, RU, LD, RD, LR, UD, NONE);
+			List<String> orientations = ImmutableList.of(LU, RU, LD, RD, LR, UD, U, D, L, R, NONE);
 			Map<String, Pair<Integer, Integer>> uvs = ImmutableMap.<String, Pair<Integer, Integer>>builder()
-				.put(LU, Pair.of(8, 12))
-				.put(RU, Pair.of(0, 12))
-				.put(LD, Pair.of(12, 8))
-				.put(RD, Pair.of(8, 8))
-				.put(LR, Pair.of(4, 12))
+				.put(LU, Pair.of(12, 4))
+				.put(RU, Pair.of(8, 4))
+				.put(LD, Pair.of(12, 0))
+				.put(RD, Pair.of(8, 0))
+				.put(LR, Pair.of(4, 8))
 				.put(UD, Pair.of(0, 8))
-				.put(NONE, Pair.of(12, 12))
+				.put(U, Pair.of(4, 4))
+				.put(D, Pair.of(0, 0))
+				.put(L, Pair.of(4, 0))
+				.put(R, Pair.of(0, 4))
+				.put(NONE, Pair.of(12, 8))
 				.build();
 
 			Map<Axis, ResourceLocation> coreTemplates = new IdentityHashMap<>();
@@ -404,7 +447,6 @@ public class BlockStateGen {
 
 			for (Axis axis : Iterate.axes)
 				coreTemplates.put(axis, p.modLoc(path + "/core_" + axis.getSerializedName()));
-			ModelFile end = AssetLookup.partialBaseModel(c, p, "end");
 
 			for (Axis axis : Iterate.axes) {
 				ResourceLocation parent = coreTemplates.get(axis);
@@ -425,11 +467,17 @@ public class BlockStateGen {
 							float u = pair.getKey();
 							float v = pair.getValue();
 							if (d == Direction.UP)
-								builder.uvs(u, v + 4, u + 4, v);
-							else if (d.getAxisDirection() == AxisDirection.POSITIVE)
+								builder.uvs(u + 4, v + 4, u, v);
+							if (d == Direction.DOWN)
 								builder.uvs(u + 4, v, u, v + 4);
-							else
+							if (d == Direction.NORTH)
 								builder.uvs(u, v, u + 4, v + 4);
+							if (d == Direction.SOUTH)
+								builder.uvs(u + 4, v, u, v + 4);
+							if (d == Direction.EAST)
+								builder.uvs(u, v, u + 4, v + 4);
+							if (d == Direction.WEST)
+								builder.uvs(u + 4, v, u, v + 4);
 							builder.texture("#0");
 						})
 						.end());
@@ -437,14 +485,15 @@ public class BlockStateGen {
 			}
 
 			MultiPartBlockStateBuilder builder = p.getMultipartBuilder(c.get());
-			for (Direction d : Iterate.directions)
+			for (Direction d : Iterate.directions) {
+				ModelFile end = p.models()
+					.getExistingFile(p.modLoc(path + "/connection/" + d.getSerializedName()));
 				builder.part()
 					.modelFile(end)
-					.rotationX(d == Direction.UP ? 0 : d == Direction.DOWN ? 180 : 90)
-					.rotationY((int) (d.toYRot() + 180) % 360)
 					.addModel()
 					.condition(FluidPipeBlock.PROPERTY_BY_DIRECTION.get(d), true)
 					.end();
+			}
 
 			for (Axis axis : Iterate.axes) {
 				putPart(coreModels, builder, axis, LU, true, false, true, false);
@@ -452,11 +501,11 @@ public class BlockStateGen {
 				putPart(coreModels, builder, axis, LD, false, true, true, false);
 				putPart(coreModels, builder, axis, RD, false, true, false, true);
 				putPart(coreModels, builder, axis, UD, true, true, false, false);
-				putPart(coreModels, builder, axis, UD, true, false, false, false);
-				putPart(coreModels, builder, axis, UD, false, true, false, false);
+				putPart(coreModels, builder, axis, U, true, false, false, false);
+				putPart(coreModels, builder, axis, D, false, true, false, false);
 				putPart(coreModels, builder, axis, LR, false, false, true, true);
-				putPart(coreModels, builder, axis, LR, false, false, true, false);
-				putPart(coreModels, builder, axis, LR, false, false, false, true);
+				putPart(coreModels, builder, axis, L, false, false, true, false);
+				putPart(coreModels, builder, axis, R, false, false, false, true);
 				putPart(coreModels, builder, axis, NONE, false, false, false, false);
 			}
 		};
@@ -466,13 +515,25 @@ public class BlockStateGen {
 		Axis axis, String s, boolean up, boolean down, boolean left, boolean right) {
 		Direction positiveAxis = Direction.get(AxisDirection.POSITIVE, axis);
 		Map<Direction, BooleanProperty> propertyMap = FluidPipeBlock.PROPERTY_BY_DIRECTION;
+
+		Direction upD = Pointing.UP.getCombinedDirection(positiveAxis);
+		Direction leftD = Pointing.LEFT.getCombinedDirection(positiveAxis);
+		Direction rightD = Pointing.RIGHT.getCombinedDirection(positiveAxis);
+		Direction downD = Pointing.DOWN.getCombinedDirection(positiveAxis);
+
+		if (axis == Axis.Y || axis == Axis.X) {
+			leftD = leftD.getOpposite();
+			rightD = rightD.getOpposite();
+		}
+
 		builder.part()
 			.modelFile(coreModels.get(Pair.of(s, axis)))
 			.addModel()
-			.condition(propertyMap.get(Pointing.UP.getCombinedDirection(positiveAxis)), up)
-			.condition(propertyMap.get(Pointing.LEFT.getCombinedDirection(positiveAxis)), left)
-			.condition(propertyMap.get(Pointing.RIGHT.getCombinedDirection(positiveAxis)), right)
-			.condition(propertyMap.get(Pointing.DOWN.getCombinedDirection(positiveAxis)), down)
+			.condition(propertyMap.get(upD), up)
+			.condition(propertyMap.get(leftD), left)
+			.condition(propertyMap.get(rightD), right)
+			.condition(propertyMap.get(downD), down)
 			.end();
 	}
+
 }

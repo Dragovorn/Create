@@ -3,9 +3,11 @@ package com.simibubi.create.content.contraptions.components.actors;
 import com.simibubi.create.content.contraptions.components.structureMovement.Contraption;
 import com.simibubi.create.foundation.item.ItemHandlerWrapper;
 
-import net.minecraft.item.ItemStack;
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraft.util.Direction;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.items.IItemHandlerModifiable;
@@ -15,15 +17,15 @@ public class PortableItemInterfaceTileEntity extends PortableStorageInterfaceTil
 
 	protected LazyOptional<IItemHandlerModifiable> capability;
 
-	public PortableItemInterfaceTileEntity(TileEntityType<?> tileEntityTypeIn) {
-		super(tileEntityTypeIn);
+	public PortableItemInterfaceTileEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+		super(type, pos, state);
 		capability = createEmptyHandler();
 	}
 
 	@Override
 	public void startTransferringTo(Contraption contraption, float distance) {
 		LazyOptional<IItemHandlerModifiable> oldCap = capability;
-		capability = LazyOptional.of(() -> new InterfaceItemHandler(contraption.inventory));
+		capability = LazyOptional.of(() -> new InterfaceItemHandler(contraption.getSharedInventory()));
 		oldCap.invalidate();
 		super.startTransferringTo(contraption, distance);
 	}
@@ -35,7 +37,7 @@ public class PortableItemInterfaceTileEntity extends PortableStorageInterfaceTil
 		oldCap.invalidate();
 		super.stopTransferring();
 	}
-	
+
 	private LazyOptional<IItemHandlerModifiable> createEmptyHandler() {
 		return LazyOptional.of(() -> new InterfaceItemHandler(new ItemStackHandler(0)));
 	}

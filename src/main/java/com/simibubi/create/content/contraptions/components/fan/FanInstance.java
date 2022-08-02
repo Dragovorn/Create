@@ -1,16 +1,16 @@
 package com.simibubi.create.content.contraptions.components.fan;
 
-import static net.minecraft.state.properties.BlockStateProperties.FACING;
+import static net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING;
 
-import com.jozufozu.flywheel.backend.material.MaterialManager;
+import com.jozufozu.flywheel.api.MaterialManager;
 import com.simibubi.create.AllBlockPartials;
 import com.simibubi.create.content.contraptions.base.KineticTileInstance;
-import com.simibubi.create.content.contraptions.base.RotatingData;
+import com.simibubi.create.content.contraptions.base.flwdata.RotatingData;
 import com.simibubi.create.foundation.render.AllMaterialSpecs;
 
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MathHelper;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.util.Mth;
 
 public class FanInstance extends KineticTileInstance<EncasedFanTileEntity> {
 
@@ -19,7 +19,7 @@ public class FanInstance extends KineticTileInstance<EncasedFanTileEntity> {
     final Direction direction;
     private final Direction opposite;
 
-    public FanInstance(MaterialManager<?> modelManager, EncasedFanTileEntity tile) {
+    public FanInstance(MaterialManager modelManager, EncasedFanTileEntity tile) {
 		super(modelManager, tile);
 
 		direction = blockState.getValue(FACING);
@@ -36,11 +36,11 @@ public class FanInstance extends KineticTileInstance<EncasedFanTileEntity> {
 	}
 
     private float getFanSpeed() {
-        float speed = tile.getSpeed() * 5;
+        float speed = blockEntity.getSpeed() * 5;
         if (speed > 0)
-            speed = MathHelper.clamp(speed, 80, 64 * 20);
+            speed = Mth.clamp(speed, 80, 64 * 20);
         if (speed < 0)
-            speed = MathHelper.clamp(speed, -64 * 20, -80);
+            speed = Mth.clamp(speed, -64 * 20, -80);
         return speed;
     }
 

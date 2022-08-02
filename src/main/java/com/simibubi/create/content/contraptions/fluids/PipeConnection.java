@@ -4,8 +4,6 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.function.Predicate;
 
-import com.simibubi.create.AllBlocks;
-import com.simibubi.create.foundation.advancement.AllTriggers;
 import com.simibubi.create.foundation.tileEntity.TileEntityBehaviour;
 import com.simibubi.create.foundation.utility.BlockFace;
 import com.simibubi.create.foundation.utility.Couple;
@@ -14,20 +12,20 @@ import com.simibubi.create.foundation.utility.VecHelper;
 import com.simibubi.create.foundation.utility.animation.LerpedFloat;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.entity.Entity;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.nbt.FloatNBT;
-import net.minecraft.nbt.ListNBT;
-import net.minecraft.particles.IParticleData;
-import net.minecraft.util.Direction;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.vector.Vector3d;
-import net.minecraft.world.World;
-import net.minecraft.world.chunk.ChunkStatus;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.particles.ParticleOptions;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.FloatTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.chunk.ChunkStatus;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.common.util.Constants.NBT;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fml.DistExecutor;
 
@@ -82,14 +80,14 @@ public class PipeConnection {
 		return true;
 	}
 
-	public void manageSource(World world, BlockPos pos) {
+	public void manageSource(Level world, BlockPos pos) {
 		if (!source.isPresent() && !determineSource(world, pos))
 			return;
 		FlowSource flowSource = source.get();
 		flowSource.manageSource(world);
 	}
 
-	public boolean manageFlows(World world, BlockPos pos, FluidStack internalFluid,
+	public boolean manageFlows(Level world, BlockPos pos, FluidStack internalFluid,
 		Predicate<FluidStack> extractionPredicate) {
 
 		// Only keep network if still valid
@@ -160,12 +158,12 @@ public class PipeConnection {
 		return true;
 	}
 
-	public boolean determineSource(World world, BlockPos pos) {
+	public boolean determineSource(Level world, BlockPos pos) {
 		BlockPos relative = pos.relative(side);
-		// cannot use world.isLoaded because it always returns true onclient
+		// cannot use world.isLoaded because it always returns true on client
 		if (world.getChunk(relative.getX() >> 4, relative.getZ() >> 4, ChunkStatus.FULL, false) == null)
 			return false;
-		
+
 		BlockFace location = new BlockFace(pos, side);
 		if (FluidPropagator.isOpenEnd(world, pos, side)) {
 			if (previousSource.orElse(null) instanceof OpenEndedPipe)
@@ -186,7 +184,7 @@ public class PipeConnection {
 		return true;
 	}
 
-	public void tickFlowProgress(World world, BlockPos pos) {
+	public void tickFlowProgress(Level world, BlockPos pos) {
 		if (!hasFlow())
 			return;
 		Flow flow = this.flow.get();
@@ -203,23 +201,20 @@ public class PipeConnection {
 			particleSplashNextTick = false;
 		}
 
-		float flowSpeed = 1 / 32f + MathHelper.clamp(pressure.get(flow.inbound) / 512f, 0, 1) * 31 / 32f;
+		float flowSpeed = 1 / 32f + Mth.clamp(pressure.get(flow.inbound) / 512f, 0, 1) * 31 / 32f;
 		flow.progress.setValue(Math.min(flow.progress.getValue() + flowSpeed, 1));
-		if (flow.progress.getValue() >= 1) {
+		if (flow.progress.getValue() >= 1) 
 			flow.complete = true;
-			if (flow.inbound && AllBlocks.GLASS_FLUID_PIPE.has(world.getBlockState(pos)))
-				AllTriggers.triggerForNearbyPlayers(AllTriggers.GLASS_PIPE, world, pos, 5);
-		}
 	}
 
-	public void serializeNBT(CompoundNBT tag, boolean clientPacket) {
-		CompoundNBT connectionData = new CompoundNBT();
+	public void serializeNBT(CompoundTag tag, boolean clientPacket) {
+		CompoundTag connectionData = new CompoundTag();
 		tag.put(side.getName(), connectionData);
 
 		if (hasPressure()) {
-			ListNBT pressureData = new ListNBT();
-			pressureData.add(FloatNBT.valueOf(getInboundPressure()));
-			pressureData.add(FloatNBT.valueOf(getOutwardPressure()));
+			ListTag pressureData = new ListTag();
+			pressureData.add(FloatTag.valueOf(getInboundPressure()));
+			pressureData.add(FloatTag.valueOf(getOutwardPressure()));
 			connectionData.put("Pressure", pressureData);
 		}
 
@@ -227,7 +222,7 @@ public class PipeConnection {
 			connectionData.put("OpenEnd", ((OpenEndedPipe) source.get()).serializeNBT());
 
 		if (hasFlow()) {
-			CompoundNBT flowData = new CompoundNBT();
+			CompoundTag flowData = new CompoundTag();
 			Flow flow = this.flow.get();
 			flow.fluid.writeToNBT(flowData);
 			flowData.putBoolean("In", flow.inbound);
@@ -242,11 +237,11 @@ public class PipeConnection {
 		return source.orElse(null) instanceof OpenEndedPipe;
 	}
 
-	public void deserializeNBT(CompoundNBT tag, BlockPos tilePos, boolean clientPacket) {
-		CompoundNBT connectionData = tag.getCompound(side.getName());
+	public void deserializeNBT(CompoundTag tag, BlockPos tilePos, boolean clientPacket) {
+		CompoundTag connectionData = tag.getCompound(side.getName());
 
 		if (connectionData.contains("Pressure")) {
-			ListNBT pressureData = connectionData.getList("Pressure", NBT.TAG_FLOAT);
+			ListTag pressureData = connectionData.getList("Pressure", Tag.TAG_FLOAT);
 			pressure = Couple.create(pressureData.getFloat(0), pressureData.getFloat(1));
 		} else
 			pressure.replace(f -> 0f);
@@ -256,7 +251,7 @@ public class PipeConnection {
 			source = Optional.of(OpenEndedPipe.fromNBT(connectionData.getCompound("OpenEnd"), tilePos));
 
 		if (connectionData.contains("Flow")) {
-			CompoundNBT flowData = connectionData.getCompound("Flow");
+			CompoundTag flowData = connectionData.getCompound("Flow");
 			FluidStack fluid = FluidStack.loadFluidStackFromNBT(flowData);
 			boolean inbound = flowData.getBoolean("In");
 			if (!flow.isPresent()) {
@@ -360,16 +355,16 @@ public class PipeConnection {
 	public static final float RIM_RADIUS = 1 / 4f + 1 / 64f;
 	public static final Random r = new Random();
 
-	public void spawnSplashOnRim(World world, BlockPos pos, FluidStack fluid) {
+	public void spawnSplashOnRim(Level world, BlockPos pos, FluidStack fluid) {
 		DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> spawnSplashOnRimInner(world, pos, fluid));
 	}
 
-	public void spawnParticles(World world, BlockPos pos, FluidStack fluid) {
+	public void spawnParticles(Level world, BlockPos pos, FluidStack fluid) {
 		DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> spawnParticlesInner(world, pos, fluid));
 	}
 
 	@OnlyIn(Dist.CLIENT)
-	private void spawnParticlesInner(World world, BlockPos pos, FluidStack fluid) {
+	private void spawnParticlesInner(Level world, BlockPos pos, FluidStack fluid) {
 		if (world == Minecraft.getInstance().level)
 			if (!isRenderEntityWithinDistance(pos))
 				return;
@@ -380,7 +375,7 @@ public class PipeConnection {
 	}
 
 	@OnlyIn(Dist.CLIENT)
-	private void spawnSplashOnRimInner(World world, BlockPos pos, FluidStack fluid) {
+	private void spawnSplashOnRimInner(Level world, BlockPos pos, FluidStack fluid) {
 		if (world == Minecraft.getInstance().level)
 			if (!isRenderEntityWithinDistance(pos))
 				return;
@@ -388,20 +383,20 @@ public class PipeConnection {
 	}
 
 	@OnlyIn(Dist.CLIENT)
-	private void spawnRimParticles(World world, BlockPos pos, FluidStack fluid, int amount) {
+	private void spawnRimParticles(Level world, BlockPos pos, FluidStack fluid, int amount) {
 		if (hasOpenEnd()) {
 			spawnPouringLiquid(world, pos, fluid, amount);
 			return;
 		}
 
-		IParticleData particle = FluidFX.getDrippingParticle(fluid);
+		ParticleOptions particle = FluidFX.getDrippingParticle(fluid);
 		FluidFX.spawnRimParticles(world, pos, side, amount, particle, RIM_RADIUS);
 	}
 
 	@OnlyIn(Dist.CLIENT)
-	private void spawnPouringLiquid(World world, BlockPos pos, FluidStack fluid, int amount) {
-		IParticleData particle = FluidFX.getFluidParticle(fluid);
-		Vector3d directionVec = Vector3d.atLowerCornerOf(side.getNormal());
+	private void spawnPouringLiquid(Level world, BlockPos pos, FluidStack fluid, int amount) {
+		ParticleOptions particle = FluidFX.getFluidParticle(fluid);
+		Vec3 directionVec = Vec3.atLowerCornerOf(side.getNormal());
 		if (!hasFlow())
 			return;
 		Flow flow = this.flow.get();
@@ -414,7 +409,7 @@ public class PipeConnection {
 			.getCameraEntity();
 		if (renderViewEntity == null)
 			return false;
-		Vector3d center = VecHelper.getCenterOf(pos);
+		Vec3 center = VecHelper.getCenterOf(pos);
 		if (renderViewEntity.position()
 			.distanceTo(center) > MAX_PARTICLE_RENDER_DISTANCE)
 			return false;
@@ -462,7 +457,7 @@ public class PipeConnection {
 //		Vector3d scale = new Vector3d(1, 1, 1).subtract(directionVec.scale(side.getAxisDirection()
 //			.getOffset()))
 //			.scale(size);
-//		AxisAlignedBB bb = new AxisAlignedBB(start, start.add(offset)).offset(VecHelper.getCenterOf(pos))
+//		AABB bb = new AABB(start, start.add(offset)).offset(VecHelper.getCenterOf(pos))
 //			.grow(scale.x, scale.y, scale.z);
 //
 //		int color = 0x7fdbda;
